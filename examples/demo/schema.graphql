@@ -1,0 +1,33 @@
+# Read-model schema only. Mutations remain independently defined RPC commands.
+type Query {
+  project(id: UUID!): Project @bind(argument: "id", field: "id")
+}
+
+type Project @table(schema: "tenant_001", name: "projects", softDelete: "deletedAt") {
+  id: UUID!
+  organizationId: UUID! @column(path: ["organization_id"])
+  title: String!
+  createdAt: DateTime! @column(path: ["created_at"])
+  updatedAt: DateTime! @column(path: ["updated_at"])
+  deletedAt: DateTime @column(path: ["deleted_at"])
+  taskLinks: [ProjectTask!]! @relation(parent: ["organizationId", "id"], child: ["organizationId", "projectId"])
+}
+
+type ProjectTask @table(schema: "tenant_001", name: "project_tasks", softDelete: "deletedAt") {
+  organizationId: UUID! @column(path: ["organization_id"])
+  projectId: UUID! @column(path: ["project_id"])
+  taskId: UUID! @column(path: ["task_id"])
+  position: Decimal!
+  deletedAt: DateTime @column(path: ["deleted_at"])
+  task: Task @relation(parent: ["organizationId", "taskId"], child: ["organizationId", "id"])
+}
+
+type Task @table(schema: "tenant_001", name: "tasks", softDelete: "deletedAt") {
+  id: UUID!
+  organizationId: UUID! @column(path: ["organization_id"])
+  title: String!
+  completed: Boolean!
+  createdAt: DateTime! @column(path: ["created_at"])
+  updatedAt: DateTime! @column(path: ["updated_at"])
+  deletedAt: DateTime @column(path: ["deleted_at"])
+}

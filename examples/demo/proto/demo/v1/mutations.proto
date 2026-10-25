@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+package demo.v1;
+
+option go_package = "github.com/adiom-data/weave/examples/demo/gen/demo/v1;demov1";
+
+// Application writes are independent of reactive projection definitions.
+service TaskMutationService {
+  rpc CreateTask(CreateTaskRequest) returns (CreateTaskResponse);
+  rpc UpdateTask(UpdateTaskRequest) returns (UpdateTaskResponse);
+  rpc DeleteTask(DeleteTaskRequest) returns (DeleteTaskResponse);
+}
+
+message CreateTaskRequest {
+  string project_id = 1;
+  string title = 2;
+}
+
+message CreateTaskResponse {
+  string task_id = 1;
+}
+
+message UpdateTaskRequest {
+  string project_id = 1;
+  string task_id = 2;
+  bool completed = 3;
+}
+
+message UpdateTaskResponse {}
+
+message DeleteTaskRequest {
+  string project_id = 1;
+  string task_id = 2;
+}
+
+message DeleteTaskResponse {}

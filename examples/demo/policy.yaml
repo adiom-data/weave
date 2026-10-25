@@ -1,0 +1,58 @@
+# auth.claim_types maps configured/JWT strings to UUID values at admission.
+# Policies and fact-query bindings use those typed values without runtime casts.
+relations:
+  - schema: tenant_001
+    table: projects
+    facts:
+      - id: user-grants
+        projection:
+          name: user-grants
+          kind: list
+          relation: {schema: tenant_001, table: project_user_grants}
+          filter: {field: [deleted_at], operator: is_null}
+          bindings:
+            - {field: [organization_id], operator: eq, parameter: [item, organization_id]}
+            - {field: [project_id], operator: eq, parameter: [item, id]}
+            - {field: [user_id], operator: eq, parameter: [claims, user_id]}
+      - id: team-grants
+        projection:
+          name: team-grants
+          kind: list
+          relation: {schema: tenant_001, table: project_team_grants}
+          filter: {field: [deleted_at], operator: is_null}
+          bindings:
+            - {field: [organization_id], operator: eq, parameter: [item, organization_id]}
+            - {field: [project_id], operator: eq, parameter: [item, id]}
+    allow:
+      - id: project-grant
+        when: >-
+          item.deleted_at == null && claims.organization_id != null &&
+          item.organization_id == claims.organization_id && (
+            (claims.user_id != null && facts["user-grants"].exists(g, true)) ||
+            (claims.team_ids != null && facts["team-grants"].exists(g, g.item.team_id in claims.team_ids))
+          )
+    deny:
+      - {id: deleted, when: 'item.deleted_at != null'}
+      - {id: other-organization, when: 'claims.organization_id == null || item.organization_id != claims.organization_id'}
+    propagate:
+      - id: project-to-association
+        to: {schema: tenant_001, table: project_tasks}
+        when: parent.id == item.project_id && parent.organization_id == item.organization_id
+  - schema: tenant_001
+    table: project_tasks
+    receive:
+      - {from: {schema: tenant_001, table: projects}, id: project-to-association}
+    deny:
+      - {id: deleted, when: 'item.deleted_at != null'}
+      - {id: other-organization, when: 'claims.organization_id == null || item.organization_id != claims.organization_id'}
+    propagate:
+      - id: association-to-task
+        to: {schema: tenant_001, table: tasks}
+        when: parent.task_id == item.id && parent.organization_id == item.organization_id
+  - schema: tenant_001
+    table: tasks
+    receive:
+      - {from: {schema: tenant_001, table: project_tasks}, id: association-to-task}
+    deny:
+      - {id: deleted, when: 'item.deleted_at != null'}
+      - {id: other-organization, when: 'claims.organization_id == null || item.organization_id != claims.organization_id'}

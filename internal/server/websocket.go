@@ -1,0 +1,31 @@
+package server
+
+import (
+	"context"
+	"github.com/adiom-data/weave/internal/server/config"
+	"github.com/adiom-data/weave/internal/server/identity"
+	"github.com/adiom-data/weave/pkg/accesscontrol"
+	"github.com/adiom-data/weave/pkg/projectionserver"
+	projectionws "github.com/adiom-data/weave/pkg/projectionserver/websocket"
+	"log/slog"
+	"net/http"
+)
+
+func newSocketHandler(c config.Config, logger *slog.Logger, authenticate identity.Authenticator, projections projectionserver.Server) http.Handler {
+	serve := func(stream projectionws.Stream, headers http.Header) error {
+		claims, err := authenticate(stream.Context(), headers.Values("Authorization"))
+		if err != nil {
+			return err
+		}
+		ctx := accesscontrol.ContextWithClaims(stream.Context(), claims)
+		return projections.ServeStream(trustedSocketStream{Stream: stream, ctx: ctx})
+	}
+	return projectionws.NewHandler(serve, c.WebOrigin, logger, projectionws.SocketConfig{WriteTimeout: c.Socket.WriteTimeout, IdleTimeout: c.Socket.IdleTimeout, MaxMessageBytes: c.Socket.MaxMessageBytes, MaxMessageDepth: c.Socket.MaxMessageDepth})
+}
+
+type trustedSocketStream struct {
+	projectionws.Stream
+	ctx context.Context
+}
+
+func (s trustedSocketStream) Context() context.Context { return s.ctx }

@@ -1,0 +1,400 @@
+syntax = "proto3";
+
+package querysubscription.v1;
+
+option go_package = "github.com/adiom-data/weave/pkg/gen/querysubscription/v1;querysubscriptionv1";
+
+// QuerySubscriptions is the process boundary for the querysubscription Go
+// contract. One Open stream is one ordered entity/query feed.
+service QuerySubscriptions {
+  rpc Open(stream ClientMessage) returns (stream ServerMessage);
+}
+
+message ClientMessage {
+  string request_id = 1;
+  oneof operation {
+    Initialize initialize = 2;
+    SubscribeQuery subscribe_query = 3;
+    SubscribeEntity subscribe_entity = 4;
+    UpdateWindow update_window = 5;
+    Unsubscribe unsubscribe = 6;
+    CancelRequest cancel_request = 7;
+    CloseFeed close_feed = 8;
+    RequestProgress request_progress = 9;
+  }
+}
+
+// Synchronization uses ordered source progress emitted by the feed. A client
+// may request progress for the feed as a whole; barriers are never scoped to
+// individual subscriptions.
+
+// Initialize is the mandatory first-message handshake for its containing
+// stream. It negotiates feed-wide limits and does not create another resource.
+message Initialize {
+  uint32 buffer_limit = 1;
+  uint32 protocol_version = 2;
+}
+
+message SubscribeQuery {
+  string subscription_id = 1;
+  Query query = 2;
+  InitialWindow window = 3;
+  // One-hop parent-owned entity interests, acquired/released with the window.
+  ReferenceFetch reference = 4;
+}
+
+message ReferenceFetch {
+  Query query = 1;
+  repeated ReferenceBinding bindings = 2;
+}
+
+message ReferenceBinding {
+  FieldPath source = 1;
+  FieldPath target = 2;
+}
+
+message SubscribeEntity {
+  string subscription_id = 1;
+  Query query = 2;
+  // Optional preparation origin, never a change to selector semantics.
+  ReferenceSource fetch_from = 3;
+}
+
+message ReferenceSource {
+  string subscription_id = 1;
+  EntityKey parent_key = 2;
+}
+
+message UpdateWindow {
+  string subscription_id = 1;
+  repeated BoundaryChange changes = 2;
+  string token = 3;
+}
+
+message Unsubscribe {
+  string subscription_id = 1;
+}
+
+// CancelRequest carries per-call context cancellation across the multiplexed
+// feed without tearing down unrelated subscriptions.
+message CancelRequest {
+  string target_request_id = 1;
+}
+
+// CloseFeed requests acknowledged graceful shutdown. Ending the stream also
+// closes the feed, but does not provide an acknowledgment.
+message CloseFeed {}
+
+// RequestProgress asks the query service to report its latest already-observed
+// source position as an ordered Progress event. It never advances the source or
+// creates a datastore barrier. The acknowledgment only confirms that the
+// request was accepted; Progress remains the synchronization proof.
+// If no progress is known, the request is acknowledged without an event.
+message RequestProgress {}
+
+message ServerMessage {
+  string request_id = 1;
+  oneof event {
+    Acknowledged acknowledged = 2;
+    Progress progress = 3;
+    Error error = 4;
+    PayloadChunk payload_chunk = 5;
+  }
+}
+
+message Acknowledged {
+  // Set only on the Initialize acknowledgment.
+  uint32 protocol_version = 1;
+}
+
+// PayloadChunk frames a serialized QuerySnapshot, EntityInstallation, or
+// DeliveryEnvelope independently of the
+// per-message gRPC limit. Implementations still impose a configured total
+// payload bound for memory safety.
+message PayloadChunk {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    QUERY_SNAPSHOT = 1;
+    ENTITY_INSTALLED = 2;
+    DELIVERY = 3;
+  }
+  Kind kind = 1;
+  string subscription_id = 2;
+  uint64 payload_id = 3;
+  uint32 index = 4;
+  bool final = 5;
+  uint64 total_size = 6;
+  bytes data = 7;
+}
+
+message Error {
+  enum Code {
+    CODE_UNSPECIFIED = 0;
+    INVALID_REQUEST = 1;
+    BACKPRESSURE = 2;
+    CLOSED = 3;
+    INTERNAL = 4;
+  }
+  Code code = 1;
+  string subscription_id = 2;
+  string message = 3;
+}
+
+message Query {
+  string namespace = 1;
+  string relation = 2;
+  Predicate filter = 3;
+  repeated OrderTerm order = 4;
+}
+
+message FieldPath {
+  repeated string segments = 1;
+}
+
+message Predicate {
+  oneof expression {
+    Comparison comparison = 1;
+    NullTest null_test = 2;
+    Junction junction = 3;
+  }
+}
+
+message Comparison {
+  enum Operator {
+    OPERATOR_UNSPECIFIED = 0;
+    EQUAL = 1;
+    NOT_EQUAL = 2;
+    LESS_THAN = 3;
+    LESS_THAN_OR_EQUAL = 4;
+    GREATER_THAN = 5;
+    GREATER_THAN_OR_EQUAL = 6;
+  }
+  FieldPath field = 1;
+  Operator operator = 2;
+  Value value = 3;
+}
+
+message NullTest {
+  FieldPath field = 1;
+  bool is_null = 2;
+}
+
+message Junction {
+  enum Operator {
+    OPERATOR_UNSPECIFIED = 0;
+    AND = 1;
+    OR = 2;
+  }
+  Operator operator = 1;
+  repeated Predicate operands = 2;
+}
+
+message OrderTerm {
+  FieldPath field = 1;
+  bool descending = 2;
+  bool nulls_first = 3;
+}
+
+message Value {
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    NULL = 1;
+    PRESENT = 2;
+    UNAVAILABLE = 3;
+  }
+  State state = 1;
+  string type = 2;
+  bytes data = 3;
+  // Exact time.Time.MarshalBinary representation. Unlike an edge protobuf
+  // Timestamp this process boundary must not clamp the engine's value domain.
+  bytes datetime = 4;
+  repeated Value list = 5;
+  map<string, Value> object = 6;
+}
+
+message InitialWindow {
+  bool from_end = 1;
+  uint32 count = 2;
+}
+
+message Position {
+  string source_id = 1;
+  uint64 value = 2;
+}
+
+message Progress {
+  Position position = 1;
+  uint64 revision = 2;
+  uint64 previous_revision = 3;
+}
+
+message EntityKey {
+  RelationKey relation = 1;
+  string value = 2;
+}
+
+message RelationKey {
+  string source_id = 1;
+  string namespace = 2;
+  string name = 3;
+  string opaque_id = 4;
+}
+
+message Row {
+  EntityKey key = 1;
+  Record record = 2;
+  bool pending = 3;
+  bytes cursor = 4;
+  uint32 change_index = 5;
+}
+
+message Record {
+  map<string, Value> fields = 1;
+}
+
+message Boundary {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    START = 1;
+    CURSOR = 2;
+    END = 3;
+  }
+  Kind kind = 1;
+  bytes cursor = 2;
+}
+
+message Bounds {
+  Boundary left = 1;
+  Boundary right = 2;
+}
+
+// A bounded source row and its optional to-one expansion. A present expanded
+// snapshot with no row means the selection was loaded and returned no match.
+message QueryRow {
+  Row row = 1;
+  EntitySnapshot expanded = 2;
+}
+
+message QuerySnapshot {
+  Bounds bounds = 1;
+  repeated QueryRow rows = 2;
+  Position checkpoint = 3;
+  Position fence = 4;
+  uint64 revision = 5;
+  bool owned_references = 6;
+}
+
+// Only routing differs between explicit and parent-owned entity interests.
+message ReferenceRoute {
+  string selector = 1;
+  repeated EntityKey parents = 2;
+}
+
+message EntityTarget {
+  string subscription_id = 1;
+  ReferenceRoute reference = 2;
+}
+
+message EntityInstallation {
+  EntityTarget target = 1;
+  EntitySnapshot snapshot = 2;
+}
+
+message EntityDelta {
+  bool clear = 1;
+  uint32 clear_change_index = 2;
+  repeated Change changes = 3;
+}
+
+message EntityEffect {
+  EntityTarget target = 1;
+  EntityDelta delta = 2;
+}
+
+message EntitySnapshot {
+  Row row = 1;
+  Position checkpoint = 2;
+  Position fence = 3;
+  uint64 revision = 4;
+}
+
+message BoundaryChange {
+  enum Side {
+    SIDE_UNSPECIFIED = 0;
+    LEFT = 1;
+    RIGHT = 2;
+  }
+  enum Operation {
+    OPERATION_UNSPECIFIED = 0;
+    MOVE = 1;
+    EXTEND = 2;
+    CONTRACT = 3;
+  }
+  Side side = 1;
+  Operation operation = 2;
+  uint32 count = 3;
+  bytes cursor = 4;
+}
+
+message DeliveryMetadata {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    COMMIT = 1;
+    HYDRATION = 2;
+    WINDOW = 3;
+  }
+  Kind kind = 1;
+  Position checkpoint = 2;
+  Position fence = 3;
+  bool atomic = 4;
+  uint64 revision = 5;
+  uint64 previous_revision = 6;
+}
+
+message Change {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    ADDED = 1;
+    UPDATED = 2;
+    REMOVED = 3;
+  }
+  Kind kind = 1;
+  Row row = 2;
+}
+
+message Insertion {
+  EntityKey key = 1;
+  uint32 final_index = 2;
+}
+
+message MembershipDelta {
+  repeated EntityKey removed = 1;
+  repeated Insertion insertions = 2;
+}
+
+message WindowTransition {
+  string token = 1;
+  Bounds bounds = 2;
+  Position fence = 3;
+  Position checkpoint = 4;
+}
+
+message Batch {
+  bool clear = 1;
+  uint32 clear_change_index = 2;
+  repeated Change changes = 3;
+  MembershipDelta membership = 4;
+  WindowTransition window = 5;
+  repeated EntityKey binding_resets = 6;
+}
+
+message SubscriptionEffect {
+  string subscription_id = 1;
+  Batch batch = 2;
+}
+
+message DeliveryEnvelope {
+  DeliveryMetadata delivery = 1;
+  repeated SubscriptionEffect effects = 2;
+  repeated EntityEffect entities = 3;
+}

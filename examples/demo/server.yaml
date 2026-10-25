@@ -1,0 +1,22 @@
+# Fixed local-demo claims are not authentication. Keep the listener local.
+address: 127.0.0.1:8080
+web_origin: http://localhost:5173
+storage:
+  type: postgres
+  postgres:
+    url: postgres://postgres:postgres@localhost:5432/weave?sslmode=disable
+    publication: reactive_queries
+    slot: reactive_queries_v1
+auth:
+  mode: fixed
+  claim_types:
+    user_id: uuid
+    organization_id: uuid
+    team_ids: list<uuid>
+  fixed_claims:
+    user_id: "20000000-0000-4000-8000-000000000001"
+    organization_id: "00000000-0000-4000-8000-000000000001"
+    team_ids: ["30000000-0000-4000-8000-000000000001"]
+visibility:
+  mode: policy
+  policy_file: policy.yaml

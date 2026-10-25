@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package transactionmessage.v1;
+
+import "google/protobuf/empty.proto";
+import "querysubscription/v1/querysubscription.proto";
+
+option go_package = "github.com/adiom-data/weave/pkg/gen/transactionmessage/v1;transactionmessagev1";
+
+// Trusted service-to-service broadcast feed, independent of query subscriptions.
+// Choose one feed per projection server per datastore. No replay or client
+// routing is provided here; consumers route opaque messages themselves.
+service TransactionMessages {
+  rpc Open(google.protobuf.Empty) returns (stream MessageBatch);
+}
+
+message MessageBatch {
+  // All messages after this stream's starting point through this position have
+  // been delivered in this or earlier batches. Rows are not covered by this
+  // watermark: query feeds must independently catch up before joining streams.
+  // Delivery may use empty placeholders under metadata limits; this proves
+  // source progress, not preservation of every original payload byte.
+  querysubscription.v1.Position through = 1;
+  // Complete transactions in strictly increasing position order. Transactions
+  // without messages are represented by through alone. Batches never split a
+  // transaction. Over-limit metadata is replaced by empty messages rather than
+  // terminating streams. An over-budget tail may collapse to one empty message.
+  repeated MessageTransaction transactions = 2;
+}
+
+message MessageTransaction {
+  querysubscription.v1.Position position = 1;
+  repeated TransactionMessage messages = 2;
+}
+
+message TransactionMessage {
+  // An entirely empty message is a placeholder with no usable metadata, never
+  // a mutation confirmation. Size/count limits may replace metadata with it.
+  string kind = 1;
+  bytes payload = 2;
+}

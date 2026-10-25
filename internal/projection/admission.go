@@ -1,0 +1,123 @@
+package projection
+
+import (
+	"errors"
+
+	q "github.com/adiom-data/weave/internal/querysubscription/model"
+)
+
+// AdmissionWait describes why an initial image cannot yet be published. Wait
+// is an activity notification, never a source-position proof. When Progress
+// is true the owner should ask its query feed to report existing progress.
+type AdmissionWait struct {
+	Accepted bool
+	Wait     <-chan struct{}
+	Progress bool
+}
+
+// TryAdmitInitial requires CurrentImageAdmission and the same serialized
+// consumer as ApplyEvent. The first call supplies the current image; later
+// calls supply coalesced changes only. accept must retain/apply every delta,
+// including when it returns false, and may start asynchronous work but not wait
+// for IO. No source event can apply between consuming this cut and accepting it.
+// Acceptance starts staging post-cut effects until output is released. Source
+// transaction messages remain connection-owned, independent of admission.
+func (p *Projection) TryAdmitInitial(accept func(ProjectionBatch) (bool, error)) (AdmissionWait, error) {
+	if accept == nil {
+		return AdmissionWait{}, errors.New("initial admission consumer is required")
+	}
+	return p.tryCurrentImage(true, func(root string) (bool, error) {
+		batch, err := p.initialDelta(root)
+		if err != nil {
+			return false, err
+		}
+		return accept(batch)
+	})
+}
+
+// TryPublishCurrent captures an already-running projection after a publication
+// hold. Like initial admission it waits for expansions and their source fences,
+// without blocking the feed consumer. Accepted images supersede older dynamic
+// publication tokens, but never consume connection-owned transaction messages.
+func (p *Projection) TryPublishCurrent(accept func([]ProjectionEvent) (bool, error)) (AdmissionWait, error) {
+	if accept == nil {
+		return AdmissionWait{}, errors.New("current-image consumer is required")
+	}
+	return p.tryCurrentImage(false, func(root string) (bool, error) {
+		events, err := p.currentEvents(root)
+		if err != nil {
+			return false, err
+		}
+		return accept(events)
+	})
+}
+
+func (p *Projection) tryCurrentImage(initial bool, accept func(string) (bool, error)) (AdmissionWait, error) {
+	if accept == nil {
+		return AdmissionWait{}, errors.New("initial snapshot admission callback is required")
+	}
+	p.processMu.Lock()
+	defer p.processMu.Unlock()
+	select {
+	case <-p.ready:
+	default:
+		return AdmissionWait{}, errors.New("projection initialization has not completed")
+	}
+	p.mu.Lock()
+	if p.terminalErr != nil {
+		err := p.terminalErr
+		p.mu.Unlock()
+		return AdmissionWait{}, err
+	}
+	if initial && p.outputReleased {
+		p.mu.Unlock()
+		return AdmissionWait{}, errors.New("projection initial image has already been released")
+	}
+	if initial && p.initialChanges == nil {
+		p.mu.Unlock()
+		return AdmissionWait{}, errors.New("projection requires current-image admission")
+	}
+	root := p.rootID
+	var needsProgress bool
+	for _, instance := range p.instances {
+		target, err := q.SnapshotPosition(instance.checkpoint, instance.fence)
+		if err != nil {
+			p.mu.Unlock()
+			return AdmissionWait{}, err
+		}
+		current := p.latestCheckpoints[target.Source()]
+		if current == nil || current.Order() < target.Order() {
+			needsProgress = true
+		}
+	}
+	changed := p.progressChanged
+	p.mu.Unlock()
+	p.expansions.mu.Lock()
+	idle := p.expansions.idle
+	p.expansions.mu.Unlock()
+	select {
+	case <-idle:
+	default:
+		return AdmissionWait{Wait: idle}, nil
+	}
+	if needsProgress {
+		return AdmissionWait{Wait: changed, Progress: true}, nil
+	}
+	accepted, err := accept(root)
+	if err != nil || !accepted {
+		return AdmissionWait{}, err
+	}
+	p.mu.Lock()
+	for _, instance := range p.instances {
+		instance.published = true
+	}
+	if initial {
+		p.initialChanges = nil
+		p.awaitingAdmission = false
+		p.pendingOutput = nil
+		p.readyEvents = nil
+		p.readyPositions = nil
+	}
+	p.mu.Unlock()
+	return AdmissionWait{Accepted: true}, nil
+}

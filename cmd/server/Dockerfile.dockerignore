@@ -1,0 +1,10 @@
+**
+!go.mod
+!go.sum
+!internal/
+!internal/**
+!pkg/
+!pkg/**
+!cmd/
+!cmd/server/
+!cmd/server/**

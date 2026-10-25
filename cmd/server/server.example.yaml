@@ -1,0 +1,52 @@
+# Local/trusted-upstream example. Not safe to expose publicly as-is.
+# Supply WEAVE_DATABASE_URL in the environment.
+address: 127.0.0.1:8080  # Connect/gRPC, WebSocket, and health on one listener.
+web_origin: http://localhost:5173
+
+storage:
+  type: postgres
+  postgres:
+    publication: app_publication
+    slot: weave_server
+    # Optional restriction, independent of publication membership:
+    # allowed_tables: [app.projects, app.project_tasks, app.tasks]
+
+auth:
+  mode: fixed
+  fixed_claims: {}  # null is also empty. No application claim names are required.
+  # Optional explicit top-level conversions, applied in any auth mode:
+  # claim_types:
+  #   organization_id: uuid
+  #   team_ids: list<uuid>
+  # To parse a JWT trusted/verified upstream, use mode: unverified_jwt instead.
+  # For verification here, use mode: oidc, remove fixed_claims, and supply:
+  # issuer: https://identity.example.com/
+  # audience: weave
+
+visibility:
+  mode: allow_all
+  # To enforce policy, set mode: policy and uncomment:
+  # policy_file: policy.example.yaml
+
+# Optional. Zero selects the corresponding library default.
+limits:
+  subscription_batch_size: 64 # Maximum cached entity registrations per actor turn.
+  max_window_rows: 1000
+  max_reference_invalidations: 100000
+  reference_load_concurrency: 4  # Per query feed, for live reference discoveries.
+  reference_load_queue_limit: 1024
+  max_fact_rows: 999  # Fact completeness probe needs one additional row.
+  max_fact_queries: 1000
+  max_subscriptions_per_connection: 1000
+
+# Host defaults; all may be changed here.
+shutdown_timeout: 10s
+read_header_timeout: 5s
+idle_timeout: 75s
+max_message_bytes: 8388608
+websocket:
+  enabled: true
+  write_timeout: 10s
+  idle_timeout: 1m
+  max_message_bytes: 8388608
+  max_message_depth: 64

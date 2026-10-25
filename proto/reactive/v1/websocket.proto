@@ -1,0 +1,27 @@
+syntax = "proto3";
+
+package reactive.v1;
+
+import "reactive/v1/reactive.proto";
+
+option go_package = "github.com/adiom-data/weave/pkg/gen/reactive/v1;reactivev1";
+
+// One complete envelope per binary WebSocket frame. Transport liveness stays
+// outside ReactiveQueries.Open and never advances model or WAL positions.
+message WebSocketClientFrame {
+  oneof payload {
+    ClientMessage message = 1;
+    WebSocketHeartbeat ping = 2;
+  }
+}
+
+message WebSocketServerFrame {
+  oneof payload {
+    ServerMessage message = 1;
+    WebSocketHeartbeat pong = 2;
+  }
+}
+
+message WebSocketHeartbeat {
+  string id = 1;
+}

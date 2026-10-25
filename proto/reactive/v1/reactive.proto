@@ -1,0 +1,420 @@
+syntax = "proto3";
+
+package reactive.v1;
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/struct.proto";
+
+option go_package = "github.com/adiom-data/weave/pkg/gen/reactive/v1;reactivev1";
+
+service ReactiveQueries {
+  rpc Open(stream ClientMessage) returns (stream ServerMessage);
+  rpc GetProjectionSnapshot(ProjectionSnapshotRequest) returns (ProjectionSnapshotResponse);
+}
+
+// ProjectionSnapshotRequest materializes a projection without retaining live
+// subscriptions. By default each table-level result is returned at the
+// reconciled snapshot used to initialize it. wait_for_sync additionally waits
+// until the ordered change feed has crossed every snapshot fence discovered
+// while expanding the projection.
+message ProjectionSnapshotRequest {
+  ProjectionNode root = 1;
+  map<string, Value> parameters = 2;
+  bool wait_for_sync = 3;
+}
+
+message ProjectionSnapshotResponse {
+  // Nested selected data, keyed by the root node_id. Child node_ids are literal
+  // object keys; field paths retain their stored names and object structure.
+  // Recursive node.fields selections also trim embedded objects and arrays.
+  // Lists are arrays; missing or invisible entities are null. No live model
+  // identifiers are included. Failures use RPC errors, never partial data.
+  // Integers, decimals, bytes (base64), UUIDs, datetimes (RFC 3339), and
+  // non-finite floats are strings; finite floats are JSON numbers.
+  google.protobuf.Struct data = 1;
+  ProjectionSnapshotExtensions extensions = 2;
+}
+
+message ProjectionSnapshotExtensions {
+  bool synchronized = 1;
+  // Present only when a synchronized image has a common source checkpoint.
+  string checkpoint = 2;
+}
+
+message ClientMessage {
+  string subscription_id = 1;
+  // Unique within one Open stream. Repeating an identical message with the
+  // same request_id is an idempotent no-op; reuse for different content is an
+  // error. A new Open stream starts a new request-ID scope.
+  string request_id = 2;
+  oneof operation {
+    Subscribe subscribe = 3;
+    UpdateWindow update_window = 4;
+    Unsubscribe unsubscribe = 5;
+    SubscribeProjection subscribe_projection = 6;
+    UpdateProjectionWindow update_projection_window = 7;
+  }
+}
+
+message Subscribe {
+  Query query = 1;
+  InitialWindow window = 2;
+}
+
+// A projection is an orchestration tree. Every expanded node is still an
+// ordinary single-table subscription with its own snapshot/catch-up barrier.
+message SubscribeProjection {
+  ProjectionNode root = 1;
+  map<string, Value> parameters = 2;
+  // Wait for ordered feed progress to cover every expanded snapshot before
+  // publishing the initial image and Ready. CDC continues during this wait.
+  bool wait_for_sync = 3;
+}
+
+message ProjectionNode {
+  string node_id = 1;
+  oneof selection {
+    ProjectionEntity entity = 2;
+    ProjectionList list = 3;
+  }
+  repeated ProjectionNode children = 4;
+  // Optional recursive output selection in stored names. When absent, query
+  // columns select whole values. Root paths must cover exactly query.columns.
+  // This affects publication only, never datastore reads or predicates.
+  ObjectSelection fields = 5;
+  // Publish every stored field, including whole embedded values. Mutually
+  // exclusive with fields and query.columns; never inferred from empty columns.
+  // Does not automatically expand relationships or change their selections.
+  bool all_fields = 6;
+}
+
+message ObjectSelection {
+  repeated SelectedField fields = 1;
+}
+
+message SelectedField {
+  FieldPath path = 1;
+  // Absent selects the entire value, including arbitrary structured scalars.
+  ValueSelection selection = 2;
+}
+
+message ValueSelection {
+  oneof kind {
+    ObjectSelection object = 1;
+    // Applied to every array element; never changes array order or length.
+    ValueSelection elements = 2;
+    bool whole = 3;
+  }
+}
+
+message ProjectionEntity {
+  Query query = 1;
+  repeated ProjectionBinding bindings = 2;
+}
+
+message ProjectionList {
+  Query query = 1;
+  InitialWindow window = 2;
+  repeated ProjectionBinding bindings = 3;
+  // Optional immediate entity-child node_id to preload with this list's window.
+  // The child remains an ordinary independently delivered entity subscription.
+  string fetch_reference = 4;
+}
+
+message ProjectionBinding {
+  FieldPath column = 1;
+  Comparison.Operator operator = 2;
+  oneof value {
+    Value literal = 3;
+    string parameter = 4;
+    FieldPath parent_column = 5;
+  }
+}
+
+message UpdateProjectionWindow {
+  string instance_id = 1;
+  // At most one update per side. When both sides change, each is resolved
+  // against the pre-update window and both changes are applied atomically.
+  repeated BoundaryUpdate updates = 2;
+}
+
+message Query {
+  string schema = 1;
+  string table = 2;
+  repeated FieldPath columns = 3;
+  Predicate filter = 4;
+  repeated OrderTerm order = 5;
+}
+
+// A path is an exact sequence of object keys. Array positions and string path
+// parsing are deliberately not part of the query language.
+message FieldPath {
+  repeated string segments = 1;
+}
+
+message Predicate {
+  oneof expression {
+    Comparison comparison = 1;
+    Junction junction = 2;
+    NullTest null_test = 3;
+    Negation negation = 4;
+  }
+}
+
+message Negation {
+  Predicate operand = 1;
+}
+
+message Comparison {
+  enum Operator {
+    OPERATOR_UNSPECIFIED = 0;
+    EQUAL = 1;
+    NOT_EQUAL = 2;
+    LESS_THAN = 3;
+    LESS_THAN_OR_EQUAL = 4;
+    GREATER_THAN = 5;
+    GREATER_THAN_OR_EQUAL = 6;
+  }
+  FieldPath column = 1;
+  Operator operator = 2;
+  Value value = 3;
+}
+
+message Junction {
+  enum Operator {
+    OPERATOR_UNSPECIFIED = 0;
+    AND = 1;
+    OR = 2;
+  }
+  Operator operator = 1;
+  repeated Predicate operands = 2;
+}
+
+message NullTest {
+  FieldPath column = 1;
+  bool is_null = 2;
+}
+
+message OrderTerm {
+  FieldPath column = 1;
+  bool descending = 2;
+  bool nulls_first = 3;
+}
+
+message InitialWindow {
+  enum From {
+    FROM_UNSPECIFIED = 0;
+    START = 1;
+    END = 2;
+  }
+  From from = 1;
+  uint32 count = 2;
+}
+
+message UpdateWindow {
+  // At most one update per side. When both sides change, each is resolved
+  // against the pre-update window and both changes are applied atomically.
+  repeated BoundaryUpdate updates = 1;
+}
+
+message BoundaryUpdate {
+  enum Side {
+    SIDE_UNSPECIFIED = 0;
+    LEFT = 1;
+    RIGHT = 2;
+  }
+  enum Operation {
+    OPERATION_UNSPECIFIED = 0;
+    EXTEND = 1;
+    CONTRACT = 2;
+    MOVE = 3;
+  }
+  Side side = 1;
+  Operation operation = 2;
+  uint32 count = 3;
+  bytes cursor = 4;
+}
+
+message Unsubscribe {}
+
+message ServerMessage {
+  string subscription_id = 1;
+  string request_id = 2;
+  uint64 sequence = 3;
+  oneof event {
+    Ready ready = 4;
+    SubscriptionError error = 5;
+    ModelBatch model_batch = 6;
+    ConnectionOpened connection_opened = 8;
+  }
+  // Monotonic across connection-scoped committed batches. Subscription-local
+  // snapshot, window, readiness, and error messages leave this unset.
+  uint64 connection_sequence = 7;
+}
+
+// Issued only after the projection server has attached its transaction-message
+// feed. This random routing capability belongs to this connection generation,
+// is not authorization, and must not be reused after reconnecting.
+message ConnectionOpened {
+  string connection_context = 1;
+}
+
+// Mutation producers encode this as transaction metadata with kind
+// "weave.client". The query service treats these bytes as opaque metadata.
+message RoutedTransactionMessage {
+  string connection_context = 1;
+  string kind = 2;
+  bytes payload = 3;
+}
+
+message TransactionMessage {
+  string kind = 1;
+  bytes payload = 2;
+}
+
+message Value {
+  oneof kind {
+    bool null_value = 1;
+    bool bool_value = 2;
+    string integer_value = 3;
+    string decimal_value = 4;
+    string float_value = 5;
+    string text_value = 6;
+    bytes bytes_value = 7;
+    string uuid_value = 8;
+    google.protobuf.Timestamp datetime_value = 9;
+    ValueList list_value = 10;
+    ValueObject object_value = 11;
+  }
+}
+
+message ValueList {
+  repeated Value values = 1;
+}
+message ValueObject {
+  map<string, Value> fields = 1;
+}
+
+// ModelBatch updates the connection's normalized entity/query/projection
+// model. Entity payloads are independent from query membership and projection
+// structure, so a diamond delivers one entity update with multiple references.
+message ModelBatch {
+  string checkpoint = 1;
+  repeated EntityEvent entities = 2;
+  repeated QueryEvent queries = 3;
+  repeated ProjectionReference projections = 4;
+  Kind kind = 5;
+  bool atomic = 6;
+  // Addressed messages are delivered once, alongside the visible effects of
+  // their source transaction. A message-only COMMIT may have no model effects.
+  repeated TransactionMessage messages = 7;
+
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    SNAPSHOT = 1;
+    COMMIT = 2;
+    HYDRATION = 3;
+    WINDOW = 4;
+  }
+}
+
+message EntityEvent {
+  string entity_id = 1;
+  oneof event {
+    EntityUpsert upsert = 2;
+    EntityReleased released = 3;
+    EntityPending pending = 4;
+  }
+}
+
+message EntityUpsert {
+  // Authoritative replacement, not a map patch. A field absent from values
+  // must be removed from the client's previously cached entity.
+  map<string, Value> values = 1;
+}
+
+message EntityReleased {}
+
+// EntityPending makes a normalized reference explicit before its complete
+// payload is available. A later upsert or release resolves it.
+message EntityPending {}
+
+message QueryEvent {
+  string query_subscription_id = 1;
+  string node_id = 2;
+  oneof event {
+    QueryReset reset = 3;
+    QueryClosed closed = 4;
+    QueryDelta delta = 5;
+    QueryWindowChanged window_changed = 6;
+  }
+}
+
+message QueryReset {
+  Boundary left = 1;
+  Boundary right = 2;
+  repeated string entity_ids = 3;
+  uint64 version = 4;
+}
+
+// QueryDelta is applied atomically. Remove every listed ID first, then apply
+// insertions in ascending final_index order. A move is a removal plus insert.
+message QueryDelta {
+  uint64 base_version = 1;
+  uint64 result_version = 2;
+  repeated string removed_entity_ids = 3;
+  repeated QueryInsertion insertions = 4;
+}
+
+message QueryInsertion {
+  string entity_id = 1;
+  uint32 final_index = 2;
+}
+
+message QueryWindowChanged {
+  Boundary left = 1;
+  Boundary right = 2;
+}
+
+message QueryClosed {}
+
+message ProjectionReference {
+  string occurrence_id = 1;
+  string node_id = 2;
+  string parent_entity_id = 3;
+  oneof event {
+    ProjectionTarget attached = 4;
+    ProjectionDetached detached = 5;
+  }
+  // Explicit routing: IDs are opaque and must not be parsed by clients.
+  string subscription_id = 6;
+  string parent_occurrence_id = 7;
+}
+
+message ProjectionTarget {
+  oneof target {
+    string entity_id = 1;
+    string query_subscription_id = 2;
+  }
+}
+
+message ProjectionDetached {}
+
+message Boundary {
+  enum Sentinel {
+    SENTINEL_UNSPECIFIED = 0;
+    START = 1;
+    END = 2;
+  }
+  oneof value {
+    Sentinel sentinel = 1;
+    bytes cursor = 2;
+  }
+}
+
+message Ready {}
+
+message SubscriptionError {
+  string code = 1;
+  string message = 2;
+}

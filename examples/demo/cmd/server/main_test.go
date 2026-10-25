@@ -1,0 +1,34 @@
+package main
+
+import (
+	"io"
+	"log/slog"
+	"path/filepath"
+	"testing"
+
+	"github.com/adiom-data/weave/pkg/server"
+)
+
+func TestBundledConfigurationCompilesWithPublicHost(t *testing.T) {
+	cfg, err := server.LoadConfig(filepath.Join("..", "..", "server.yaml"), func(string) (string, bool) { return "", false })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := server.ValidateConfig(cfg); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Address != "127.0.0.1:8080" || cfg.Auth.FixedClaims["user_id"] != "20000000-0000-4000-8000-000000000001" {
+		t.Fatal("demo config does not match the seeded identity/listener")
+	}
+	if cfg.Visibility.PolicyFile != filepath.Join("..", "..", "policy.yaml") {
+		t.Fatal(cfg.Visibility.PolicyFile)
+	}
+}
+
+func TestCheckConfigDoesNotConnectToDatabase(t *testing.T) {
+	t.Setenv("WEAVE_DATABASE_URL", "postgres://127.0.0.1:1/not-a-database")
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	if err := execute(logger, []string{"-config", filepath.Join("..", "..", "server.yaml"), "-check-config"}); err != nil {
+		t.Fatal(err)
+	}
+}

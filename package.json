@@ -1,0 +1,15 @@
+{
+  "name": "adiom-weave",
+  "license": "Apache-2.0",
+  "private": true,
+  "workspaces": ["packages/client", "examples/demo/packages/demo-projections", "examples/demo/packages/demo-mutations", "examples/demo/web"],
+  "scripts": {
+    "generate": "buf generate",
+    "generate:demo": "npm run generate:mutations && npm run generate:projections",
+    "generate:mutations": "buf generate examples/demo --template examples/demo/buf.gen.yaml",
+    "generate:projections": "go run ./cmd/projectiongen -schema examples/demo/schema.graphql -documents examples/demo/projections.graphql -out examples/demo/packages/demo-projections/src/index.ts -react-out examples/demo/packages/demo-projections/src/react.ts",
+    "build": "npm run build --workspace weave-demo-web",
+    "test": "npm run test --workspace @adiom-data/weave",
+    "test:demo": "npm run test --workspace @adiom/weave-demo-projections && npm run test --workspace @adiom/weave-demo-mutations && npm run test:live --workspace weave-demo-web"
+  }
+}

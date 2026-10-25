@@ -1,0 +1,31 @@
+scalar Int64
+scalar Decimal
+scalar Float64
+scalar Bytes
+scalar UUID
+scalar DateTime
+scalar StructuredValue
+
+directive @table(schema: String!, name: String!, softDelete: String) on OBJECT
+directive @column(path: [String!]!) on FIELD_DEFINITION
+directive @relation(parent: [String!]!, child: [String!]!) on FIELD_DEFINITION
+directive @bind(argument: String!, field: String!) repeatable on FIELD_DEFINITION
+
+enum WindowFrom { START END }
+directive @window(initialCount: Int!, from: WindowFrom! = START) on FIELD
+directive @fetchReference(child: String!) on FIELD
+directive @allFields on FIELD
+input ProjectionOrder { field: String!, descending: Boolean = false, nullsFirst: Boolean = false }
+directive @orderBy(terms: [ProjectionOrder!]!) on FIELD
+
+enum ProjectionOperator { EQUAL NOT_EQUAL LESS_THAN LESS_THAN_OR_EQUAL GREATER_THAN GREATER_THAN_OR_EQUAL }
+input ProjectionPredicate {
+  field: String
+  op: ProjectionOperator
+  value: StructuredValue
+  isNull: Boolean
+  and: [ProjectionPredicate!]
+  or: [ProjectionPredicate!]
+  not: ProjectionPredicate
+}
+directive @where(predicate: ProjectionPredicate!) on FIELD

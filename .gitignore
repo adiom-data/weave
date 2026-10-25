@@ -1,0 +1,14 @@
+.env
+.DS_Store
+bin/
+/server
+examples/demo/web/dist/
+examples/demo/web/node_modules/
+node_modules/
+packages/client/dist/
+examples/demo/packages/demo-projections/dist/
+examples/demo/packages/demo-mutations/dist/
+examples/demo/web/*.tsbuildinfo
+examples/demo/web/vite.config.js
+examples/demo/web/vite.config.d.ts
+

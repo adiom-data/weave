@@ -1,0 +1,100 @@
+# Always run through run.sh: it generates an isolated Compose project per run.
+# No host ports, application volumes, or demo schema are used.
+services:
+  postgres:
+    image: ${BENCH_POSTGRES_IMAGE:-postgres@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24}
+    environment:
+      POSTGRES_DB: weave_query_benchmark
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: isolated-benchmark-only
+    command: [postgres, -c, wal_level=logical, -c, max_replication_slots=10, -c, max_wal_senders=10]
+    volumes: [postgres-data:/var/lib/postgresql/data]
+    cpus: ${BENCH_POSTGRES_CPUS:-2}
+    mem_limit: ${BENCH_POSTGRES_MEMORY:-2g}
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U postgres -d weave_query_benchmark"]
+      interval: 1s
+      timeout: 3s
+      retries: 60
+  weave:
+    profiles: [weave, weave-remote]
+    build: {context: ../.., dockerfile: benchmarks/query/Dockerfile, target: server}
+    image: weave-query-benchmark-server:local
+    pull_policy: never
+    environment:
+      DATABASE_URL: postgres://postgres:isolated-benchmark-only@postgres:5432/weave_query_benchmark?sslmode=disable
+    cpus: ${BENCH_ENGINE_CPUS:-2}
+    mem_limit: ${BENCH_ENGINE_MEMORY:-2g}
+    depends_on: {postgres: {condition: service_healthy}}
+  weave-embedded:
+    profiles: [weave-embedded]
+    image: weave-query-benchmark-server:local
+    pull_policy: never
+    environment:
+      BENCH_SERVICE: projection
+      DATABASE_URL: postgres://postgres:isolated-benchmark-only@postgres:5432/weave_query_benchmark?sslmode=disable
+    cpus: ${BENCH_ENGINE_CPUS:-2}
+    mem_limit: ${BENCH_ENGINE_MEMORY:-2g}
+    depends_on: {postgres: {condition: service_healthy}}
+  weave-remote:
+    profiles: [weave-remote]
+    image: weave-query-benchmark-server:local
+    pull_policy: never
+    environment:
+      BENCH_SERVICE: projection
+      QUERY_GRPC_ADDRESS: weave:9090
+    cpus: ${BENCH_ENGINE_CPUS:-2}
+    mem_limit: ${BENCH_ENGINE_MEMORY:-2g}
+    depends_on: {weave: {condition: service_started}}
+  electric:
+    profiles: [electric]
+    image: ${BENCH_ELECTRIC_IMAGE:-electricsql/electric@sha256:efb6fa43859d67cb8c73439e0c8bc0f7a3daa467500fb06f2a924bcb2070c139}
+    environment:
+      DATABASE_URL: postgres://postgres:isolated-benchmark-only@postgres:5432/weave_query_benchmark?sslmode=disable
+      ELECTRIC_INSECURE: "true"
+      ELECTRIC_STORAGE_DIR: /var/lib/electric/persistent
+      ELECTRIC_REPLICATION_STREAM_ID: query_benchmark
+      ELECTRIC_DB_POOL_SIZE: "20"
+    volumes: [electric-data:/var/lib/electric]
+    cpus: ${BENCH_ENGINE_CPUS:-2}
+    mem_limit: ${BENCH_ENGINE_MEMORY:-2g}
+    depends_on: {postgres: {condition: service_healthy}}
+  zero:
+    profiles: [zero]
+    image: ${BENCH_ZERO_IMAGE:-rocicorp/zero@sha256:d1ad384ea14eee10e0a3180a281ef8b943924993c06d8e47a36017b9bdcc7c55}
+    environment:
+      ZERO_UPSTREAM_DB: postgres://postgres:isolated-benchmark-only@postgres:5432/weave_query_benchmark?sslmode=disable
+      ZERO_CVR_DB: postgres://postgres:isolated-benchmark-only@postgres:5432/weave_query_benchmark?sslmode=disable
+      ZERO_CHANGE_DB: postgres://postgres:isolated-benchmark-only@postgres:5432/weave_query_benchmark?sslmode=disable
+      ZERO_APP_ID: benchmark
+      ZERO_APP_PUBLICATIONS: bench_publication
+      ZERO_REPLICA_FILE: /data/replica.db
+      ZERO_QUERY_URL: http://zero-query:8082/query
+      ZERO_NUM_SYNC_WORKERS: "1"
+      ZERO_ADMIN_PASSWORD: isolated-benchmark-only
+    volumes: [zero-data:/data]
+    cpus: ${BENCH_ENGINE_CPUS:-2}
+    mem_limit: ${BENCH_ENGINE_MEMORY:-2g}
+    depends_on:
+      postgres: {condition: service_healthy}
+      zero-query: {condition: service_started}
+  zero-query:
+    profiles: [zero]
+    image: weave-query-benchmark-runner:local
+    pull_policy: never
+    entrypoint: [/bench-runner, zero-query-server]
+    cpus: 0.25
+    mem_limit: 128m
+  runner:
+    profiles: [tools]
+    build: {context: ../.., dockerfile: benchmarks/query/Dockerfile, target: runner}
+    image: weave-query-benchmark-runner:local
+    pull_policy: never
+    environment:
+      DATABASE_URL: postgres://postgres:isolated-benchmark-only@postgres:5432/weave_query_benchmark?sslmode=disable
+    cpus: ${BENCH_GENERATOR_CPUS:-2}
+    mem_limit: ${BENCH_GENERATOR_MEMORY:-2g}
+volumes:
+  postgres-data:
+  electric-data:
+  zero-data:

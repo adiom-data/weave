@@ -1,0 +1,19 @@
+# Opt-in benchmark instrumentation; never exposes profiling endpoints.
+services:
+  weave:
+    environment:
+      GOGC: ${BENCH_ENGINE_GOGC:-100}
+      BENCH_DIAGNOSTICS_DIR: /profiles
+      BENCH_DIAGNOSTICS_TRACE: ${BENCH_DIAGNOSTICS_TRACE:-0}
+      BENCH_DIAGNOSTICS_CPU: ${BENCH_DIAGNOSTICS_CPU:-0}
+      BENCH_DIAGNOSTICS_HEAP: ${BENCH_DIAGNOSTICS_HEAP:-0}
+      BENCH_DIAGNOSTICS_PERIOD: ${BENCH_DIAGNOSTICS_PERIOD:-100ms}
+    volumes: ["${BENCH_DIAGNOSTICS_DIR:?set diagnostic output directory}:/profiles"]
+  runner:
+    environment:
+      BENCH_DIAGNOSTICS_DIR: /profiles
+      BENCH_DIAGNOSTICS_TRACE: ${BENCH_DIAGNOSTICS_TRACE:-0}
+      BENCH_DIAGNOSTICS_CPU: ${BENCH_DIAGNOSTICS_CPU:-0}
+      BENCH_DIAGNOSTICS_HEAP: ${BENCH_DIAGNOSTICS_HEAP:-0}
+      BENCH_DIAGNOSTICS_PERIOD: ${BENCH_DIAGNOSTICS_PERIOD:-100ms}
+    volumes: ["${BENCH_DIAGNOSTICS_DIR:?set diagnostic output directory}:/profiles"]

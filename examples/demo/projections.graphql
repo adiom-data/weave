@@ -1,0 +1,23 @@
+query ProjectDetails($projectId: UUID!) {
+  project(id: $projectId) {
+    id
+    title
+    taskLinks
+      @orderBy(terms: [{field: "position"}, {field: "organizationId"}, {field: "projectId"}, {field: "taskId"}])
+      @window(initialCount: 100, from: END)
+      @fetchReference(child: "task") {
+      position
+      task {
+        ...TaskDetails
+      }
+    }
+  }
+}
+
+fragment TaskDetails on Task {
+  id
+  title
+  completed
+  createdAt
+  updatedAt
+}

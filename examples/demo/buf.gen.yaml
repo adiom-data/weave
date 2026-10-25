@@ -1,0 +1,13 @@
+version: v2
+plugins:
+  - local: protoc-gen-go
+    out: examples/demo/gen
+    opt: paths=source_relative
+  - local: [go, -C, examples/demo, run, connectrpc.com/connect/cmd/protoc-gen-connect-go]
+    out: examples/demo/gen
+    opt: paths=source_relative
+  - local: node_modules/.bin/protoc-gen-es
+    out: examples/demo/packages/demo-mutations/src/gen
+    opt:
+      - target=ts
+      - import_extension=js

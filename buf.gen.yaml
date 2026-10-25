@@ -1,0 +1,21 @@
+version: v2
+plugins:
+  - local: protoc-gen-go
+    out: pkg/gen
+    opt: paths=source_relative
+  - local: protoc-gen-go-grpc
+    out: pkg/gen
+    opt: paths=source_relative
+  - local: protoc-gen-connect-go
+    out: pkg/gen
+    opt: paths=source_relative
+    types:
+      - reactive.v1.ReactiveQueries
+  - local: node_modules/.bin/protoc-gen-es
+    out: packages/client/src/gen
+    opt:
+      - target=ts
+      - import_extension=js
+      - json_types=true
+    types:
+      - reactive.v1
