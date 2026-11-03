@@ -121,17 +121,68 @@ An empty UUID list is valid. Invalid mapping definitions fail startup, and inval
 fixed values also fail `-check-config`. Mapping runs after verification in OIDC
 mode; it does not make unverified/fixed modes authenticated.
 
-Claims are captured once at request/stream admission. Existing streams are not
-reauthenticated or closed merely because their token expires. Refresh, ongoing
-revocation, and continuous authentication belong upstream. New RPCs/streams
-authenticate again. Database-driven policy visibility still updates reactively.
+Claims are captured once at request/stream admission and never changed in place.
+By default, existing streams are not reauthenticated or closed merely because
+their token expires. New RPCs/streams authenticate again. Database-driven policy
+visibility still updates reactively. Optional WebSocket renewal is described below;
+RPC authentication remains admission-only.
 
-The WebSocket edge authenticates Authorization once and calls the same projection
-service directly, without an internal RPC hop. It never accepts URL tokens or
-claims in message payloads. Invalid credentials close the upgraded socket.
+The WebSocket edge authenticates Authorization at admission and calls the same
+projection service directly, without an internal RPC hop. It never accepts URL
+tokens or caller-supplied claims in message payloads. Invalid credentials reject
+admission (before upgrade when renewal is enabled).
 Browser WebSocket APIs cannot set arbitrary Authorization headers; use an
 authenticating upstream that injects the header, or a trusted fixed-claims setup.
-The React client and binary envelope are unchanged.
+Initial browser credentials still need that cookie/proxy/custom-socket path;
+in-protocol renewal does not replace initial admission.
+
+### Optional WebSocket renewal
+
+Renewal is disabled by default. To require clients to keep presenting a current
+JWT without replacing their connection's authorization claims:
+
+```yaml
+auth:
+  mode: oidc
+  issuer: https://identity.example.com/
+  audience: weave
+websocket:
+  renewal:
+    enabled: true
+    validation_timeout: 5s
+    max_concurrent_validations: 32
+    excluded_claims: [exp, iat, nbf, jti]
+```
+
+The same configured authenticator and claim-type mapper run at admission and on
+each in-protocol token update; OIDC verification uses the same verifier/key cache,
+not a second instance. A numeric, future JWT `exp` is required. Expiry closes the
+WebSocket even if it is otherwise active. `auth.max_token_bytes` bounds both the
+initial bearer token and renewal tokens. The validation timeout/concurrency bounds
+are independent of the publication path; saturated admission fails immediately,
+while existing connections retain their latest pending token for validation.
+
+`excluded_claims` lists literal top-level credential metadata removed from the
+WebSocket's policy claims and identity comparison. Defaults exclude `exp`, `iat`,
+`nbf`, and `jti`, which normally change on renewal. Every other claim, including
+subject, organization, teams, and roles, remains part of the stable identity.
+Do not exclude anything used for authorization. RPC claims are unaffected.
+An explicitly empty list excludes nothing, so changed token metadata then also
+requires reconnect. Changing these settings requires restarting the server.
+
+The client calls `client.updateAuthToken(token)` on its own schedule. A valid
+same-claims token silently updates the deadline. Invalid tokens produce
+`STATUS_REJECTED` without extending the old deadline. Changed claims produce
+`STATUS_RECONNECT` and close the connection; new claims require fresh admission.
+See the [transport contract](../../pkg/projectionserver/websocket/README.md).
+
+Renewal also supports `auth.mode: unverified_jwt` behind a trusted authenticating
+edge. In that mode the server enforces the supplied expiration but **still does
+not verify signature, issuer, audience, or other token validity**; renewal does
+not make unverified JWTs secure. Fixed-claims mode cannot enable renewal because
+there is no expiring credential. Disabled WebSockets cannot enable it either.
+JWT revalidation alone is not immediate revocation detection; that still depends
+on the identity provider/upstream or an application-owned verifier.
 
 Telemetry uses the framework's normal OpenTelemetry configuration. Set
 `OTEL_SDK_DISABLED=true` to disable instrumentation and exports, or set
@@ -200,7 +251,38 @@ and collation rules (e.g. use `COLLATE "C"` for bytewise text comparisons).
 Defaults → YAML → explicitly present environment variables. Unknown YAML keys,
 duplicate keys, and additional documents fail validation. Policies are loaded
 once at startup; restart to adopt changes. The [example](server.example.yaml)
-lists host/stream limits. Unexposed component settings retain library defaults.
+lists every operational tuning setting used by this host, with library defaults.
+Each field is optional; partial sections preserve defaults. Durations use Go
+duration strings (`250ms`, `30s`, `5m`). Numeric tuning must be positive, except
+`query.limits.progress_barrier_delay`, where zero requests progress immediately.
+Explicit zero is not an alias for the default in standalone configuration.
+
+- `storage.postgres`: CDC capture buffering, replication retry/status timing,
+  message budgets/logging, and SQL predicate/ordering limits. pgx pool/connection
+  settings remain in the database URL (e.g. `pool_max_conns=20`).
+- `query.limits`: entity/query retention, incremental cleanup, recovery buffers,
+  snapshot page sizes, window request limits, and barrier delay.
+- `query.references`: asynchronous reference loading concurrency and queue size.
+- `query.messages`: transaction-message service queue, batch, and payload limits.
+- `projection`: request/subscription/output limits, projection expansion limits,
+  shared dependency cache retention/cleanup, and transaction-message routing.
+- `visibility`: fact loading limits/concurrency, policy compilation/evaluation
+  budgets, and compiled-policy cache retention/cleanup. These are inactive in
+  `allow_all` mode but still validated as configuration.
+- Host, WebSocket, and authentication settings are also listed in the example.
+
+The former top-level `limits` block has moved to these component-owned sections;
+it is rejected rather than silently ignored. For example, `limits.max_window_rows`
+is now `query.limits.max_window_rows`, `limits.reference_load_concurrency` is now
+`query.references.load_concurrency`, `limits.max_fact_rows` is now
+`visibility.max_fact_rows`, and `limits.max_subscriptions_per_connection` is now
+`projection.max_subscriptions_per_connection`.
+
+YAML exposes all of this tuning. Environment overrides remain the explicitly
+listed convenience settings below; they are not an alternate key for every YAML
+field. Use YAML for advanced tuning. Callback hooks, alternate implementations,
+and raw query/message RPC framing (not served by this host) are intentionally
+not standalone configuration.
 
 | Environment | Setting |
 | --- | --- |

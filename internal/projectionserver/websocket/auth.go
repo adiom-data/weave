@@ -38,15 +38,21 @@ type Authentication struct {
 
 const defaultMaxTokenBytes = 64 << 10
 
+// DefaultAuthenticationOptions returns bounds without enabling a verifier.
+func DefaultAuthenticationOptions() AuthenticationOptions {
+	return AuthenticationOptions{ValidationTimeout: 5 * time.Second, MaxTokenBytes: defaultMaxTokenBytes, MaxConcurrentValidations: 32}
+}
+
 func (o AuthenticationOptions) withDefaults() AuthenticationOptions {
+	d := DefaultAuthenticationOptions()
 	if o.ValidationTimeout <= 0 {
-		o.ValidationTimeout = 5 * time.Second
+		o.ValidationTimeout = d.ValidationTimeout
 	}
 	if o.MaxTokenBytes <= 0 {
-		o.MaxTokenBytes = defaultMaxTokenBytes
+		o.MaxTokenBytes = d.MaxTokenBytes
 	}
 	if o.MaxConcurrentValidations <= 0 {
-		o.MaxConcurrentValidations = 32
+		o.MaxConcurrentValidations = d.MaxConcurrentValidations
 	}
 	return o
 }

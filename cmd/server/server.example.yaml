@@ -10,10 +10,29 @@ storage:
     slot: weave_server
     # Optional restriction, independent of publication membership:
     # allowed_tables: [app.projects, app.project_tasks, app.tasks]
+    # pgx pool settings (pool_max_conns, pool_max_conn_lifetime, etc.) go in url.
+    capture_buffer_limit: 1024
+    message_log_interval: 1m
+    replication:
+      retry_min_delay: 1s
+      retry_max_delay: 30s
+      status_interval: 10s
+    query_limits:
+      max_order_terms: 16
+      max_predicate_nodes: 64
+      max_predicate_depth: 8
+      max_predicate_value_bytes: 4096
+    message_limits:
+      max_message_bytes: 262144
+      max_transaction_bytes: 524288
+      max_messages: 1024
 
 auth:
   mode: fixed
   fixed_claims: {}  # null is also empty. No application claim names are required.
+  clock_skew: 1m
+  http_timeout: 5s
+  max_token_bytes: 65536
   # Optional explicit top-level conversions, applied in any auth mode:
   # claim_types:
   #   organization_id: uuid
@@ -27,17 +46,79 @@ visibility:
   mode: allow_all
   # To enforce policy, set mode: policy and uncomment:
   # policy_file: policy.example.yaml
-
-# Optional. Zero selects the corresponding library default.
-limits:
-  subscription_batch_size: 64 # Maximum cached entity registrations per actor turn.
-  max_window_rows: 1000
-  max_reference_invalidations: 100000
-  reference_load_concurrency: 4  # Per query feed, for live reference discoveries.
-  reference_load_queue_limit: 1024
-  max_fact_rows: 999  # Fact completeness probe needs one additional row.
+  max_fact_rows: 999  # Completeness probe needs one extra row in max_window_rows.
   max_fact_queries: 1000
-  max_subscriptions_per_connection: 1000
+  fact_load_concurrency: 8
+  limits:
+    max_nodes: 10000
+    max_depth: 64
+    max_evaluation_steps: 100000
+    max_expression_bytes: 1048576
+  cache:
+    idle_ttl: 5m
+    maintenance_period: 1s
+    eviction_batch_size: 128
+    load_concurrency: 16
+
+# All tuning below is optional: omitted fields retain library defaults shown here.
+# Values must be positive, except progress_barrier_delay may be zero.
+query:
+  limits:
+    entity_idle_ttl: 5m
+    eviction_period: 1m
+    eviction_batch_size: 128
+    query_idle_ttl: 30s
+    query_maintenance_period: 1s
+    max_resync_transactions: 4096
+    max_resync_changes: 100000
+    max_hydrations: 1024
+    resync_result_buffer: 16
+    hydration_result_buffer: 64
+    max_window_rows: 1000  # Requested row count, not a cap on stable-range growth.
+    snapshot_page_rows: 1000
+    subscription_batch_size: 64  # Cached registrations per actor turn.
+    max_reference_invalidations: 100000
+    progress_barrier_delay: 0s  # Immediately request sparse-stream progress.
+  references:
+    load_concurrency: 4  # Per query feed, for live reference discoveries.
+    load_queue_limit: 1024
+  messages:
+    message_limits:
+      max_message_bytes: 262144
+      max_transaction_bytes: 524288
+      max_messages: 1024
+    max_queued_transactions: 1024
+    max_queued_bytes: 8388608
+    max_batch_transactions: 128
+    max_batch_bytes: 1048576
+
+projection:
+  max_requests_per_connection: 65536
+  max_subscriptions_per_connection: 100
+  subscription_queue_limit: 256
+  outbound_queue_limit: 256
+  max_selected_fields: 100
+  max_predicate_nodes: 64
+  max_predicate_depth: 8
+  max_concurrent_projection_expansions: 32  # Per connection.
+  message_progress_interval: 10ms
+  limits:
+    max_definition_depth: 8
+    max_definition_nodes: 64
+    max_active_instances: 1000
+    max_concurrent_expansions: 8  # Per projection.
+    max_pending_expansions: 1024
+  dependencies:
+    upstream_buffer_limit: 4096
+    max_subscriptions: 10000
+    idle_ttl: 30s
+    sweep_interval: 1s
+    eviction_batch_size: 128
+    cleanup_batch_size: 128
+  messages:
+    max_queued_transactions: 256
+    max_queued_bytes: 8388608
+    reconnect_delay: 100ms
 
 # Host defaults; all may be changed here.
 shutdown_timeout: 10s
@@ -50,3 +131,10 @@ websocket:
   idle_timeout: 1m
   max_message_bytes: 8388608
   max_message_depth: 64
+  renewal:
+    enabled: false  # Enable only with auth.mode: oidc or unverified_jwt.
+    validation_timeout: 5s
+    max_concurrent_validations: 32
+    # Removed from WebSocket policy claims and renewal identity comparison.
+    # Never exclude subject, organization, roles, or other authorization inputs.
+    excluded_claims: [exp, iat, nbf, jti]

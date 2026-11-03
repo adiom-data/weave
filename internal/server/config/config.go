@@ -30,31 +30,43 @@ type Config struct {
 		IdleTimeout     time.Duration `yaml:"idle_timeout"`
 		MaxMessageBytes int64         `yaml:"max_message_bytes"`
 		MaxMessageDepth int           `yaml:"max_message_depth"`
+		Renewal         RenewalConfig `yaml:"renewal"`
 	} `yaml:"websocket"`
 	Storage struct {
 		Type     string `yaml:"type"`
 		Postgres struct {
-			URL           string   `yaml:"url"`
-			Publication   string   `yaml:"publication"`
-			Slot          string   `yaml:"slot"`
-			AllowedTables []string `yaml:"allowed_tables"`
+			URL                string              `yaml:"url"`
+			Publication        string              `yaml:"publication"`
+			Slot               string              `yaml:"slot"`
+			AllowedTables      []string            `yaml:"allowed_tables"`
+			QueryLimits        PostgresQueryLimits `yaml:"query_limits"`
+			MessageLimits      MessageLimits       `yaml:"message_limits"`
+			Replication        ReplicationConfig   `yaml:"replication"`
+			CaptureBufferLimit int                 `yaml:"capture_buffer_limit"`
+			MessageLogInterval time.Duration       `yaml:"message_log_interval"`
 		} `yaml:"postgres"`
 	} `yaml:"storage"`
 	Auth       AuthConfig `yaml:"auth"`
 	Visibility struct {
-		Mode       string `yaml:"mode"`
-		PolicyFile string `yaml:"policy_file"`
+		Mode                string            `yaml:"mode"`
+		PolicyFile          string            `yaml:"policy_file"`
+		Limits              PolicyLimits      `yaml:"limits"`
+		Cache               PolicyCacheConfig `yaml:"cache"`
+		MaxFactRows         int               `yaml:"max_fact_rows"`
+		MaxFactQueries      int               `yaml:"max_fact_queries"`
+		FactLoadConcurrency int               `yaml:"fact_load_concurrency"`
 	} `yaml:"visibility"`
-	Limits struct {
-		MaxWindowRows                 int `yaml:"max_window_rows"`
-		MaxReferenceInvalidations     int `yaml:"max_reference_invalidations"`
-		ReferenceLoadConcurrency      int `yaml:"reference_load_concurrency"`
-		ReferenceLoadQueueLimit       int `yaml:"reference_load_queue_limit"`
-		SubscriptionBatchSize         int `yaml:"subscription_batch_size"`
-		MaxFactRows                   int `yaml:"max_fact_rows"`
-		MaxFactQueries                int `yaml:"max_fact_queries"`
-		MaxSubscriptionsPerConnection int `yaml:"max_subscriptions_per_connection"`
-	} `yaml:"limits"`
+	Query      QueryConfig      `yaml:"query"`
+	Projection ProjectionConfig `yaml:"projection"`
+}
+
+// RenewalConfig opts WebSockets into finite JWT-backed authentication leases.
+// ExcludedClaims are credential metadata, never authorization inputs.
+type RenewalConfig struct {
+	Enabled                  bool          `yaml:"enabled"`
+	ValidationTimeout        time.Duration `yaml:"validation_timeout"`
+	MaxConcurrentValidations int           `yaml:"max_concurrent_validations"`
+	ExcludedClaims           []string      `yaml:"excluded_claims"`
 }
 
 type AuthConfig struct {
@@ -82,9 +94,14 @@ func Default() Config {
 	socket := projectionws.DefaultSocketConfig()
 	c.Socket.WriteTimeout, c.Socket.IdleTimeout = socket.WriteTimeout, socket.IdleTimeout
 	c.Socket.MaxMessageBytes, c.Socket.MaxMessageDepth = socket.MaxMessageBytes, socket.MaxMessageDepth
+	authentication := projectionws.DefaultAuthenticationOptions()
+	c.Socket.Renewal.ValidationTimeout = authentication.ValidationTimeout
+	c.Socket.Renewal.MaxConcurrentValidations = authentication.MaxConcurrentValidations
+	c.Socket.Renewal.ExcludedClaims = []string{"exp", "iat", "nbf", "jti"}
 	c.Storage.Type = "postgres"
 	c.Auth.HTTPTimeout, c.Auth.ClockSkew = 5*time.Second, time.Minute
-	c.Auth.MaxTokenBytes = 64 << 10
+	c.Auth.MaxTokenBytes = authentication.MaxTokenBytes
+	c.setTuningDefaults()
 	return c
 }
 
@@ -159,6 +176,9 @@ func (c Config) Validate() error {
 	if err := c.Auth.Validate(); err != nil {
 		return err
 	}
+	if err := c.validateRenewal(); err != nil {
+		return err
+	}
 	if c.Address == "" {
 		return errors.New("address is required")
 	}
@@ -169,8 +189,31 @@ func (c Config) Validate() error {
 	if c.ShutdownTimeout <= 0 || c.ReadHeaderTimeout <= 0 || c.IdleTimeout <= 0 || c.MaxMessageBytes <= 0 || c.Socket.WriteTimeout <= 0 || c.Socket.IdleTimeout <= 0 || c.Socket.MaxMessageBytes <= 0 || c.Socket.MaxMessageDepth <= 0 {
 		return errors.New("server timeouts and message limits must be positive")
 	}
-	if c.Limits.MaxWindowRows < 0 || c.Limits.MaxReferenceInvalidations < 0 || c.Limits.ReferenceLoadConcurrency < 0 || c.Limits.ReferenceLoadQueueLimit < 0 || c.Limits.SubscriptionBatchSize < 0 || c.Limits.MaxFactRows < 0 || c.Limits.MaxFactQueries < 0 || c.Limits.MaxSubscriptionsPerConnection < 0 {
-		return errors.New("resource limits must be nonnegative (zero selects library defaults)")
+	return c.validateTuning()
+}
+
+func (c Config) validateRenewal() error {
+	r := c.Socket.Renewal
+	if r.ValidationTimeout <= 0 || r.MaxConcurrentValidations <= 0 {
+		return errors.New("websocket.renewal validation_timeout and max_concurrent_validations must be positive")
+	}
+	seen := make(map[string]bool, len(r.ExcludedClaims))
+	for _, name := range r.ExcludedClaims {
+		if name == "" || seen[name] {
+			return errors.New("websocket.renewal.excluded_claims requires unique nonempty claim names")
+		}
+		seen[name] = true
+	}
+	if r.Enabled {
+		if !c.Socket.Enabled {
+			return errors.New("websocket.renewal requires websocket.enabled")
+		}
+		if c.Auth.Mode == "fixed" {
+			return errors.New("websocket.renewal requires oidc or unverified_jwt authentication, not fixed claims")
+		}
+		if _, mapped := c.Auth.ClaimTypes["exp"]; mapped {
+			return errors.New("websocket.renewal requires a numeric exp claim; it cannot have a claim_types mapping")
+		}
 	}
 	return nil
 }

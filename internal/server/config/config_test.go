@@ -44,10 +44,12 @@ visibility:
   mode: policy
   policy_file: policy.yaml
 shutdown_timeout: 3s
-limits:
-  subscription_batch_size: 23
-  reference_load_concurrency: 2
-  reference_load_queue_limit: 32
+query:
+  limits:
+    subscription_batch_size: 23
+  references:
+    load_concurrency: 2
+    load_queue_limit: 32
 `)
 	c, err := Load(path, func(name string) (string, bool) {
 		if name == "WEAVE_DATABASE_URL" {
@@ -67,17 +69,17 @@ limits:
 	if c.Socket.IdleTimeout != Default().Socket.IdleTimeout {
 		t.Fatal("partial config erased defaults")
 	}
-	if c.Limits.ReferenceLoadConcurrency != 2 || c.Limits.ReferenceLoadQueueLimit != 32 {
+	if c.Query.References.LoadConcurrency != 2 || c.Query.References.LoadQueueLimit != 32 {
 		t.Fatal("reference work limits were not loaded")
 	}
-	if c.Limits.SubscriptionBatchSize != 23 {
+	if c.Query.Limits.SubscriptionBatchSize != 23 {
 		t.Fatal("subscription registration batch size was not loaded")
 	}
 }
 
 func TestSubscriptionBatchSizeRejectsNegativeValues(t *testing.T) {
 	c := validConfig()
-	c.Limits.SubscriptionBatchSize = -1
+	c.Query.Limits.SubscriptionBatchSize = -1
 	if err := c.Validate(); err == nil {
 		t.Fatal("accepted negative subscription batch size")
 	}
@@ -87,9 +89,9 @@ func TestReferenceWorkLimitsRejectNegativeValues(t *testing.T) {
 	for _, concurrency := range []bool{false, true} {
 		c := validConfig()
 		if concurrency {
-			c.Limits.ReferenceLoadConcurrency = -1
+			c.Query.References.LoadConcurrency = -1
 		} else {
-			c.Limits.ReferenceLoadQueueLimit = -1
+			c.Query.References.LoadQueueLimit = -1
 		}
 		if err := c.Validate(); err == nil {
 			t.Fatal("accepted negative reference limit")

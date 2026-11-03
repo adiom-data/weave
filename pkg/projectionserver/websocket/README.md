@@ -4,6 +4,12 @@ Authentication updates are disabled by default. Without `SocketConfig.Authentica
 the hosting application's `ServeStream` callback owns admission exactly as before.
 The query/projection protocols have no token handling.
 
+The packaged server can enable JWT-backed renewal with
+`websocket.renewal.enabled: true`, using its configured OIDC or unverified-JWT
+authenticator. No Go hook is needed in that mode. See the
+[standalone settings](../../../cmd/server/README.md#optional-websocket-renewal).
+The Go hook below remains available for application-specific verification.
+
 For an application-owned verifier, set `SocketConfig.Authentication` (or
 `server.Options.WebSocketAuthentication` when using the configured host):
 

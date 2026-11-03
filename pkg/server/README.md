@@ -42,9 +42,11 @@ the framework's mounting interface.
 - `WebSocketAuthentication` optionally supplies application-owned credential
   verification, canonical claims, and renewable deadlines for WebSockets only.
   It replaces configured WebSocket admission; RPC/mutation admission is unchanged.
-  Nil preserves existing admission with no renewal requirement. See the
-  [renewal hooks](../projectionserver/websocket/README.md). The standalone command
-  does not enable these application hooks through YAML automatically.
+  Nil uses configured admission, with optional JWT renewal through
+  `Config.Socket.Renewal.Enabled` (`websocket.renewal.enabled` in YAML). Defaults
+  keep renewal disabled. An application hook and configured renewal are mutually
+  exclusive. See the [renewal hooks](../projectionserver/websocket/README.md) and
+  [standalone configuration](../../cmd/server/README.md#optional-websocket-renewal).
 - The application owns mutation handlers and resources, such as its write pool.
   The host neither initializes an application schema nor closes those resources.
 - `New` initializes capture but does not listen. Always call `Close`, including
@@ -61,3 +63,8 @@ the framework's mounting interface.
   fail admission. The projection/query engines do not perform implicit coercion.
 
 For supported configuration and deployment, see [`cmd/server`](../../cmd/server/README.md).
+The [complete YAML example](../../cmd/server/server.example.yaml) lists tuning
+for storage, query caches/queues, projections, and policy evaluation. Omitted
+fields inherit library defaults; explicit nonpositive tuning fails validation
+(except zero progress-barrier delay). The former flat `Config.Limits` settings
+now live under `Config.Query`, `Config.Projection`, and `Config.Visibility`.

@@ -8,10 +8,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/adiom-data/framework/httpapp"
-	"github.com/adiom-data/weave/internal/server/config"
 	"github.com/adiom-data/weave/internal/server/identity"
-	"github.com/adiom-data/weave/pkg/accesscontrol"
-	"github.com/adiom-data/weave/pkg/accesscontrol/policy"
 	"github.com/adiom-data/weave/pkg/gen/reactive/v1/reactivev1connect"
 	"github.com/adiom-data/weave/pkg/projectionserver"
 	projectionws "github.com/adiom-data/weave/pkg/projectionserver/websocket"
@@ -29,6 +26,7 @@ type Options struct {
 	Routes                []httpapp.Route
 	// Optional application-owned WebSocket authentication/renewal. When set,
 	// its verified claims replace configured admission for WebSockets only.
+	// Mutually exclusive with configured websocket.renewal.
 	WebSocketAuthentication *projectionws.AuthenticationOptions
 }
 
@@ -50,11 +48,18 @@ func New(parent context.Context, c Config, options Options) (Host, error) {
 	if err := validateEndpoints(options); err != nil {
 		return nil, err
 	}
+	if c.Socket.Renewal.Enabled && options.WebSocketAuthentication != nil {
+		return nil, errors.New("configured websocket.renewal and WebSocketAuthentication are mutually exclusive")
+	}
 	logger := options.Logger
 	if logger == nil {
 		logger = slog.Default()
 	}
 	authenticate, err := identity.New(c.Auth)
+	if err != nil {
+		return nil, err
+	}
+	authentication, err := socketAuthenticationOptions(c, authenticate, options.WebSocketAuthentication)
 	if err != nil {
 		return nil, err
 	}
@@ -70,31 +75,14 @@ func New(parent context.Context, c Config, options Options) (Host, error) {
 		logger.Warn("claims are not authenticated by this server; restrict access to trusted callers", "mode", c.Auth.Mode)
 	}
 	logger.Info("listener uses plaintext HTTP/1 and HTTP/2; terminate TLS upstream before exposure")
-	pg := storage.DefaultPostgresOptions()
-	pg.Publication, pg.Slot = c.Storage.Postgres.Publication, c.Storage.Postgres.Slot
-	pg.AllowedTables, pg.Logger = c.Storage.Postgres.AllowedTables, logger
+	pg := postgresOptions(c)
+	pg.Logger = logger
 	source, err := storage.NewPostgres(ctx, c.Storage.Postgres.URL, pg)
 	if err != nil {
 		return nil, errors.New("initialize PostgreSQL storage failed (check connectivity, publication, slot, and privileges)")
 	}
 	h.source = source
-	queryOptions := queryserver.DefaultOptions()
-	if c.Limits.SubscriptionBatchSize > 0 {
-		queryOptions.Limits.SubscriptionBatchSize = c.Limits.SubscriptionBatchSize
-	}
-	if c.Limits.ReferenceLoadConcurrency > 0 {
-		queryOptions.References.LoadConcurrency = c.Limits.ReferenceLoadConcurrency
-	}
-	if c.Limits.ReferenceLoadQueueLimit > 0 {
-		queryOptions.References.LoadQueueLimit = c.Limits.ReferenceLoadQueueLimit
-	}
-	if c.Limits.MaxReferenceInvalidations > 0 {
-		queryOptions.Limits.MaxReferenceInvalidations = c.Limits.MaxReferenceInvalidations
-	}
-	if c.Limits.MaxWindowRows > 0 {
-		queryOptions.Limits.MaxWindowRows = c.Limits.MaxWindowRows
-	}
-	h.queries, err = queryserver.New(ctx, source, queryOptions)
+	h.queries, err = queryserver.New(ctx, source, queryOptions(c))
 	if err != nil {
 		return nil, fmt.Errorf("initialize query backend: %w", err)
 	}
@@ -115,7 +103,7 @@ func New(parent context.Context, c Config, options Options) (Host, error) {
 	}
 	routes := append([]httpapp.Route(nil), options.Routes...)
 	if c.Socket.Enabled {
-		routes = append(routes, httpapp.Handle("/api/reactive", newSocketHandler(c, logger, authenticate, h.projections, options.WebSocketAuthentication)))
+		routes = append(routes, httpapp.Handle("/api/reactive", newSocketHandler(c, logger, authenticate, h.projections, authentication)))
 	}
 	h.app = httpapp.NewService(
 		httpapp.WithServiceAddr(c.Address), httpapp.WithServiceLogger(logger),
@@ -143,34 +131,4 @@ func validateEndpoints(options Options) error {
 		}
 	}
 	return nil
-}
-
-func projectionOptions(c config.Config, provider policy.Provider) (projectionserver.Options, error) {
-	o := projectionserver.DefaultOptions()
-	o.ClaimsProvider = accesscontrol.ClaimsFromContext
-	if c.Limits.MaxSubscriptionsPerConnection > 0 {
-		o.MaxSubscriptionsPerConnection = c.Limits.MaxSubscriptionsPerConnection
-	}
-	if c.Visibility.Mode == "policy" {
-		if provider == nil {
-			return o, errors.New("policy mode requires a compiled provider")
-		}
-		p := projectionserver.DefaultPolicyOptions()
-		p.Provider = provider
-		if c.Limits.MaxFactRows > 0 {
-			p.MaxFactRows = c.Limits.MaxFactRows
-		}
-		if c.Limits.MaxFactQueries > 0 {
-			p.MaxFactQueries = c.Limits.MaxFactQueries
-		}
-		maxWindow := queryserver.DefaultOptions().Limits.MaxWindowRows
-		if c.Limits.MaxWindowRows > 0 {
-			maxWindow = c.Limits.MaxWindowRows
-		}
-		if p.MaxFactRows >= maxWindow {
-			return o, errors.New("max_fact_rows + 1 must fit within max_window_rows")
-		}
-		o.Policies = &p
-	}
-	return o, nil
 }

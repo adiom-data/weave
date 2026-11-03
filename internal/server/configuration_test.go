@@ -15,7 +15,7 @@ func TestConfigValidationDoesNotConnectAndNewRejectsInvalidPolicy(t *testing.T) 
 	if err := ValidateConfig(c); err != nil {
 		t.Fatal(err)
 	}
-	c.Limits.MaxFactRows = 1000
+	c.Visibility.MaxFactRows = 1000
 	c.Visibility.Mode = "policy"
 	c.Visibility.PolicyFile = writeTestFile(t, "invalid-policy.yaml", "relations: [{schema: public, table: things, allow: [{id: bad, when: '!! invalid cel'}]}]")
 	if _, err := New(context.Background(), c, Options{}); err == nil {
@@ -55,5 +55,24 @@ func TestValidateConfigRejectsInvalidFixedClaimMappingOffline(t *testing.T) {
 	delete(c.Auth.FixedClaims, "subject")
 	if err := ValidateConfig(c); err != nil {
 		t.Fatal("missing optional mapped claim should be valid", err)
+	}
+}
+
+func TestPolicyFileUsesConfiguredCompilationLimits(t *testing.T) {
+	c := validConfig()
+	c.Visibility.Mode = "policy"
+	c.Visibility.PolicyFile = writeTestFile(t, "policy.yaml", `relations:
+  - schema: app
+    table: projects
+    allow:
+      - id: view
+        when: 'true'
+`)
+	if err := ValidateConfig(c); err != nil {
+		t.Fatal(err)
+	}
+	c.Visibility.Limits.MaxExpressionBytes = 3
+	if err := ValidateConfig(c); err == nil {
+		t.Fatal("policy-file compilation ignored configured expression budget")
 	}
 }

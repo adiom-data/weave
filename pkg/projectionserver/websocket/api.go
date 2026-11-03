@@ -17,6 +17,8 @@ type ServeStream = impl.ServeStream
 
 func DefaultSocketConfig() SocketConfig { return impl.DefaultSocketConfig() }
 
+func DefaultAuthenticationOptions() AuthenticationOptions { return impl.DefaultAuthenticationOptions() }
+
 // NewHandler mounts only the reactive WebSocket endpoint. Database readiness,
 // application routes, and their CORS policy belong to the hosting application.
 // The host drives its projection service directly. Admission belongs to serve

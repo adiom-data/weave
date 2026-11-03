@@ -43,6 +43,13 @@ func DefaultOptions() Options {
 	}
 }
 
+// ValidateOptions checks source-independent limits without starting capture.
+// Source-specific framing capacity is checked when the service starts.
+func ValidateOptions(o Options) error {
+	_, err := o.normalized()
+	return err
+}
+
 func (o Options) normalized() (Options, error) {
 	d := DefaultOptions()
 	if o.MessageLimits == (MessageLimits{}) {
