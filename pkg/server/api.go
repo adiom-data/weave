@@ -16,7 +16,8 @@ type AuthConfig = impl.AuthConfig
 // JSONClaims preserves JSON-compatible fixed claims, including exact numbers.
 type JSONClaims = impl.JSONClaims
 
-// Options adds a logger and application-owned RPC services or HTTP routes.
+// Options adds a logger, application-owned RPC services/routes, and optional
+// WebSocket authentication renewal hooks.
 type Options = impl.Options
 
 // Host owns one listener and the reactive stack. Its only operations are Run and Close.

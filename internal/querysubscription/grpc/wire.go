@@ -267,11 +267,11 @@ func valueToProto(value storage.Value) (*querysubscriptionv1.Value, error) {
 	result := &querysubscriptionv1.Value{Type: string(value.Type)}
 	switch value.State {
 	case storage.ValueNull:
-		result.State = querysubscriptionv1.Value_NULL
+		result.State = querysubscriptionv1.Value_STATE_NULL
 	case storage.ValueUnavailable:
-		result.State = querysubscriptionv1.Value_UNAVAILABLE
+		result.State = querysubscriptionv1.Value_STATE_UNAVAILABLE
 	case storage.ValuePresent:
-		result.State = querysubscriptionv1.Value_PRESENT
+		result.State = querysubscriptionv1.Value_STATE_PRESENT
 	default:
 		return nil, errors.New("missing values must be represented by absent fields")
 	}
@@ -314,11 +314,11 @@ func valueFromProto(value *querysubscriptionv1.Value) (storage.Value, error) {
 	}
 	result := storage.Value{Type: storage.ValueType(value.Type)}
 	switch value.State {
-	case querysubscriptionv1.Value_NULL:
+	case querysubscriptionv1.Value_STATE_NULL:
 		result.State = storage.ValueNull
-	case querysubscriptionv1.Value_UNAVAILABLE:
+	case querysubscriptionv1.Value_STATE_UNAVAILABLE:
 		result.State = storage.ValueUnavailable
-	case querysubscriptionv1.Value_PRESENT:
+	case querysubscriptionv1.Value_STATE_PRESENT:
 		result.State = storage.ValuePresent
 	default:
 		return storage.Value{}, errors.New("value state is required")
@@ -785,17 +785,17 @@ func envelopeFromProto(envelope *querysubscriptionv1.DeliveryEnvelope) (querysub
 func comparisonToProto(operator storage.ComparisonOperator) (querysubscriptionv1.Comparison_Operator, error) {
 	switch operator {
 	case storage.ComparisonEqual:
-		return querysubscriptionv1.Comparison_EQUAL, nil
+		return querysubscriptionv1.Comparison_OPERATOR_EQUAL, nil
 	case storage.ComparisonNotEqual:
-		return querysubscriptionv1.Comparison_NOT_EQUAL, nil
+		return querysubscriptionv1.Comparison_OPERATOR_NOT_EQUAL, nil
 	case storage.ComparisonLess:
-		return querysubscriptionv1.Comparison_LESS_THAN, nil
+		return querysubscriptionv1.Comparison_OPERATOR_LESS_THAN, nil
 	case storage.ComparisonLessOrEqual:
-		return querysubscriptionv1.Comparison_LESS_THAN_OR_EQUAL, nil
+		return querysubscriptionv1.Comparison_OPERATOR_LESS_THAN_OR_EQUAL, nil
 	case storage.ComparisonGreater:
-		return querysubscriptionv1.Comparison_GREATER_THAN, nil
+		return querysubscriptionv1.Comparison_OPERATOR_GREATER_THAN, nil
 	case storage.ComparisonGreaterOrEqual:
-		return querysubscriptionv1.Comparison_GREATER_THAN_OR_EQUAL, nil
+		return querysubscriptionv1.Comparison_OPERATOR_GREATER_THAN_OR_EQUAL, nil
 	default:
 		return 0, errors.New("unknown comparison operator")
 	}
@@ -803,17 +803,17 @@ func comparisonToProto(operator storage.ComparisonOperator) (querysubscriptionv1
 
 func comparisonFromProto(operator querysubscriptionv1.Comparison_Operator) (storage.ComparisonOperator, error) {
 	switch operator {
-	case querysubscriptionv1.Comparison_EQUAL:
+	case querysubscriptionv1.Comparison_OPERATOR_EQUAL:
 		return storage.ComparisonEqual, nil
-	case querysubscriptionv1.Comparison_NOT_EQUAL:
+	case querysubscriptionv1.Comparison_OPERATOR_NOT_EQUAL:
 		return storage.ComparisonNotEqual, nil
-	case querysubscriptionv1.Comparison_LESS_THAN:
+	case querysubscriptionv1.Comparison_OPERATOR_LESS_THAN:
 		return storage.ComparisonLess, nil
-	case querysubscriptionv1.Comparison_LESS_THAN_OR_EQUAL:
+	case querysubscriptionv1.Comparison_OPERATOR_LESS_THAN_OR_EQUAL:
 		return storage.ComparisonLessOrEqual, nil
-	case querysubscriptionv1.Comparison_GREATER_THAN:
+	case querysubscriptionv1.Comparison_OPERATOR_GREATER_THAN:
 		return storage.ComparisonGreater, nil
-	case querysubscriptionv1.Comparison_GREATER_THAN_OR_EQUAL:
+	case querysubscriptionv1.Comparison_OPERATOR_GREATER_THAN_OR_EQUAL:
 		return storage.ComparisonGreaterOrEqual, nil
 	default:
 		return 0, errors.New("unknown comparison operator")
@@ -823,9 +823,9 @@ func comparisonFromProto(operator querysubscriptionv1.Comparison_Operator) (stor
 func junctionToProto(operator storage.JunctionOperator) (querysubscriptionv1.Junction_Operator, error) {
 	switch operator {
 	case storage.JunctionAnd:
-		return querysubscriptionv1.Junction_AND, nil
+		return querysubscriptionv1.Junction_OPERATOR_AND, nil
 	case storage.JunctionOr:
-		return querysubscriptionv1.Junction_OR, nil
+		return querysubscriptionv1.Junction_OPERATOR_OR, nil
 	default:
 		return 0, errors.New("unknown junction operator")
 	}
@@ -833,9 +833,9 @@ func junctionToProto(operator storage.JunctionOperator) (querysubscriptionv1.Jun
 
 func junctionFromProto(operator querysubscriptionv1.Junction_Operator) (storage.JunctionOperator, error) {
 	switch operator {
-	case querysubscriptionv1.Junction_AND:
+	case querysubscriptionv1.Junction_OPERATOR_AND:
 		return storage.JunctionAnd, nil
-	case querysubscriptionv1.Junction_OR:
+	case querysubscriptionv1.Junction_OPERATOR_OR:
 		return storage.JunctionOr, nil
 	default:
 		return 0, errors.New("unknown junction operator")
@@ -845,11 +845,11 @@ func junctionFromProto(operator querysubscriptionv1.Junction_Operator) (storage.
 func boundaryKindToProto(kind querysubscription.BoundaryKind) (querysubscriptionv1.Boundary_Kind, error) {
 	switch kind {
 	case querysubscription.BoundaryStart:
-		return querysubscriptionv1.Boundary_START, nil
+		return querysubscriptionv1.Boundary_KIND_START, nil
 	case querysubscription.BoundaryCursor:
-		return querysubscriptionv1.Boundary_CURSOR, nil
+		return querysubscriptionv1.Boundary_KIND_CURSOR, nil
 	case querysubscription.BoundaryEnd:
-		return querysubscriptionv1.Boundary_END, nil
+		return querysubscriptionv1.Boundary_KIND_END, nil
 	default:
 		return 0, errors.New("unknown boundary kind")
 	}
@@ -857,11 +857,11 @@ func boundaryKindToProto(kind querysubscription.BoundaryKind) (querysubscription
 
 func boundaryKindFromProto(kind querysubscriptionv1.Boundary_Kind) (querysubscription.BoundaryKind, error) {
 	switch kind {
-	case querysubscriptionv1.Boundary_START:
+	case querysubscriptionv1.Boundary_KIND_START:
 		return querysubscription.BoundaryStart, nil
-	case querysubscriptionv1.Boundary_CURSOR:
+	case querysubscriptionv1.Boundary_KIND_CURSOR:
 		return querysubscription.BoundaryCursor, nil
-	case querysubscriptionv1.Boundary_END:
+	case querysubscriptionv1.Boundary_KIND_END:
 		return querysubscription.BoundaryEnd, nil
 	default:
 		return 0, errors.New("unknown boundary kind")
@@ -871,9 +871,9 @@ func boundaryKindFromProto(kind querysubscriptionv1.Boundary_Kind) (querysubscri
 func boundarySideToProto(side querysubscription.BoundarySide) (querysubscriptionv1.BoundaryChange_Side, error) {
 	switch side {
 	case querysubscription.BoundaryLeft:
-		return querysubscriptionv1.BoundaryChange_LEFT, nil
+		return querysubscriptionv1.BoundaryChange_SIDE_LEFT, nil
 	case querysubscription.BoundaryRight:
-		return querysubscriptionv1.BoundaryChange_RIGHT, nil
+		return querysubscriptionv1.BoundaryChange_SIDE_RIGHT, nil
 	default:
 		return 0, errors.New("unknown boundary side")
 	}
@@ -881,9 +881,9 @@ func boundarySideToProto(side querysubscription.BoundarySide) (querysubscription
 
 func boundarySideFromProto(side querysubscriptionv1.BoundaryChange_Side) (querysubscription.BoundarySide, error) {
 	switch side {
-	case querysubscriptionv1.BoundaryChange_LEFT:
+	case querysubscriptionv1.BoundaryChange_SIDE_LEFT:
 		return querysubscription.BoundaryLeft, nil
-	case querysubscriptionv1.BoundaryChange_RIGHT:
+	case querysubscriptionv1.BoundaryChange_SIDE_RIGHT:
 		return querysubscription.BoundaryRight, nil
 	default:
 		return 0, errors.New("unknown boundary side")
@@ -893,11 +893,11 @@ func boundarySideFromProto(side querysubscriptionv1.BoundaryChange_Side) (querys
 func boundaryOperationToProto(operation querysubscription.BoundaryOperation) (querysubscriptionv1.BoundaryChange_Operation, error) {
 	switch operation {
 	case querysubscription.BoundaryMove:
-		return querysubscriptionv1.BoundaryChange_MOVE, nil
+		return querysubscriptionv1.BoundaryChange_OPERATION_MOVE, nil
 	case querysubscription.BoundaryExtend:
-		return querysubscriptionv1.BoundaryChange_EXTEND, nil
+		return querysubscriptionv1.BoundaryChange_OPERATION_EXTEND, nil
 	case querysubscription.BoundaryContract:
-		return querysubscriptionv1.BoundaryChange_CONTRACT, nil
+		return querysubscriptionv1.BoundaryChange_OPERATION_CONTRACT, nil
 	default:
 		return 0, errors.New("unknown boundary operation")
 	}
@@ -905,11 +905,11 @@ func boundaryOperationToProto(operation querysubscription.BoundaryOperation) (qu
 
 func boundaryOperationFromProto(operation querysubscriptionv1.BoundaryChange_Operation) (querysubscription.BoundaryOperation, error) {
 	switch operation {
-	case querysubscriptionv1.BoundaryChange_MOVE:
+	case querysubscriptionv1.BoundaryChange_OPERATION_MOVE:
 		return querysubscription.BoundaryMove, nil
-	case querysubscriptionv1.BoundaryChange_EXTEND:
+	case querysubscriptionv1.BoundaryChange_OPERATION_EXTEND:
 		return querysubscription.BoundaryExtend, nil
-	case querysubscriptionv1.BoundaryChange_CONTRACT:
+	case querysubscriptionv1.BoundaryChange_OPERATION_CONTRACT:
 		return querysubscription.BoundaryContract, nil
 	default:
 		return 0, errors.New("unknown boundary operation")
@@ -919,11 +919,11 @@ func boundaryOperationFromProto(operation querysubscriptionv1.BoundaryChange_Ope
 func deliveryKindToProto(kind querysubscription.DeliveryKind) (querysubscriptionv1.DeliveryMetadata_Kind, error) {
 	switch kind {
 	case querysubscription.DeliveryCommit:
-		return querysubscriptionv1.DeliveryMetadata_COMMIT, nil
+		return querysubscriptionv1.DeliveryMetadata_KIND_COMMIT, nil
 	case querysubscription.DeliveryHydration:
-		return querysubscriptionv1.DeliveryMetadata_HYDRATION, nil
+		return querysubscriptionv1.DeliveryMetadata_KIND_HYDRATION, nil
 	case querysubscription.DeliveryWindow:
-		return querysubscriptionv1.DeliveryMetadata_WINDOW, nil
+		return querysubscriptionv1.DeliveryMetadata_KIND_WINDOW, nil
 	default:
 		return 0, errors.New("unknown delivery kind")
 	}
@@ -931,11 +931,11 @@ func deliveryKindToProto(kind querysubscription.DeliveryKind) (querysubscription
 
 func deliveryKindFromProto(kind querysubscriptionv1.DeliveryMetadata_Kind) (querysubscription.DeliveryKind, error) {
 	switch kind {
-	case querysubscriptionv1.DeliveryMetadata_COMMIT:
+	case querysubscriptionv1.DeliveryMetadata_KIND_COMMIT:
 		return querysubscription.DeliveryCommit, nil
-	case querysubscriptionv1.DeliveryMetadata_HYDRATION:
+	case querysubscriptionv1.DeliveryMetadata_KIND_HYDRATION:
 		return querysubscription.DeliveryHydration, nil
-	case querysubscriptionv1.DeliveryMetadata_WINDOW:
+	case querysubscriptionv1.DeliveryMetadata_KIND_WINDOW:
 		return querysubscription.DeliveryWindow, nil
 	default:
 		return 0, errors.New("unknown delivery kind")
@@ -945,11 +945,11 @@ func deliveryKindFromProto(kind querysubscriptionv1.DeliveryMetadata_Kind) (quer
 func rowChangeKindToProto(kind querysubscription.ChangeKind) (querysubscriptionv1.Change_Kind, error) {
 	switch kind {
 	case querysubscription.Added:
-		return querysubscriptionv1.Change_ADDED, nil
+		return querysubscriptionv1.Change_KIND_ADDED, nil
 	case querysubscription.Updated:
-		return querysubscriptionv1.Change_UPDATED, nil
+		return querysubscriptionv1.Change_KIND_UPDATED, nil
 	case querysubscription.Removed:
-		return querysubscriptionv1.Change_REMOVED, nil
+		return querysubscriptionv1.Change_KIND_REMOVED, nil
 	default:
 		return 0, errors.New("unknown change kind")
 	}
@@ -957,11 +957,11 @@ func rowChangeKindToProto(kind querysubscription.ChangeKind) (querysubscriptionv
 
 func rowChangeKindFromProto(kind querysubscriptionv1.Change_Kind) (querysubscription.ChangeKind, error) {
 	switch kind {
-	case querysubscriptionv1.Change_ADDED:
+	case querysubscriptionv1.Change_KIND_ADDED:
 		return querysubscription.Added, nil
-	case querysubscriptionv1.Change_UPDATED:
+	case querysubscriptionv1.Change_KIND_UPDATED:
 		return querysubscription.Updated, nil
-	case querysubscriptionv1.Change_REMOVED:
+	case querysubscriptionv1.Change_KIND_REMOVED:
 		return querysubscription.Removed, nil
 	default:
 		return 0, errors.New("unknown change kind")

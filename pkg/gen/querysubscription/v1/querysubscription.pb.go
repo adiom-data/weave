@@ -24,25 +24,25 @@ const (
 type PayloadChunk_Kind int32
 
 const (
-	PayloadChunk_KIND_UNSPECIFIED PayloadChunk_Kind = 0
-	PayloadChunk_QUERY_SNAPSHOT   PayloadChunk_Kind = 1
-	PayloadChunk_ENTITY_INSTALLED PayloadChunk_Kind = 2
-	PayloadChunk_DELIVERY         PayloadChunk_Kind = 3
+	PayloadChunk_KIND_UNSPECIFIED      PayloadChunk_Kind = 0
+	PayloadChunk_KIND_QUERY_SNAPSHOT   PayloadChunk_Kind = 1
+	PayloadChunk_KIND_ENTITY_INSTALLED PayloadChunk_Kind = 2
+	PayloadChunk_KIND_DELIVERY         PayloadChunk_Kind = 3
 )
 
 // Enum value maps for PayloadChunk_Kind.
 var (
 	PayloadChunk_Kind_name = map[int32]string{
 		0: "KIND_UNSPECIFIED",
-		1: "QUERY_SNAPSHOT",
-		2: "ENTITY_INSTALLED",
-		3: "DELIVERY",
+		1: "KIND_QUERY_SNAPSHOT",
+		2: "KIND_ENTITY_INSTALLED",
+		3: "KIND_DELIVERY",
 	}
 	PayloadChunk_Kind_value = map[string]int32{
-		"KIND_UNSPECIFIED": 0,
-		"QUERY_SNAPSHOT":   1,
-		"ENTITY_INSTALLED": 2,
-		"DELIVERY":         3,
+		"KIND_UNSPECIFIED":      0,
+		"KIND_QUERY_SNAPSHOT":   1,
+		"KIND_ENTITY_INSTALLED": 2,
+		"KIND_DELIVERY":         3,
 	}
 )
 
@@ -76,28 +76,28 @@ func (PayloadChunk_Kind) EnumDescriptor() ([]byte, []int) {
 type Error_Code int32
 
 const (
-	Error_CODE_UNSPECIFIED Error_Code = 0
-	Error_INVALID_REQUEST  Error_Code = 1
-	Error_BACKPRESSURE     Error_Code = 2
-	Error_CLOSED           Error_Code = 3
-	Error_INTERNAL         Error_Code = 4
+	Error_CODE_UNSPECIFIED     Error_Code = 0
+	Error_CODE_INVALID_REQUEST Error_Code = 1
+	Error_CODE_BACKPRESSURE    Error_Code = 2
+	Error_CODE_CLOSED          Error_Code = 3
+	Error_CODE_INTERNAL        Error_Code = 4
 )
 
 // Enum value maps for Error_Code.
 var (
 	Error_Code_name = map[int32]string{
 		0: "CODE_UNSPECIFIED",
-		1: "INVALID_REQUEST",
-		2: "BACKPRESSURE",
-		3: "CLOSED",
-		4: "INTERNAL",
+		1: "CODE_INVALID_REQUEST",
+		2: "CODE_BACKPRESSURE",
+		3: "CODE_CLOSED",
+		4: "CODE_INTERNAL",
 	}
 	Error_Code_value = map[string]int32{
-		"CODE_UNSPECIFIED": 0,
-		"INVALID_REQUEST":  1,
-		"BACKPRESSURE":     2,
-		"CLOSED":           3,
-		"INTERNAL":         4,
+		"CODE_UNSPECIFIED":     0,
+		"CODE_INVALID_REQUEST": 1,
+		"CODE_BACKPRESSURE":    2,
+		"CODE_CLOSED":          3,
+		"CODE_INTERNAL":        4,
 	}
 )
 
@@ -131,34 +131,34 @@ func (Error_Code) EnumDescriptor() ([]byte, []int) {
 type Comparison_Operator int32
 
 const (
-	Comparison_OPERATOR_UNSPECIFIED  Comparison_Operator = 0
-	Comparison_EQUAL                 Comparison_Operator = 1
-	Comparison_NOT_EQUAL             Comparison_Operator = 2
-	Comparison_LESS_THAN             Comparison_Operator = 3
-	Comparison_LESS_THAN_OR_EQUAL    Comparison_Operator = 4
-	Comparison_GREATER_THAN          Comparison_Operator = 5
-	Comparison_GREATER_THAN_OR_EQUAL Comparison_Operator = 6
+	Comparison_OPERATOR_UNSPECIFIED           Comparison_Operator = 0
+	Comparison_OPERATOR_EQUAL                 Comparison_Operator = 1
+	Comparison_OPERATOR_NOT_EQUAL             Comparison_Operator = 2
+	Comparison_OPERATOR_LESS_THAN             Comparison_Operator = 3
+	Comparison_OPERATOR_LESS_THAN_OR_EQUAL    Comparison_Operator = 4
+	Comparison_OPERATOR_GREATER_THAN          Comparison_Operator = 5
+	Comparison_OPERATOR_GREATER_THAN_OR_EQUAL Comparison_Operator = 6
 )
 
 // Enum value maps for Comparison_Operator.
 var (
 	Comparison_Operator_name = map[int32]string{
 		0: "OPERATOR_UNSPECIFIED",
-		1: "EQUAL",
-		2: "NOT_EQUAL",
-		3: "LESS_THAN",
-		4: "LESS_THAN_OR_EQUAL",
-		5: "GREATER_THAN",
-		6: "GREATER_THAN_OR_EQUAL",
+		1: "OPERATOR_EQUAL",
+		2: "OPERATOR_NOT_EQUAL",
+		3: "OPERATOR_LESS_THAN",
+		4: "OPERATOR_LESS_THAN_OR_EQUAL",
+		5: "OPERATOR_GREATER_THAN",
+		6: "OPERATOR_GREATER_THAN_OR_EQUAL",
 	}
 	Comparison_Operator_value = map[string]int32{
-		"OPERATOR_UNSPECIFIED":  0,
-		"EQUAL":                 1,
-		"NOT_EQUAL":             2,
-		"LESS_THAN":             3,
-		"LESS_THAN_OR_EQUAL":    4,
-		"GREATER_THAN":          5,
-		"GREATER_THAN_OR_EQUAL": 6,
+		"OPERATOR_UNSPECIFIED":           0,
+		"OPERATOR_EQUAL":                 1,
+		"OPERATOR_NOT_EQUAL":             2,
+		"OPERATOR_LESS_THAN":             3,
+		"OPERATOR_LESS_THAN_OR_EQUAL":    4,
+		"OPERATOR_GREATER_THAN":          5,
+		"OPERATOR_GREATER_THAN_OR_EQUAL": 6,
 	}
 )
 
@@ -193,21 +193,21 @@ type Junction_Operator int32
 
 const (
 	Junction_OPERATOR_UNSPECIFIED Junction_Operator = 0
-	Junction_AND                  Junction_Operator = 1
-	Junction_OR                   Junction_Operator = 2
+	Junction_OPERATOR_AND         Junction_Operator = 1
+	Junction_OPERATOR_OR          Junction_Operator = 2
 )
 
 // Enum value maps for Junction_Operator.
 var (
 	Junction_Operator_name = map[int32]string{
 		0: "OPERATOR_UNSPECIFIED",
-		1: "AND",
-		2: "OR",
+		1: "OPERATOR_AND",
+		2: "OPERATOR_OR",
 	}
 	Junction_Operator_value = map[string]int32{
 		"OPERATOR_UNSPECIFIED": 0,
-		"AND":                  1,
-		"OR":                   2,
+		"OPERATOR_AND":         1,
+		"OPERATOR_OR":          2,
 	}
 )
 
@@ -242,24 +242,24 @@ type Value_State int32
 
 const (
 	Value_STATE_UNSPECIFIED Value_State = 0
-	Value_NULL              Value_State = 1
-	Value_PRESENT           Value_State = 2
-	Value_UNAVAILABLE       Value_State = 3
+	Value_STATE_NULL        Value_State = 1
+	Value_STATE_PRESENT     Value_State = 2
+	Value_STATE_UNAVAILABLE Value_State = 3
 )
 
 // Enum value maps for Value_State.
 var (
 	Value_State_name = map[int32]string{
 		0: "STATE_UNSPECIFIED",
-		1: "NULL",
-		2: "PRESENT",
-		3: "UNAVAILABLE",
+		1: "STATE_NULL",
+		2: "STATE_PRESENT",
+		3: "STATE_UNAVAILABLE",
 	}
 	Value_State_value = map[string]int32{
 		"STATE_UNSPECIFIED": 0,
-		"NULL":              1,
-		"PRESENT":           2,
-		"UNAVAILABLE":       3,
+		"STATE_NULL":        1,
+		"STATE_PRESENT":     2,
+		"STATE_UNAVAILABLE": 3,
 	}
 )
 
@@ -294,24 +294,24 @@ type Boundary_Kind int32
 
 const (
 	Boundary_KIND_UNSPECIFIED Boundary_Kind = 0
-	Boundary_START            Boundary_Kind = 1
-	Boundary_CURSOR           Boundary_Kind = 2
-	Boundary_END              Boundary_Kind = 3
+	Boundary_KIND_START       Boundary_Kind = 1
+	Boundary_KIND_CURSOR      Boundary_Kind = 2
+	Boundary_KIND_END         Boundary_Kind = 3
 )
 
 // Enum value maps for Boundary_Kind.
 var (
 	Boundary_Kind_name = map[int32]string{
 		0: "KIND_UNSPECIFIED",
-		1: "START",
-		2: "CURSOR",
-		3: "END",
+		1: "KIND_START",
+		2: "KIND_CURSOR",
+		3: "KIND_END",
 	}
 	Boundary_Kind_value = map[string]int32{
 		"KIND_UNSPECIFIED": 0,
-		"START":            1,
-		"CURSOR":           2,
-		"END":              3,
+		"KIND_START":       1,
+		"KIND_CURSOR":      2,
+		"KIND_END":         3,
 	}
 )
 
@@ -346,21 +346,21 @@ type BoundaryChange_Side int32
 
 const (
 	BoundaryChange_SIDE_UNSPECIFIED BoundaryChange_Side = 0
-	BoundaryChange_LEFT             BoundaryChange_Side = 1
-	BoundaryChange_RIGHT            BoundaryChange_Side = 2
+	BoundaryChange_SIDE_LEFT        BoundaryChange_Side = 1
+	BoundaryChange_SIDE_RIGHT       BoundaryChange_Side = 2
 )
 
 // Enum value maps for BoundaryChange_Side.
 var (
 	BoundaryChange_Side_name = map[int32]string{
 		0: "SIDE_UNSPECIFIED",
-		1: "LEFT",
-		2: "RIGHT",
+		1: "SIDE_LEFT",
+		2: "SIDE_RIGHT",
 	}
 	BoundaryChange_Side_value = map[string]int32{
 		"SIDE_UNSPECIFIED": 0,
-		"LEFT":             1,
-		"RIGHT":            2,
+		"SIDE_LEFT":        1,
+		"SIDE_RIGHT":       2,
 	}
 )
 
@@ -395,24 +395,24 @@ type BoundaryChange_Operation int32
 
 const (
 	BoundaryChange_OPERATION_UNSPECIFIED BoundaryChange_Operation = 0
-	BoundaryChange_MOVE                  BoundaryChange_Operation = 1
-	BoundaryChange_EXTEND                BoundaryChange_Operation = 2
-	BoundaryChange_CONTRACT              BoundaryChange_Operation = 3
+	BoundaryChange_OPERATION_MOVE        BoundaryChange_Operation = 1
+	BoundaryChange_OPERATION_EXTEND      BoundaryChange_Operation = 2
+	BoundaryChange_OPERATION_CONTRACT    BoundaryChange_Operation = 3
 )
 
 // Enum value maps for BoundaryChange_Operation.
 var (
 	BoundaryChange_Operation_name = map[int32]string{
 		0: "OPERATION_UNSPECIFIED",
-		1: "MOVE",
-		2: "EXTEND",
-		3: "CONTRACT",
+		1: "OPERATION_MOVE",
+		2: "OPERATION_EXTEND",
+		3: "OPERATION_CONTRACT",
 	}
 	BoundaryChange_Operation_value = map[string]int32{
 		"OPERATION_UNSPECIFIED": 0,
-		"MOVE":                  1,
-		"EXTEND":                2,
-		"CONTRACT":              3,
+		"OPERATION_MOVE":        1,
+		"OPERATION_EXTEND":      2,
+		"OPERATION_CONTRACT":    3,
 	}
 )
 
@@ -447,24 +447,24 @@ type DeliveryMetadata_Kind int32
 
 const (
 	DeliveryMetadata_KIND_UNSPECIFIED DeliveryMetadata_Kind = 0
-	DeliveryMetadata_COMMIT           DeliveryMetadata_Kind = 1
-	DeliveryMetadata_HYDRATION        DeliveryMetadata_Kind = 2
-	DeliveryMetadata_WINDOW           DeliveryMetadata_Kind = 3
+	DeliveryMetadata_KIND_COMMIT      DeliveryMetadata_Kind = 1
+	DeliveryMetadata_KIND_HYDRATION   DeliveryMetadata_Kind = 2
+	DeliveryMetadata_KIND_WINDOW      DeliveryMetadata_Kind = 3
 )
 
 // Enum value maps for DeliveryMetadata_Kind.
 var (
 	DeliveryMetadata_Kind_name = map[int32]string{
 		0: "KIND_UNSPECIFIED",
-		1: "COMMIT",
-		2: "HYDRATION",
-		3: "WINDOW",
+		1: "KIND_COMMIT",
+		2: "KIND_HYDRATION",
+		3: "KIND_WINDOW",
 	}
 	DeliveryMetadata_Kind_value = map[string]int32{
 		"KIND_UNSPECIFIED": 0,
-		"COMMIT":           1,
-		"HYDRATION":        2,
-		"WINDOW":           3,
+		"KIND_COMMIT":      1,
+		"KIND_HYDRATION":   2,
+		"KIND_WINDOW":      3,
 	}
 )
 
@@ -499,24 +499,24 @@ type Change_Kind int32
 
 const (
 	Change_KIND_UNSPECIFIED Change_Kind = 0
-	Change_ADDED            Change_Kind = 1
-	Change_UPDATED          Change_Kind = 2
-	Change_REMOVED          Change_Kind = 3
+	Change_KIND_ADDED       Change_Kind = 1
+	Change_KIND_UPDATED     Change_Kind = 2
+	Change_KIND_REMOVED     Change_Kind = 3
 )
 
 // Enum value maps for Change_Kind.
 var (
 	Change_Kind_name = map[int32]string{
 		0: "KIND_UNSPECIFIED",
-		1: "ADDED",
-		2: "UPDATED",
-		3: "REMOVED",
+		1: "KIND_ADDED",
+		2: "KIND_UPDATED",
+		3: "KIND_REMOVED",
 	}
 	Change_Kind_value = map[string]int32{
 		"KIND_UNSPECIFIED": 0,
-		"ADDED":            1,
-		"UPDATED":          2,
-		"REMOVED":          3,
+		"KIND_ADDED":       1,
+		"KIND_UPDATED":     2,
+		"KIND_REMOVED":     3,
 	}
 )
 
@@ -3763,7 +3763,7 @@ const file_querysubscription_v1_querysubscription_proto_rawDesc = "" +
 	"\rpayload_chunk\x18\x05 \x01(\v2\".querysubscription.v1.PayloadChunkH\x00R\fpayloadChunkB\a\n" +
 	"\x05event\"9\n" +
 	"\fAcknowledged\x12)\n" +
-	"\x10protocol_version\x18\x01 \x01(\rR\x0fprotocolVersion\"\xc8\x02\n" +
+	"\x10protocol_version\x18\x01 \x01(\rR\x0fprotocolVersion\"\xd7\x02\n" +
 	"\fPayloadChunk\x12;\n" +
 	"\x04kind\x18\x01 \x01(\x0e2'.querysubscription.v1.PayloadChunk.KindR\x04kind\x12'\n" +
 	"\x0fsubscription_id\x18\x02 \x01(\tR\x0esubscriptionId\x12\x1d\n" +
@@ -3773,23 +3773,22 @@ const file_querysubscription_v1_querysubscription_proto_rawDesc = "" +
 	"\x05final\x18\x05 \x01(\bR\x05final\x12\x1d\n" +
 	"\n" +
 	"total_size\x18\x06 \x01(\x04R\ttotalSize\x12\x12\n" +
-	"\x04data\x18\a \x01(\fR\x04data\"T\n" +
+	"\x04data\x18\a \x01(\fR\x04data\"c\n" +
 	"\x04Kind\x12\x14\n" +
-	"\x10KIND_UNSPECIFIED\x10\x00\x12\x12\n" +
-	"\x0eQUERY_SNAPSHOT\x10\x01\x12\x14\n" +
-	"\x10ENTITY_INSTALLED\x10\x02\x12\f\n" +
-	"\bDELIVERY\x10\x03\"\xdf\x01\n" +
+	"\x10KIND_UNSPECIFIED\x10\x00\x12\x17\n" +
+	"\x13KIND_QUERY_SNAPSHOT\x10\x01\x12\x19\n" +
+	"\x15KIND_ENTITY_INSTALLED\x10\x02\x12\x11\n" +
+	"\rKIND_DELIVERY\x10\x03\"\xf3\x01\n" +
 	"\x05Error\x124\n" +
 	"\x04code\x18\x01 \x01(\x0e2 .querysubscription.v1.Error.CodeR\x04code\x12'\n" +
 	"\x0fsubscription_id\x18\x02 \x01(\tR\x0esubscriptionId\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"]\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"q\n" +
 	"\x04Code\x12\x14\n" +
-	"\x10CODE_UNSPECIFIED\x10\x00\x12\x13\n" +
-	"\x0fINVALID_REQUEST\x10\x01\x12\x10\n" +
-	"\fBACKPRESSURE\x10\x02\x12\n" +
-	"\n" +
-	"\x06CLOSED\x10\x03\x12\f\n" +
-	"\bINTERNAL\x10\x04\"\xb1\x01\n" +
+	"\x10CODE_UNSPECIFIED\x10\x00\x12\x18\n" +
+	"\x14CODE_INVALID_REQUEST\x10\x01\x12\x15\n" +
+	"\x11CODE_BACKPRESSURE\x10\x02\x12\x0f\n" +
+	"\vCODE_CLOSED\x10\x03\x12\x11\n" +
+	"\rCODE_INTERNAL\x10\x04\"\xb1\x01\n" +
 	"\x05Query\x12\x1c\n" +
 	"\tnamespace\x18\x01 \x01(\tR\tnamespace\x12\x1a\n" +
 	"\brelation\x18\x02 \x01(\tR\brelation\x127\n" +
@@ -3804,37 +3803,37 @@ const file_querysubscription_v1_querysubscription_proto_rawDesc = "" +
 	"\tnull_test\x18\x02 \x01(\v2\x1e.querysubscription.v1.NullTestH\x00R\bnullTest\x12<\n" +
 	"\bjunction\x18\x03 \x01(\v2\x1e.querysubscription.v1.JunctionH\x00R\bjunctionB\f\n" +
 	"\n" +
-	"expression\"\xd2\x02\n" +
+	"expression\"\x88\x03\n" +
 	"\n" +
 	"Comparison\x125\n" +
 	"\x05field\x18\x01 \x01(\v2\x1f.querysubscription.v1.FieldPathR\x05field\x12E\n" +
 	"\boperator\x18\x02 \x01(\x0e2).querysubscription.v1.Comparison.OperatorR\boperator\x121\n" +
-	"\x05value\x18\x03 \x01(\v2\x1b.querysubscription.v1.ValueR\x05value\"\x92\x01\n" +
+	"\x05value\x18\x03 \x01(\v2\x1b.querysubscription.v1.ValueR\x05value\"\xc8\x01\n" +
 	"\bOperator\x12\x18\n" +
-	"\x14OPERATOR_UNSPECIFIED\x10\x00\x12\t\n" +
-	"\x05EQUAL\x10\x01\x12\r\n" +
-	"\tNOT_EQUAL\x10\x02\x12\r\n" +
-	"\tLESS_THAN\x10\x03\x12\x16\n" +
-	"\x12LESS_THAN_OR_EQUAL\x10\x04\x12\x10\n" +
-	"\fGREATER_THAN\x10\x05\x12\x19\n" +
-	"\x15GREATER_THAN_OR_EQUAL\x10\x06\"Z\n" +
+	"\x14OPERATOR_UNSPECIFIED\x10\x00\x12\x12\n" +
+	"\x0eOPERATOR_EQUAL\x10\x01\x12\x16\n" +
+	"\x12OPERATOR_NOT_EQUAL\x10\x02\x12\x16\n" +
+	"\x12OPERATOR_LESS_THAN\x10\x03\x12\x1f\n" +
+	"\x1bOPERATOR_LESS_THAN_OR_EQUAL\x10\x04\x12\x19\n" +
+	"\x15OPERATOR_GREATER_THAN\x10\x05\x12\"\n" +
+	"\x1eOPERATOR_GREATER_THAN_OR_EQUAL\x10\x06\"Z\n" +
 	"\bNullTest\x125\n" +
 	"\x05field\x18\x01 \x01(\v2\x1f.querysubscription.v1.FieldPathR\x05field\x12\x17\n" +
-	"\ais_null\x18\x02 \x01(\bR\x06isNull\"\xc3\x01\n" +
+	"\ais_null\x18\x02 \x01(\bR\x06isNull\"\xd5\x01\n" +
 	"\bJunction\x12C\n" +
 	"\boperator\x18\x01 \x01(\x0e2'.querysubscription.v1.Junction.OperatorR\boperator\x12;\n" +
-	"\boperands\x18\x02 \x03(\v2\x1f.querysubscription.v1.PredicateR\boperands\"5\n" +
+	"\boperands\x18\x02 \x03(\v2\x1f.querysubscription.v1.PredicateR\boperands\"G\n" +
 	"\bOperator\x12\x18\n" +
-	"\x14OPERATOR_UNSPECIFIED\x10\x00\x12\a\n" +
-	"\x03AND\x10\x01\x12\x06\n" +
-	"\x02OR\x10\x02\"\x83\x01\n" +
+	"\x14OPERATOR_UNSPECIFIED\x10\x00\x12\x10\n" +
+	"\fOPERATOR_AND\x10\x01\x12\x0f\n" +
+	"\vOPERATOR_OR\x10\x02\"\x83\x01\n" +
 	"\tOrderTerm\x125\n" +
 	"\x05field\x18\x01 \x01(\v2\x1f.querysubscription.v1.FieldPathR\x05field\x12\x1e\n" +
 	"\n" +
 	"descending\x18\x02 \x01(\bR\n" +
 	"descending\x12\x1f\n" +
 	"\vnulls_first\x18\x03 \x01(\bR\n" +
-	"nullsFirst\"\x96\x03\n" +
+	"nullsFirst\"\xa8\x03\n" +
 	"\x05Value\x127\n" +
 	"\x05state\x18\x01 \x01(\x0e2!.querysubscription.v1.Value.StateR\x05state\x12\x12\n" +
 	"\x04type\x18\x02 \x01(\tR\x04type\x12\x12\n" +
@@ -3844,12 +3843,13 @@ const file_querysubscription_v1_querysubscription_proto_rawDesc = "" +
 	"\x06object\x18\x06 \x03(\v2'.querysubscription.v1.Value.ObjectEntryR\x06object\x1aV\n" +
 	"\vObjectEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x121\n" +
-	"\x05value\x18\x02 \x01(\v2\x1b.querysubscription.v1.ValueR\x05value:\x028\x01\"F\n" +
+	"\x05value\x18\x02 \x01(\v2\x1b.querysubscription.v1.ValueR\x05value:\x028\x01\"X\n" +
 	"\x05State\x12\x15\n" +
-	"\x11STATE_UNSPECIFIED\x10\x00\x12\b\n" +
-	"\x04NULL\x10\x01\x12\v\n" +
-	"\aPRESENT\x10\x02\x12\x0f\n" +
-	"\vUNAVAILABLE\x10\x03\"@\n" +
+	"\x11STATE_UNSPECIFIED\x10\x00\x12\x0e\n" +
+	"\n" +
+	"STATE_NULL\x10\x01\x12\x11\n" +
+	"\rSTATE_PRESENT\x10\x02\x12\x15\n" +
+	"\x11STATE_UNAVAILABLE\x10\x03\"@\n" +
 	"\rInitialWindow\x12\x19\n" +
 	"\bfrom_end\x18\x01 \x01(\bR\afromEnd\x12\x14\n" +
 	"\x05count\x18\x02 \x01(\rR\x05count\"=\n" +
@@ -3878,16 +3878,16 @@ const file_querysubscription_v1_querysubscription_proto_rawDesc = "" +
 	"\x06fields\x18\x01 \x03(\v2(.querysubscription.v1.Record.FieldsEntryR\x06fields\x1aV\n" +
 	"\vFieldsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x121\n" +
-	"\x05value\x18\x02 \x01(\v2\x1b.querysubscription.v1.ValueR\x05value:\x028\x01\"\x99\x01\n" +
+	"\x05value\x18\x02 \x01(\v2\x1b.querysubscription.v1.ValueR\x05value:\x028\x01\"\xa8\x01\n" +
 	"\bBoundary\x127\n" +
 	"\x04kind\x18\x01 \x01(\x0e2#.querysubscription.v1.Boundary.KindR\x04kind\x12\x16\n" +
-	"\x06cursor\x18\x02 \x01(\fR\x06cursor\"<\n" +
+	"\x06cursor\x18\x02 \x01(\fR\x06cursor\"K\n" +
 	"\x04Kind\x12\x14\n" +
-	"\x10KIND_UNSPECIFIED\x10\x00\x12\t\n" +
-	"\x05START\x10\x01\x12\n" +
+	"\x10KIND_UNSPECIFIED\x10\x00\x12\x0e\n" +
 	"\n" +
-	"\x06CURSOR\x10\x02\x12\a\n" +
-	"\x03END\x10\x03\"r\n" +
+	"KIND_START\x10\x01\x12\x0f\n" +
+	"\vKIND_CURSOR\x10\x02\x12\f\n" +
+	"\bKIND_END\x10\x03\"r\n" +
 	"\x06Bounds\x122\n" +
 	"\x04left\x18\x01 \x01(\v2\x1e.querysubscription.v1.BoundaryR\x04left\x124\n" +
 	"\x05right\x18\x02 \x01(\v2\x1e.querysubscription.v1.BoundaryR\x05right\"y\n" +
@@ -3925,22 +3925,22 @@ const file_querysubscription_v1_querysubscription_proto_rawDesc = "" +
 	"checkpoint\x18\x02 \x01(\v2\x1e.querysubscription.v1.PositionR\n" +
 	"checkpoint\x124\n" +
 	"\x05fence\x18\x03 \x01(\v2\x1e.querysubscription.v1.PositionR\x05fence\x12\x1a\n" +
-	"\brevision\x18\x04 \x01(\x04R\brevision\"\xca\x02\n" +
+	"\brevision\x18\x04 \x01(\x04R\brevision\"\xf2\x02\n" +
 	"\x0eBoundaryChange\x12=\n" +
 	"\x04side\x18\x01 \x01(\x0e2).querysubscription.v1.BoundaryChange.SideR\x04side\x12L\n" +
 	"\toperation\x18\x02 \x01(\x0e2..querysubscription.v1.BoundaryChange.OperationR\toperation\x12\x14\n" +
 	"\x05count\x18\x03 \x01(\rR\x05count\x12\x16\n" +
-	"\x06cursor\x18\x04 \x01(\fR\x06cursor\"1\n" +
+	"\x06cursor\x18\x04 \x01(\fR\x06cursor\";\n" +
 	"\x04Side\x12\x14\n" +
-	"\x10SIDE_UNSPECIFIED\x10\x00\x12\b\n" +
-	"\x04LEFT\x10\x01\x12\t\n" +
-	"\x05RIGHT\x10\x02\"J\n" +
-	"\tOperation\x12\x19\n" +
-	"\x15OPERATION_UNSPECIFIED\x10\x00\x12\b\n" +
-	"\x04MOVE\x10\x01\x12\n" +
+	"\x10SIDE_UNSPECIFIED\x10\x00\x12\r\n" +
+	"\tSIDE_LEFT\x10\x01\x12\x0e\n" +
 	"\n" +
-	"\x06EXTEND\x10\x02\x12\f\n" +
-	"\bCONTRACT\x10\x03\"\xef\x02\n" +
+	"SIDE_RIGHT\x10\x02\"h\n" +
+	"\tOperation\x12\x19\n" +
+	"\x15OPERATION_UNSPECIFIED\x10\x00\x12\x12\n" +
+	"\x0eOPERATION_MOVE\x10\x01\x12\x14\n" +
+	"\x10OPERATION_EXTEND\x10\x02\x12\x16\n" +
+	"\x12OPERATION_CONTRACT\x10\x03\"\xfe\x02\n" +
 	"\x10DeliveryMetadata\x12?\n" +
 	"\x04kind\x18\x01 \x01(\x0e2+.querysubscription.v1.DeliveryMetadata.KindR\x04kind\x12>\n" +
 	"\n" +
@@ -3949,22 +3949,21 @@ const file_querysubscription_v1_querysubscription_proto_rawDesc = "" +
 	"\x05fence\x18\x03 \x01(\v2\x1e.querysubscription.v1.PositionR\x05fence\x12\x16\n" +
 	"\x06atomic\x18\x04 \x01(\bR\x06atomic\x12\x1a\n" +
 	"\brevision\x18\x05 \x01(\x04R\brevision\x12+\n" +
-	"\x11previous_revision\x18\x06 \x01(\x04R\x10previousRevision\"C\n" +
+	"\x11previous_revision\x18\x06 \x01(\x04R\x10previousRevision\"R\n" +
 	"\x04Kind\x12\x14\n" +
-	"\x10KIND_UNSPECIFIED\x10\x00\x12\n" +
-	"\n" +
-	"\x06COMMIT\x10\x01\x12\r\n" +
-	"\tHYDRATION\x10\x02\x12\n" +
-	"\n" +
-	"\x06WINDOW\x10\x03\"\xaf\x01\n" +
+	"\x10KIND_UNSPECIFIED\x10\x00\x12\x0f\n" +
+	"\vKIND_COMMIT\x10\x01\x12\x12\n" +
+	"\x0eKIND_HYDRATION\x10\x02\x12\x0f\n" +
+	"\vKIND_WINDOW\x10\x03\"\xbe\x01\n" +
 	"\x06Change\x125\n" +
 	"\x04kind\x18\x01 \x01(\x0e2!.querysubscription.v1.Change.KindR\x04kind\x12+\n" +
-	"\x03row\x18\x02 \x01(\v2\x19.querysubscription.v1.RowR\x03row\"A\n" +
+	"\x03row\x18\x02 \x01(\v2\x19.querysubscription.v1.RowR\x03row\"P\n" +
 	"\x04Kind\x12\x14\n" +
-	"\x10KIND_UNSPECIFIED\x10\x00\x12\t\n" +
-	"\x05ADDED\x10\x01\x12\v\n" +
-	"\aUPDATED\x10\x02\x12\v\n" +
-	"\aREMOVED\x10\x03\"_\n" +
+	"\x10KIND_UNSPECIFIED\x10\x00\x12\x0e\n" +
+	"\n" +
+	"KIND_ADDED\x10\x01\x12\x10\n" +
+	"\fKIND_UPDATED\x10\x02\x12\x10\n" +
+	"\fKIND_REMOVED\x10\x03\"_\n" +
 	"\tInsertion\x121\n" +
 	"\x03key\x18\x01 \x01(\v2\x1f.querysubscription.v1.EntityKeyR\x03key\x12\x1f\n" +
 	"\vfinal_index\x18\x02 \x01(\rR\n" +

@@ -26,34 +26,34 @@ const (
 type Comparison_Operator int32
 
 const (
-	Comparison_OPERATOR_UNSPECIFIED  Comparison_Operator = 0
-	Comparison_EQUAL                 Comparison_Operator = 1
-	Comparison_NOT_EQUAL             Comparison_Operator = 2
-	Comparison_LESS_THAN             Comparison_Operator = 3
-	Comparison_LESS_THAN_OR_EQUAL    Comparison_Operator = 4
-	Comparison_GREATER_THAN          Comparison_Operator = 5
-	Comparison_GREATER_THAN_OR_EQUAL Comparison_Operator = 6
+	Comparison_OPERATOR_UNSPECIFIED           Comparison_Operator = 0
+	Comparison_OPERATOR_EQUAL                 Comparison_Operator = 1
+	Comparison_OPERATOR_NOT_EQUAL             Comparison_Operator = 2
+	Comparison_OPERATOR_LESS_THAN             Comparison_Operator = 3
+	Comparison_OPERATOR_LESS_THAN_OR_EQUAL    Comparison_Operator = 4
+	Comparison_OPERATOR_GREATER_THAN          Comparison_Operator = 5
+	Comparison_OPERATOR_GREATER_THAN_OR_EQUAL Comparison_Operator = 6
 )
 
 // Enum value maps for Comparison_Operator.
 var (
 	Comparison_Operator_name = map[int32]string{
 		0: "OPERATOR_UNSPECIFIED",
-		1: "EQUAL",
-		2: "NOT_EQUAL",
-		3: "LESS_THAN",
-		4: "LESS_THAN_OR_EQUAL",
-		5: "GREATER_THAN",
-		6: "GREATER_THAN_OR_EQUAL",
+		1: "OPERATOR_EQUAL",
+		2: "OPERATOR_NOT_EQUAL",
+		3: "OPERATOR_LESS_THAN",
+		4: "OPERATOR_LESS_THAN_OR_EQUAL",
+		5: "OPERATOR_GREATER_THAN",
+		6: "OPERATOR_GREATER_THAN_OR_EQUAL",
 	}
 	Comparison_Operator_value = map[string]int32{
-		"OPERATOR_UNSPECIFIED":  0,
-		"EQUAL":                 1,
-		"NOT_EQUAL":             2,
-		"LESS_THAN":             3,
-		"LESS_THAN_OR_EQUAL":    4,
-		"GREATER_THAN":          5,
-		"GREATER_THAN_OR_EQUAL": 6,
+		"OPERATOR_UNSPECIFIED":           0,
+		"OPERATOR_EQUAL":                 1,
+		"OPERATOR_NOT_EQUAL":             2,
+		"OPERATOR_LESS_THAN":             3,
+		"OPERATOR_LESS_THAN_OR_EQUAL":    4,
+		"OPERATOR_GREATER_THAN":          5,
+		"OPERATOR_GREATER_THAN_OR_EQUAL": 6,
 	}
 )
 
@@ -88,21 +88,21 @@ type Junction_Operator int32
 
 const (
 	Junction_OPERATOR_UNSPECIFIED Junction_Operator = 0
-	Junction_AND                  Junction_Operator = 1
-	Junction_OR                   Junction_Operator = 2
+	Junction_OPERATOR_AND         Junction_Operator = 1
+	Junction_OPERATOR_OR          Junction_Operator = 2
 )
 
 // Enum value maps for Junction_Operator.
 var (
 	Junction_Operator_name = map[int32]string{
 		0: "OPERATOR_UNSPECIFIED",
-		1: "AND",
-		2: "OR",
+		1: "OPERATOR_AND",
+		2: "OPERATOR_OR",
 	}
 	Junction_Operator_value = map[string]int32{
 		"OPERATOR_UNSPECIFIED": 0,
-		"AND":                  1,
-		"OR":                   2,
+		"OPERATOR_AND":         1,
+		"OPERATOR_OR":          2,
 	}
 )
 
@@ -137,21 +137,21 @@ type InitialWindow_From int32
 
 const (
 	InitialWindow_FROM_UNSPECIFIED InitialWindow_From = 0
-	InitialWindow_START            InitialWindow_From = 1
-	InitialWindow_END              InitialWindow_From = 2
+	InitialWindow_FROM_START       InitialWindow_From = 1
+	InitialWindow_FROM_END         InitialWindow_From = 2
 )
 
 // Enum value maps for InitialWindow_From.
 var (
 	InitialWindow_From_name = map[int32]string{
 		0: "FROM_UNSPECIFIED",
-		1: "START",
-		2: "END",
+		1: "FROM_START",
+		2: "FROM_END",
 	}
 	InitialWindow_From_value = map[string]int32{
 		"FROM_UNSPECIFIED": 0,
-		"START":            1,
-		"END":              2,
+		"FROM_START":       1,
+		"FROM_END":         2,
 	}
 )
 
@@ -186,21 +186,21 @@ type BoundaryUpdate_Side int32
 
 const (
 	BoundaryUpdate_SIDE_UNSPECIFIED BoundaryUpdate_Side = 0
-	BoundaryUpdate_LEFT             BoundaryUpdate_Side = 1
-	BoundaryUpdate_RIGHT            BoundaryUpdate_Side = 2
+	BoundaryUpdate_SIDE_LEFT        BoundaryUpdate_Side = 1
+	BoundaryUpdate_SIDE_RIGHT       BoundaryUpdate_Side = 2
 )
 
 // Enum value maps for BoundaryUpdate_Side.
 var (
 	BoundaryUpdate_Side_name = map[int32]string{
 		0: "SIDE_UNSPECIFIED",
-		1: "LEFT",
-		2: "RIGHT",
+		1: "SIDE_LEFT",
+		2: "SIDE_RIGHT",
 	}
 	BoundaryUpdate_Side_value = map[string]int32{
 		"SIDE_UNSPECIFIED": 0,
-		"LEFT":             1,
-		"RIGHT":            2,
+		"SIDE_LEFT":        1,
+		"SIDE_RIGHT":       2,
 	}
 )
 
@@ -235,24 +235,24 @@ type BoundaryUpdate_Operation int32
 
 const (
 	BoundaryUpdate_OPERATION_UNSPECIFIED BoundaryUpdate_Operation = 0
-	BoundaryUpdate_EXTEND                BoundaryUpdate_Operation = 1
-	BoundaryUpdate_CONTRACT              BoundaryUpdate_Operation = 2
-	BoundaryUpdate_MOVE                  BoundaryUpdate_Operation = 3
+	BoundaryUpdate_OPERATION_EXTEND      BoundaryUpdate_Operation = 1
+	BoundaryUpdate_OPERATION_CONTRACT    BoundaryUpdate_Operation = 2
+	BoundaryUpdate_OPERATION_MOVE        BoundaryUpdate_Operation = 3
 )
 
 // Enum value maps for BoundaryUpdate_Operation.
 var (
 	BoundaryUpdate_Operation_name = map[int32]string{
 		0: "OPERATION_UNSPECIFIED",
-		1: "EXTEND",
-		2: "CONTRACT",
-		3: "MOVE",
+		1: "OPERATION_EXTEND",
+		2: "OPERATION_CONTRACT",
+		3: "OPERATION_MOVE",
 	}
 	BoundaryUpdate_Operation_value = map[string]int32{
 		"OPERATION_UNSPECIFIED": 0,
-		"EXTEND":                1,
-		"CONTRACT":              2,
-		"MOVE":                  3,
+		"OPERATION_EXTEND":      1,
+		"OPERATION_CONTRACT":    2,
+		"OPERATION_MOVE":        3,
 	}
 )
 
@@ -287,27 +287,27 @@ type ModelBatch_Kind int32
 
 const (
 	ModelBatch_KIND_UNSPECIFIED ModelBatch_Kind = 0
-	ModelBatch_SNAPSHOT         ModelBatch_Kind = 1
-	ModelBatch_COMMIT           ModelBatch_Kind = 2
-	ModelBatch_HYDRATION        ModelBatch_Kind = 3
-	ModelBatch_WINDOW           ModelBatch_Kind = 4
+	ModelBatch_KIND_SNAPSHOT    ModelBatch_Kind = 1
+	ModelBatch_KIND_COMMIT      ModelBatch_Kind = 2
+	ModelBatch_KIND_HYDRATION   ModelBatch_Kind = 3
+	ModelBatch_KIND_WINDOW      ModelBatch_Kind = 4
 )
 
 // Enum value maps for ModelBatch_Kind.
 var (
 	ModelBatch_Kind_name = map[int32]string{
 		0: "KIND_UNSPECIFIED",
-		1: "SNAPSHOT",
-		2: "COMMIT",
-		3: "HYDRATION",
-		4: "WINDOW",
+		1: "KIND_SNAPSHOT",
+		2: "KIND_COMMIT",
+		3: "KIND_HYDRATION",
+		4: "KIND_WINDOW",
 	}
 	ModelBatch_Kind_value = map[string]int32{
 		"KIND_UNSPECIFIED": 0,
-		"SNAPSHOT":         1,
-		"COMMIT":           2,
-		"HYDRATION":        3,
-		"WINDOW":           4,
+		"KIND_SNAPSHOT":    1,
+		"KIND_COMMIT":      2,
+		"KIND_HYDRATION":   3,
+		"KIND_WINDOW":      4,
 	}
 )
 
@@ -342,21 +342,21 @@ type Boundary_Sentinel int32
 
 const (
 	Boundary_SENTINEL_UNSPECIFIED Boundary_Sentinel = 0
-	Boundary_START                Boundary_Sentinel = 1
-	Boundary_END                  Boundary_Sentinel = 2
+	Boundary_SENTINEL_START       Boundary_Sentinel = 1
+	Boundary_SENTINEL_END         Boundary_Sentinel = 2
 )
 
 // Enum value maps for Boundary_Sentinel.
 var (
 	Boundary_Sentinel_name = map[int32]string{
 		0: "SENTINEL_UNSPECIFIED",
-		1: "START",
-		2: "END",
+		1: "SENTINEL_START",
+		2: "SENTINEL_END",
 	}
 	Boundary_Sentinel_value = map[string]int32{
 		"SENTINEL_UNSPECIFIED": 0,
-		"START":                1,
-		"END":                  2,
+		"SENTINEL_START":       1,
+		"SENTINEL_END":         2,
 	}
 )
 
@@ -4008,27 +4008,27 @@ const file_reactive_v1_reactive_proto_rawDesc = "" +
 	"\n" +
 	"expression\"<\n" +
 	"\bNegation\x120\n" +
-	"\aoperand\x18\x01 \x01(\v2\x16.reactive.v1.PredicateR\aoperand\"\xb9\x02\n" +
+	"\aoperand\x18\x01 \x01(\v2\x16.reactive.v1.PredicateR\aoperand\"\xef\x02\n" +
 	"\n" +
 	"Comparison\x12.\n" +
 	"\x06column\x18\x01 \x01(\v2\x16.reactive.v1.FieldPathR\x06column\x12<\n" +
 	"\boperator\x18\x02 \x01(\x0e2 .reactive.v1.Comparison.OperatorR\boperator\x12(\n" +
-	"\x05value\x18\x03 \x01(\v2\x12.reactive.v1.ValueR\x05value\"\x92\x01\n" +
+	"\x05value\x18\x03 \x01(\v2\x12.reactive.v1.ValueR\x05value\"\xc8\x01\n" +
 	"\bOperator\x12\x18\n" +
-	"\x14OPERATOR_UNSPECIFIED\x10\x00\x12\t\n" +
-	"\x05EQUAL\x10\x01\x12\r\n" +
-	"\tNOT_EQUAL\x10\x02\x12\r\n" +
-	"\tLESS_THAN\x10\x03\x12\x16\n" +
-	"\x12LESS_THAN_OR_EQUAL\x10\x04\x12\x10\n" +
-	"\fGREATER_THAN\x10\x05\x12\x19\n" +
-	"\x15GREATER_THAN_OR_EQUAL\x10\x06\"\xb1\x01\n" +
+	"\x14OPERATOR_UNSPECIFIED\x10\x00\x12\x12\n" +
+	"\x0eOPERATOR_EQUAL\x10\x01\x12\x16\n" +
+	"\x12OPERATOR_NOT_EQUAL\x10\x02\x12\x16\n" +
+	"\x12OPERATOR_LESS_THAN\x10\x03\x12\x1f\n" +
+	"\x1bOPERATOR_LESS_THAN_OR_EQUAL\x10\x04\x12\x19\n" +
+	"\x15OPERATOR_GREATER_THAN\x10\x05\x12\"\n" +
+	"\x1eOPERATOR_GREATER_THAN_OR_EQUAL\x10\x06\"\xc3\x01\n" +
 	"\bJunction\x12:\n" +
 	"\boperator\x18\x01 \x01(\x0e2\x1e.reactive.v1.Junction.OperatorR\boperator\x122\n" +
-	"\boperands\x18\x02 \x03(\v2\x16.reactive.v1.PredicateR\boperands\"5\n" +
+	"\boperands\x18\x02 \x03(\v2\x16.reactive.v1.PredicateR\boperands\"G\n" +
 	"\bOperator\x12\x18\n" +
-	"\x14OPERATOR_UNSPECIFIED\x10\x00\x12\a\n" +
-	"\x03AND\x10\x01\x12\x06\n" +
-	"\x02OR\x10\x02\"S\n" +
+	"\x14OPERATOR_UNSPECIFIED\x10\x00\x12\x10\n" +
+	"\fOPERATOR_AND\x10\x01\x12\x0f\n" +
+	"\vOPERATOR_OR\x10\x02\"S\n" +
 	"\bNullTest\x12.\n" +
 	"\x06column\x18\x01 \x01(\v2\x16.reactive.v1.FieldPathR\x06column\x12\x17\n" +
 	"\ais_null\x18\x02 \x01(\bR\x06isNull\"|\n" +
@@ -4038,31 +4038,32 @@ const file_reactive_v1_reactive_proto_rawDesc = "" +
 	"descending\x18\x02 \x01(\bR\n" +
 	"descending\x12\x1f\n" +
 	"\vnulls_first\x18\x03 \x01(\bR\n" +
-	"nullsFirst\"\x8c\x01\n" +
+	"nullsFirst\"\x96\x01\n" +
 	"\rInitialWindow\x123\n" +
 	"\x04from\x18\x01 \x01(\x0e2\x1f.reactive.v1.InitialWindow.FromR\x04from\x12\x14\n" +
-	"\x05count\x18\x02 \x01(\rR\x05count\"0\n" +
+	"\x05count\x18\x02 \x01(\rR\x05count\":\n" +
 	"\x04From\x12\x14\n" +
-	"\x10FROM_UNSPECIFIED\x10\x00\x12\t\n" +
-	"\x05START\x10\x01\x12\a\n" +
-	"\x03END\x10\x02\"E\n" +
+	"\x10FROM_UNSPECIFIED\x10\x00\x12\x0e\n" +
+	"\n" +
+	"FROM_START\x10\x01\x12\f\n" +
+	"\bFROM_END\x10\x02\"E\n" +
 	"\fUpdateWindow\x125\n" +
-	"\aupdates\x18\x01 \x03(\v2\x1b.reactive.v1.BoundaryUpdateR\aupdates\"\xb8\x02\n" +
+	"\aupdates\x18\x01 \x03(\v2\x1b.reactive.v1.BoundaryUpdateR\aupdates\"\xe0\x02\n" +
 	"\x0eBoundaryUpdate\x124\n" +
 	"\x04side\x18\x01 \x01(\x0e2 .reactive.v1.BoundaryUpdate.SideR\x04side\x12C\n" +
 	"\toperation\x18\x02 \x01(\x0e2%.reactive.v1.BoundaryUpdate.OperationR\toperation\x12\x14\n" +
 	"\x05count\x18\x03 \x01(\rR\x05count\x12\x16\n" +
-	"\x06cursor\x18\x04 \x01(\fR\x06cursor\"1\n" +
+	"\x06cursor\x18\x04 \x01(\fR\x06cursor\";\n" +
 	"\x04Side\x12\x14\n" +
-	"\x10SIDE_UNSPECIFIED\x10\x00\x12\b\n" +
-	"\x04LEFT\x10\x01\x12\t\n" +
-	"\x05RIGHT\x10\x02\"J\n" +
-	"\tOperation\x12\x19\n" +
-	"\x15OPERATION_UNSPECIFIED\x10\x00\x12\n" +
+	"\x10SIDE_UNSPECIFIED\x10\x00\x12\r\n" +
+	"\tSIDE_LEFT\x10\x01\x12\x0e\n" +
 	"\n" +
-	"\x06EXTEND\x10\x01\x12\f\n" +
-	"\bCONTRACT\x10\x02\x12\b\n" +
-	"\x04MOVE\x10\x03\"\r\n" +
+	"SIDE_RIGHT\x10\x02\"h\n" +
+	"\tOperation\x12\x19\n" +
+	"\x15OPERATION_UNSPECIFIED\x10\x00\x12\x14\n" +
+	"\x10OPERATION_EXTEND\x10\x01\x12\x16\n" +
+	"\x12OPERATION_CONTRACT\x10\x02\x12\x12\n" +
+	"\x0eOPERATION_MOVE\x10\x03\"\r\n" +
 	"\vUnsubscribe\"\x9b\x03\n" +
 	"\rServerMessage\x12'\n" +
 	"\x0fsubscription_id\x18\x01 \x01(\tR\x0esubscriptionId\x12\x1d\n" +
@@ -4112,7 +4113,7 @@ const file_reactive_v1_reactive_proto_rawDesc = "" +
 	"\x06fields\x18\x01 \x03(\v2$.reactive.v1.ValueObject.FieldsEntryR\x06fields\x1aM\n" +
 	"\vFieldsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12(\n" +
-	"\x05value\x18\x02 \x01(\v2\x12.reactive.v1.ValueR\x05value:\x028\x01\"\xb3\x03\n" +
+	"\x05value\x18\x02 \x01(\v2\x12.reactive.v1.ValueR\x05value:\x028\x01\"\xc7\x03\n" +
 	"\n" +
 	"ModelBatch\x12\x1e\n" +
 	"\n" +
@@ -4123,15 +4124,13 @@ const file_reactive_v1_reactive_proto_rawDesc = "" +
 	"\vprojections\x18\x04 \x03(\v2 .reactive.v1.ProjectionReferenceR\vprojections\x120\n" +
 	"\x04kind\x18\x05 \x01(\x0e2\x1c.reactive.v1.ModelBatch.KindR\x04kind\x12\x16\n" +
 	"\x06atomic\x18\x06 \x01(\bR\x06atomic\x12;\n" +
-	"\bmessages\x18\a \x03(\v2\x1f.reactive.v1.TransactionMessageR\bmessages\"Q\n" +
+	"\bmessages\x18\a \x03(\v2\x1f.reactive.v1.TransactionMessageR\bmessages\"e\n" +
 	"\x04Kind\x12\x14\n" +
-	"\x10KIND_UNSPECIFIED\x10\x00\x12\f\n" +
-	"\bSNAPSHOT\x10\x01\x12\n" +
-	"\n" +
-	"\x06COMMIT\x10\x02\x12\r\n" +
-	"\tHYDRATION\x10\x03\x12\n" +
-	"\n" +
-	"\x06WINDOW\x10\x04\"\xdb\x01\n" +
+	"\x10KIND_UNSPECIFIED\x10\x00\x12\x11\n" +
+	"\rKIND_SNAPSHOT\x10\x01\x12\x0f\n" +
+	"\vKIND_COMMIT\x10\x02\x12\x12\n" +
+	"\x0eKIND_HYDRATION\x10\x03\x12\x0f\n" +
+	"\vKIND_WINDOW\x10\x04\"\xdb\x01\n" +
 	"\vEntityEvent\x12\x1b\n" +
 	"\tentity_id\x18\x01 \x01(\tR\bentityId\x123\n" +
 	"\x06upsert\x18\x02 \x01(\v2\x19.reactive.v1.EntityUpsertH\x00R\x06upsert\x129\n" +
@@ -4190,14 +4189,14 @@ const file_reactive_v1_reactive_proto_rawDesc = "" +
 	"\tentity_id\x18\x01 \x01(\tH\x00R\bentityId\x124\n" +
 	"\x15query_subscription_id\x18\x02 \x01(\tH\x00R\x13querySubscriptionIdB\b\n" +
 	"\x06target\"\x14\n" +
-	"\x12ProjectionDetached\"\xa5\x01\n" +
+	"\x12ProjectionDetached\"\xb7\x01\n" +
 	"\bBoundary\x12<\n" +
 	"\bsentinel\x18\x01 \x01(\x0e2\x1e.reactive.v1.Boundary.SentinelH\x00R\bsentinel\x12\x18\n" +
-	"\x06cursor\x18\x02 \x01(\fH\x00R\x06cursor\"8\n" +
+	"\x06cursor\x18\x02 \x01(\fH\x00R\x06cursor\"J\n" +
 	"\bSentinel\x12\x18\n" +
-	"\x14SENTINEL_UNSPECIFIED\x10\x00\x12\t\n" +
-	"\x05START\x10\x01\x12\a\n" +
-	"\x03END\x10\x02B\a\n" +
+	"\x14SENTINEL_UNSPECIFIED\x10\x00\x12\x12\n" +
+	"\x0eSENTINEL_START\x10\x01\x12\x10\n" +
+	"\fSENTINEL_END\x10\x02B\a\n" +
 	"\x05value\"\a\n" +
 	"\x05Ready\"A\n" +
 	"\x11SubscriptionError\x12\x12\n" +

@@ -39,6 +39,30 @@ func compileTest(t *testing.T, schema, document string) ([]Operation, error) {
 	return c.Compile(&ast.Source{Name: "projection.graphql", Input: document})
 }
 
+func TestGraphQLOperatorsLowerToPrefixedProtobufJSON(t *testing.T) {
+	for index, name := range []string{"EQUAL", "NOT_EQUAL", "LESS_THAN", "LESS_THAN_OR_EQUAL", "GREATER_THAN", "GREATER_THAN_OR_EQUAL"} {
+		t.Run(name, func(t *testing.T) {
+			ops, err := compileTest(t, testSchema, fmt.Sprintf(`query Details($id: UUID!) {
+				project(id:$id) { id tasks @window(initialCount:1) @where(predicate:{field:"title",op:%s,value:"x"}) { id } }
+			}`, name))
+			if err != nil {
+				t.Fatal(err)
+			}
+			op := ops[0].Root.Children[0].GetList().Query.Filter.GetComparison().Operator
+			if int(op) != index+1 {
+				t.Fatalf("operator %s changed its binary number: %d", name, op)
+			}
+			core, _, err := GenerateTypeScript(ops, "@adiom-data/weave", "./index.js")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !strings.Contains(string(core), `"operator":"OPERATOR_`+name+`"`) {
+				t.Fatalf("generated definition omitted prefixed operator: %s", core)
+			}
+		})
+	}
+}
+
 func TestCompileReferenceFetchHint(t *testing.T) {
 	schema := strings.Replace(testSchema, "  children: [Task!]!", "  parent: Task @relation(parent:[\"projectId\"],child:[\"id\"])\n  children: [Task!]!", 1)
 	ops, err := compileTest(t, schema, `query Details($id: UUID!) {

@@ -209,7 +209,7 @@ func TestStandalonePostgres(t *testing.T) {
 	}
 	defer connection.Close()
 	client := reactivev1.NewReactiveQueriesClient(connection)
-	root := &reactivev1.ProjectionNode{NodeId: "items", Selection: &reactivev1.ProjectionNode_List{List: &reactivev1.ProjectionList{Query: &reactivev1.Query{Schema: "public", Table: name, Columns: []*reactivev1.FieldPath{{Segments: []string{"id"}}, {Segments: []string{"title"}}, {Segments: []string{"organization_id"}}}}, Window: &reactivev1.InitialWindow{From: reactivev1.InitialWindow_START, Count: 10}}}}
+	root := &reactivev1.ProjectionNode{NodeId: "items", Selection: &reactivev1.ProjectionNode_List{List: &reactivev1.ProjectionList{Query: &reactivev1.Query{Schema: "public", Table: name, Columns: []*reactivev1.FieldPath{{Segments: []string{"id"}}, {Segments: []string{"title"}}, {Segments: []string{"organization_id"}}}}, Window: &reactivev1.InitialWindow{From: reactivev1.InitialWindow_FROM_START, Count: 10}}}}
 	image, err := client.GetProjectionSnapshot(ctx, &reactivev1.ProjectionSnapshotRequest{Root: root, WaitForSync: true})
 	if err != nil {
 		t.Fatal(err)
@@ -245,7 +245,7 @@ func TestStandalonePostgres(t *testing.T) {
 		if event.GetError() != nil {
 			t.Fatal(event.GetError())
 		}
-		if batch := event.GetModelBatch(); batch != nil && batch.Kind == reactivev1.ModelBatch_SNAPSHOT {
+		if batch := event.GetModelBatch(); batch != nil && batch.Kind == reactivev1.ModelBatch_KIND_SNAPSHOT {
 			assertVisibleImage(t, batch, "visible")
 		}
 		if event.GetReady() != nil {

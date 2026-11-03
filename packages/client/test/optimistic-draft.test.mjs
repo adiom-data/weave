@@ -8,8 +8,8 @@ const taskShape = { nodeId: 'task', kind: 'entity', fields: [field('title'), fie
   subtasks: { nodeId: 'subtasks', kind: 'list', fields: [field('title')], children: {} },
 } }
 const definition = defineProjection({ nodeId: 'project', entity: { query: { table: 'projects' } }, children: [
-  { nodeId: 'links', list: { query: { table: 'links' }, window: { from: 'START', count: 10 } }, children: [
-    { nodeId: 'task', entity: { query: { table: 'tasks' } }, children: [{ nodeId: 'subtasks', list: { query: { table: 'tasks' }, window: { from: 'START', count: 10 } } }] },
+  { nodeId: 'links', list: { query: { table: 'links' }, window: { from: 'FROM_START', count: 10 } }, children: [
+    { nodeId: 'task', entity: { query: { table: 'tasks' } }, children: [{ nodeId: 'subtasks', list: { query: { table: 'tasks' }, window: { from: 'FROM_START', count: 10 } } }] },
   ] },
 ] }, { nodeId: 'project', kind: 'entity', fields: [], children: { links: { nodeId: 'links', kind: 'list', fields: [], children: { task: taskShape } } } }, [])
 
@@ -21,7 +21,7 @@ function setup(t, count = 1) {
   sockets[0].message({ connectionOpened: { connectionContext: 'generation-1' } })
   const handles = Array.from({ length: count }, (_, i) => {
     const handle = definition.subscribe(client, {})
-    sockets[0].message({ subscriptionId: handle.id, sequence: '1', modelBatch: { kind: 'SNAPSHOT',
+    sockets[0].message({ subscriptionId: handle.id, sequence: '1', modelBatch: { kind: 'KIND_SNAPSHOT',
       entities: [entity(`root${i}`, 'Project')], queries: [reset(`q${i}`, [])],
       projections: [attach(`r${i}`, 'project', { entityId: `root${i}` }, '', '', handle.id), attach(`l${i}`, 'links', { querySubscriptionId: `q${i}` }, `r${i}`, `root${i}`, handle.id)],
     } })
@@ -64,7 +64,7 @@ test('one draft targets several projections and shares one canonical temporary e
   client.registerOptimisticReceiptDecoder(() => ['shared'])
   const seen = []
   const stop = a.data.subscribe(() => seen.push([list(a).length, list(b).length]))
-  sockets[0].message({ connectionSequence: '1', modelBatch: { kind: 'COMMIT', atomic: true, messages: [{ kind: 'receipt', payload: '' }] } })
+  sockets[0].message({ connectionSequence: '1', modelBatch: { kind: 'KIND_COMMIT', atomic: true, messages: [{ kind: 'receipt', payload: '' }] } })
   assert.deepEqual(seen, [[0, 0]], 'whole-layer retirement publishes across projections atomically')
   stop()
 })
@@ -140,7 +140,7 @@ test('seeded optimistic graph churn matches layer order and releases temporary m
     } else {
       const id = [...active.keys()][random(active.size)]
       if (random(2)) active.get(id).handle.rollback()
-      else client.store.apply(batch({ kind: 'COMMIT', atomic: true }), { retireOptimistic: [id] })
+      else client.store.apply(batch({ kind: 'KIND_COMMIT', atomic: true }), { retireOptimistic: [id] })
       active.delete(id)
     }
     assert.deepEqual(list(handle).map(row => row.value.task.value.title), [...active.values()].map(layer => layer.title), `step ${step}`)

@@ -80,8 +80,8 @@ func modelSnapshot(rows ...querysubscription.Row) querysubscription.QuerySnapsho
 
 func TestQueryBoundaryChangesRejectsDuplicateSides(t *testing.T) {
 	_, err := queryBoundaryChanges(&reactivev1.UpdateWindow{Updates: []*reactivev1.BoundaryUpdate{
-		{Side: reactivev1.BoundaryUpdate_LEFT, Operation: reactivev1.BoundaryUpdate_EXTEND, Count: 1},
-		{Side: reactivev1.BoundaryUpdate_LEFT, Operation: reactivev1.BoundaryUpdate_CONTRACT, Count: 1},
+		{Side: reactivev1.BoundaryUpdate_SIDE_LEFT, Operation: reactivev1.BoundaryUpdate_OPERATION_EXTEND, Count: 1},
+		{Side: reactivev1.BoundaryUpdate_SIDE_LEFT, Operation: reactivev1.BoundaryUpdate_OPERATION_CONTRACT, Count: 1},
 	}})
 	if err == nil {
 		t.Fatal("expected duplicate side rejection")

@@ -5,10 +5,10 @@ import { WebSocketClientFrameSchema, WebSocketServerFrameSchema } from '../dist/
 
 export const modelBytes = value => toBinary(ServerMessageSchema, fromJson(ServerMessageSchema, value))
 export const serverBytes = value => toBinary(WebSocketServerFrameSchema, fromJson(WebSocketServerFrameSchema,
-  'pong' in value ? { pong: { id: value.pong } } : { message: value }))
+  'pong' in value ? { pong: { id: value.pong } } : 'authStatus' in value ? value : { message: value }))
 export const clientFrame = bytes => {
   const frame = toJson(WebSocketClientFrameSchema, fromBinary(WebSocketClientFrameSchema, bytes))
-  return frame.ping ? { ping: frame.ping.id } : frame.message
+  return frame.ping ? { ping: frame.ping.id } : frame.authToken ? { authToken: frame.authToken } : frame.message
 }
 export class FakeSocket {
   readyState = 0
@@ -30,18 +30,18 @@ export const attach = (occurrenceId, nodeId, target, parentOccurrenceId = '', pa
   occurrenceId, nodeId, attached: target, parentOccurrenceId, parentEntityId, subscriptionId,
 })
 export const reset = (querySubscriptionId, entityIds, version = '1') => ({ querySubscriptionId, reset: {
-  entityIds, version, left: { sentinel: 'START' }, right: { sentinel: 'END' },
+  entityIds, version, left: { sentinel: 'SENTINEL_START' }, right: { sentinel: 'SENTINEL_END' },
 } })
 export const batch = (modelBatch, envelope = {}) => decodeServerMessage(modelBytes({ modelBatch, ...envelope }))
 export const ready = (subscriptionId, sequence) => decodeServerMessage(modelBytes({ subscriptionId, sequence, ready: {} }))
 export const request = {
   root: { nodeId: 'project', entity: { query: { table: 'projects' } }, children: [{
-    nodeId: 'memberships', list: { query: { table: 'memberships' }, window: { from: 'START', count: 20 } },
+    nodeId: 'memberships', list: { query: { table: 'memberships' }, window: { from: 'FROM_START', count: 20 } },
     children: [{ nodeId: 'task', entity: { query: { table: 'tasks' } } }],
   }] },
 }
 export const initial = () => ({
-  kind: 'SNAPSHOT',
+  kind: 'KIND_SNAPSHOT',
   entities: [entity('project', 'Project'), entity('m1', 'Link 1'), entity('m2', 'Link 2'), entity('shared', 'Shared task')],
   queries: [reset('list', ['m1', 'm2'])],
   projections: [attach('root', 'project', { entityId: 'project' }),

@@ -58,7 +58,7 @@ func TestDirectSubscriptionPolicyOnlyCommitsAndCombinedUpdates(t *testing.T) {
 		}
 	}()
 	stream.received <- &reactivev1.ClientMessage{SubscriptionId: "direct", RequestId: "subscribe", Operation: &reactivev1.ClientMessage_Subscribe{Subscribe: &reactivev1.Subscribe{
-		Query: snapshotTestRequest(false, false).Root.GetList().Query, Window: &reactivev1.InitialWindow{From: reactivev1.InitialWindow_START, Count: 10},
+		Query: snapshotTestRequest(false, false).Root.GetList().Query, Window: &reactivev1.InitialWindow{From: reactivev1.InitialWindow_FROM_START, Count: 10},
 	}}}
 	if initial := receiveAuthorizationMessage(t, stream.sent).GetModelBatch(); initial == nil || len(initial.Entities) != 1 {
 		t.Fatalf("initial = %v", initial)
@@ -80,7 +80,7 @@ func TestDirectSubscriptionPolicyOnlyCommitsAndCombinedUpdates(t *testing.T) {
 			t.Fatal(err)
 		}
 		batch := receiveAuthorizationMessage(t, stream.sent).GetModelBatch()
-		if batch == nil || batch.Kind != reactivev1.ModelBatch_COMMIT {
+		if batch == nil || batch.Kind != reactivev1.ModelBatch_KIND_COMMIT {
 			t.Fatalf("commit %d = %v", revision, batch)
 		}
 		switch revision {
@@ -126,7 +126,7 @@ func TestDirectWindowDeliveryPreservesFreshnessAcrossPublicationPaths(t *testing
 					t.Error("service did not stop")
 				}
 			}()
-			stream.received <- &reactivev1.ClientMessage{SubscriptionId: "direct", RequestId: "subscribe", Operation: &reactivev1.ClientMessage_Subscribe{Subscribe: &reactivev1.Subscribe{Query: snapshotTestRequest(false, false).Root.GetList().Query, Window: &reactivev1.InitialWindow{From: reactivev1.InitialWindow_START, Count: 10}}}}
+			stream.received <- &reactivev1.ClientMessage{SubscriptionId: "direct", RequestId: "subscribe", Operation: &reactivev1.ClientMessage_Subscribe{Subscribe: &reactivev1.Subscribe{Query: snapshotTestRequest(false, false).Root.GetList().Query, Window: &reactivev1.InitialWindow{From: reactivev1.InitialWindow_FROM_START, Count: 10}}}}
 			initial := receiveAuthorizationMessage(t, stream.sent).GetModelBatch()
 			if initial == nil || len(initial.Entities) != 1 {
 				t.Fatalf("initial snapshot = %v", initial)
@@ -141,7 +141,7 @@ func TestDirectWindowDeliveryPreservesFreshnessAcrossPublicationPaths(t *testing
 			}
 			message := receiveAuthorizationMessage(t, stream.sent)
 			batch := message.GetModelBatch()
-			if message.RequestId != "window" || batch == nil || batch.Kind != reactivev1.ModelBatch_WINDOW || batch.Checkpoint != "3" || len(batch.Entities) != 1 || batch.Entities[0].GetUpsert() == nil || batch.Entities[0].GetUpsert().Values["title"].GetTextValue() != "from window" {
+			if message.RequestId != "window" || batch == nil || batch.Kind != reactivev1.ModelBatch_KIND_WINDOW || batch.Checkpoint != "3" || len(batch.Entities) != 1 || batch.Entities[0].GetUpsert() == nil || batch.Entities[0].GetUpsert().Values["title"].GetTextValue() != "from window" {
 				t.Fatalf("window lost its source context or payload: %v", message)
 			}
 			if len(batch.Queries) != 1 || batch.Queries[0].GetWindowChanged() == nil {
@@ -151,7 +151,7 @@ func TestDirectWindowDeliveryPreservesFreshnessAcrossPublicationPaths(t *testing
 			// It must not replace the record or completeness accepted at revision 3.
 			stream.received <- &reactivev1.ClientMessage{SubscriptionId: "late", RequestId: "late", Operation: &reactivev1.ClientMessage_SubscribeProjection{SubscribeProjection: &reactivev1.SubscribeProjection{Root: snapshotTestRequest(false, false).Root}}}
 			late := receiveAuthorizationMessage(t, stream.sent).GetModelBatch()
-			if late == nil || late.Kind != reactivev1.ModelBatch_SNAPSHOT || len(late.Entities) != 0 {
+			if late == nil || late.Kind != reactivev1.ModelBatch_KIND_SNAPSHOT || len(late.Entities) != 0 {
 				t.Fatalf("older projection image replaced newer window state: %v", late)
 			}
 			if message := receiveAuthorizationMessage(t, stream.sent); message.GetReady() == nil {
@@ -161,7 +161,7 @@ func TestDirectWindowDeliveryPreservesFreshnessAcrossPublicationPaths(t *testing
 				t.Fatal(err)
 			}
 			live := receiveAuthorizationMessage(t, stream.sent).GetModelBatch()
-			if live == nil || live.Kind != reactivev1.ModelBatch_COMMIT || live.Checkpoint != "4" || !live.Atomic || len(live.Entities) != 1 || live.Entities[0].GetUpsert() == nil || live.Entities[0].GetUpsert().Values["title"].GetTextValue() != "live" {
+			if live == nil || live.Kind != reactivev1.ModelBatch_KIND_COMMIT || live.Checkpoint != "4" || !live.Atomic || len(live.Entities) != 1 || live.Entities[0].GetUpsert() == nil || live.Entities[0].GetUpsert().Values["title"].GetTextValue() != "live" {
 				t.Fatalf("live delivery after window = %v", live)
 			}
 		})

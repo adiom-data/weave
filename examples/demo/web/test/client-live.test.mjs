@@ -10,13 +10,13 @@ const columns = (...names) => names.map(column)
 const active = { nullTest: { column: column('deleted_at'), isNull: true } }
 const definition = {
   root: { nodeId: 'project', entity: { query: { schema: 'tenant_001', table: 'projects', columns: columns('id', 'organization_id', 'title'), filter: active }, bindings: [
-    { column: column('id'), operator: 'EQUAL', literal: { uuidValue: '10000000-0000-4000-8000-000000000001' } },
+    { column: column('id'), operator: 'OPERATOR_EQUAL', literal: { uuidValue: '10000000-0000-4000-8000-000000000001' } },
   ] }, children: [{ nodeId: 'memberships', list: {
     query: { schema: 'tenant_001', table: 'project_tasks', columns: columns('organization_id', 'project_id', 'task_id', 'position'), filter: active, order: ['position', 'task_id'].map(name => ({ column: column(name) })) },
-    window: { from: 'END', count: 100 },
-    bindings: [{ column: column('project_id'), operator: 'EQUAL', parentColumn: column('id') }],
+    window: { from: 'FROM_END', count: 100 },
+    bindings: [{ column: column('project_id'), operator: 'OPERATOR_EQUAL', parentColumn: column('id') }],
   }, children: [{ nodeId: 'task', entity: { query: { schema: 'tenant_001', table: 'tasks', columns: columns('id', 'organization_id', 'title', 'completed'), filter: active }, bindings: [
-    { column: column('id'), operator: 'EQUAL', parentColumn: column('task_id') },
+    { column: column('id'), operator: 'OPERATOR_EQUAL', parentColumn: column('task_id') },
   ] } }] }] },
 }
 function waitFor(handle, predicate) {
@@ -60,7 +60,7 @@ test('live WebSocket → projections → CDC: two viewers, updates, windows, rec
     await mutate('UpdateTask', { taskId, completed: true })
     await Promise.all(handles.map(handle => waitFor(handle, view => tasks(view).some(row => scalar(row, 'id') === taskId && row.completed?.boolValue === true && scalar(row, 'title') === title))))
     const list = handles[0].view.getSnapshot().root.row.children.memberships
-    await handles[0].updateWindow(list.occurrenceId, [{ side: 'LEFT', operation: 'EXTEND', count: 1 }])
+    await handles[0].updateWindow(list.occurrenceId, [{ side: 'SIDE_LEFT', operation: 'OPERATION_EXTEND', count: 1 }])
     clients[0].disconnect()
     assert.ok(handles[0].view.getSnapshot().root)
     assert.equal(handles[0].view.getSnapshot().stale, true)

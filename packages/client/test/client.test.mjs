@@ -32,14 +32,14 @@ test('connection context is generation-scoped and receipts run after model publi
   first.message({ connectionOpened: { connectionContext: 'first-context' } })
   assert.equal(client.connectionContext, 'first-context')
   first.message(snapshot(handle)); markReady(first, handle)
-  first.message({ connectionSequence: '1', modelBatch: { kind: 'COMMIT', atomic: true, checkpoint: '10',
+  first.message({ connectionSequence: '1', modelBatch: { kind: 'KIND_COMMIT', atomic: true, checkpoint: '10',
     entities: [entity('project', 'Changed')], messages: [{ kind: 'receipt', payload: 'AP8=' }] } })
   assert.equal(receipts.length, 1)
   assert.equal(receipts[0].title, 'Changed')
   assert.equal(receipts[0].transaction.messages[0].payload, 'AP8=')
   assert.equal(Object.isFrozen(receipts[0].transaction.messages), true)
   const published = handle.data.getSnapshot()
-  first.message({ connectionSequence: '2', modelBatch: { kind: 'COMMIT', atomic: true, checkpoint: '20', messages: [{ kind: 'receipt', payload: '' }] } })
+  first.message({ connectionSequence: '2', modelBatch: { kind: 'KIND_COMMIT', atomic: true, checkpoint: '20', messages: [{ kind: 'receipt', payload: '' }] } })
   assert.equal(handle.data.getSnapshot(), published)
   first.close()
   assert.equal(client.connectionContext, undefined)
@@ -47,7 +47,7 @@ test('connection context is generation-scoped and receipts run after model publi
   const next = sockets[1]; next.open()
   next.message({ connectionOpened: { connectionContext: 'next-context' } })
   first.message({ connectionOpened: { connectionContext: 'obsolete' } })
-  first.message({ connectionSequence: '3', modelBatch: { kind: 'COMMIT', messages: [{ kind: 'receipt' }] } })
+  first.message({ connectionSequence: '3', modelBatch: { kind: 'KIND_COMMIT', messages: [{ kind: 'receipt' }] } })
   assert.deepEqual(contexts, ['first-context', 'next-context'])
   assert.equal(client.connectionContext, 'next-context')
   assert.equal(receipts.length, 2)
@@ -365,7 +365,7 @@ test('window updates resolve only on their own acknowledgment; rejection does no
   client.connect(); const socket = sockets[0]; socket.open()
   socket.message(snapshot(handle)); markReady(socket, handle)
   let settled = false
-  const first = handle.updateWindow('members', [{ side: 'RIGHT', operation: 'EXTEND', count: 10 }]).then(() => { settled = true })
+  const first = handle.updateWindow('members', [{ side: 'SIDE_RIGHT', operation: 'OPERATION_EXTEND', count: 10 }]).then(() => { settled = true })
   const command = socket.sent.at(-1)
   assert.equal(command.updateProjectionWindow.instanceId, 'members')
   socket.message({ connectionSequence: '1', modelBatch: {} })
@@ -373,7 +373,7 @@ test('window updates resolve only on their own acknowledgment; rejection does no
   assert.equal(settled, false)
   socket.message({ subscriptionId: handle.id, requestId: command.requestId, sequence: '3', modelBatch: {} })
   await first
-  const second = handle.updateWindow('members', [{ side: 'LEFT', operation: 'CONTRACT', count: 10 }])
+  const second = handle.updateWindow('members', [{ side: 'SIDE_LEFT', operation: 'OPERATION_CONTRACT', count: 10 }])
   const rejection = assert.rejects(second, /WINDOW_FAILED/)
   socket.message({ subscriptionId: handle.id, requestId: socket.sent.at(-1).requestId, sequence: '4', error: { code: 'WINDOW_FAILED', message: 'obsolete' } })
   await rejection
@@ -470,7 +470,7 @@ test('generated input validation rejects local mistakes without resetting health
   socket.message(snapshot(handle)); markReady(socket, handle)
   assert.throws(() => client.subscribeProjection({ root: { nodeId: 'bad', entity: {}, list: {} } }))
   assert.throws(() => client.subscribeProjection({ root: { nodeId: '', entity: {} } }))
-  await assert.rejects(handle.updateWindow('members', [{ side: 'RIGHT', operation: 'EXTEND', count: -1 }]))
+  await assert.rejects(handle.updateWindow('members', [{ side: 'SIDE_RIGHT', operation: 'OPERATION_EXTEND', count: -1 }]))
   assert.equal(client.store.getConnection().status, 'connected')
   assert.equal(handle.view.getSnapshot().status, 'ready')
   assert.equal(socket.sent.length, 1)

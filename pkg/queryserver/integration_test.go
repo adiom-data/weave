@@ -85,7 +85,7 @@ func TestPublicBackendEmbeddedAndRemote(t *testing.T) {
 	projectionConnection := connectTestHost(t, projectionHost)
 	request := &reactivev1.ProjectionSnapshotRequest{WaitForSync: true, Root: &reactivev1.ProjectionNode{
 		NodeId: "items", Selection: &reactivev1.ProjectionNode_List{List: &reactivev1.ProjectionList{
-			Query: &reactivev1.Query{Schema: "public", Table: name, Columns: []*reactivev1.FieldPath{{Segments: []string{"id"}}, {Segments: []string{"title"}}}}, Window: &reactivev1.InitialWindow{From: reactivev1.InitialWindow_START, Count: 10},
+			Query: &reactivev1.Query{Schema: "public", Table: name, Columns: []*reactivev1.FieldPath{{Segments: []string{"id"}}, {Segments: []string{"title"}}}}, Window: &reactivev1.InitialWindow{From: reactivev1.InitialWindow_FROM_START, Count: 10},
 		}},
 	}}
 	for _, conn := range []*grpc.ClientConn{connection, projectionConnection} {

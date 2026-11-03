@@ -12,6 +12,7 @@ message WebSocketClientFrame {
   oneof payload {
     ClientMessage message = 1;
     WebSocketHeartbeat ping = 2;
+    WebSocketAuthToken auth_token = 3;
   }
 }
 
@@ -19,9 +20,26 @@ message WebSocketServerFrame {
   oneof payload {
     ServerMessage message = 1;
     WebSocketHeartbeat pong = 2;
+    WebSocketAuthStatus auth_status = 3;
   }
 }
 
 message WebSocketHeartbeat {
   string id = 1;
+}
+
+// Transport-only renewal. Tokens never enter the reactive model or WAL stream.
+message WebSocketAuthToken {
+  string token = 1;
+}
+
+// Connection-level notification, not an acknowledgment of a particular token.
+// Successful verification is silent; expiry is enforced by the server.
+message WebSocketAuthStatus {
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    STATUS_REJECTED = 1;
+    STATUS_RECONNECT = 2;
+  }
+  Status status = 1;
 }

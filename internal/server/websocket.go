@@ -11,8 +11,11 @@ import (
 	"net/http"
 )
 
-func newSocketHandler(c config.Config, logger *slog.Logger, authenticate identity.Authenticator, projections projectionserver.Server) http.Handler {
+func newSocketHandler(c config.Config, logger *slog.Logger, authenticate identity.Authenticator, projections projectionserver.Server, authentication *projectionws.AuthenticationOptions) http.Handler {
 	serve := func(stream projectionws.Stream, headers http.Header) error {
+		if authentication != nil {
+			return projections.ServeStream(stream)
+		}
 		claims, err := authenticate(stream.Context(), headers.Values("Authorization"))
 		if err != nil {
 			return err
@@ -20,7 +23,7 @@ func newSocketHandler(c config.Config, logger *slog.Logger, authenticate identit
 		ctx := accesscontrol.ContextWithClaims(stream.Context(), claims)
 		return projections.ServeStream(trustedSocketStream{Stream: stream, ctx: ctx})
 	}
-	return projectionws.NewHandler(serve, c.WebOrigin, logger, projectionws.SocketConfig{WriteTimeout: c.Socket.WriteTimeout, IdleTimeout: c.Socket.IdleTimeout, MaxMessageBytes: c.Socket.MaxMessageBytes, MaxMessageDepth: c.Socket.MaxMessageDepth})
+	return projectionws.NewHandler(serve, c.WebOrigin, logger, projectionws.SocketConfig{WriteTimeout: c.Socket.WriteTimeout, IdleTimeout: c.Socket.IdleTimeout, MaxMessageBytes: c.Socket.MaxMessageBytes, MaxMessageDepth: c.Socket.MaxMessageDepth, Authentication: authentication})
 }
 
 type trustedSocketStream struct {

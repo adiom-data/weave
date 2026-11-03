@@ -121,7 +121,7 @@ func snapshotTestRequest(wait, child bool) *reactivev1.ProjectionSnapshotRequest
 				Columns: []*reactivev1.FieldPath{{Segments: []string{"id"}}, {Segments: []string{"position"}}, {Segments: []string{"title"}}},
 				Order:   []*reactivev1.OrderTerm{{Column: &reactivev1.FieldPath{Segments: []string{"id"}}}},
 			},
-			Window: &reactivev1.InitialWindow{From: reactivev1.InitialWindow_START, Count: 10},
+			Window: &reactivev1.InitialWindow{From: reactivev1.InitialWindow_FROM_START, Count: 10},
 		}}},
 	}
 	if child {

@@ -76,7 +76,7 @@ func TestConnectHandlerSupportsConnectAndGRPC(t *testing.T) {
 				if event.GetError() != nil {
 					t.Fatal(event.GetError())
 				}
-				if batch := event.GetModelBatch(); batch != nil && batch.Kind == reactivev1.ModelBatch_SNAPSHOT {
+				if batch := event.GetModelBatch(); batch != nil && batch.Kind == reactivev1.ModelBatch_KIND_SNAPSHOT {
 					imageSeen = true
 					if len(batch.Entities) != 1 || (batch.Entities[0].GetUpsert().Values["extra"] != nil) != test.all {
 						t.Fatal("live snapshot lost field selection mode")

@@ -51,9 +51,9 @@ export interface WindowControl {
   /** Current ready-generation bounds; undefined while rebuilding or detached. */
   readonly bounds: Selection<Bounds | undefined>
   update(updates: readonly BoundaryUpdate[]): Promise<void>
-  extend(side: 'LEFT' | 'RIGHT', count: number): Promise<void>
-  contract(side: 'LEFT' | 'RIGHT', count: number): Promise<void>
-  move(side: 'LEFT' | 'RIGHT', cursor: string): Promise<void>
+  extend(side: 'SIDE_LEFT' | 'SIDE_RIGHT', count: number): Promise<void>
+  contract(side: 'SIDE_LEFT' | 'SIDE_RIGHT', count: number): Promise<void>
+  move(side: 'SIDE_LEFT' | 'SIDE_RIGHT', cursor: string): Promise<void>
 }
 export interface TypedProjectionHandle<T> {
   readonly id: string
@@ -259,9 +259,9 @@ export function defineProjection<P, T>(root: ProjectionRequest['root'], shape: P
           return window.occurrenceId ? raw.updateWindow(window.occurrenceId, updates) : Promise.reject(new Error('List has no active server window'))
         }
         return Object.freeze({ bounds, update,
-          extend: (side: 'LEFT' | 'RIGHT', count: number) => update([{ side, operation: 'EXTEND', count }]),
-          contract: (side: 'LEFT' | 'RIGHT', count: number) => update([{ side, operation: 'CONTRACT', count }]),
-          move: (side: 'LEFT' | 'RIGHT', cursor: string) => update([{ side, operation: 'MOVE', cursor }]),
+          extend: (side: 'SIDE_LEFT' | 'SIDE_RIGHT', count: number) => update([{ side, operation: 'OPERATION_EXTEND', count }]),
+          contract: (side: 'SIDE_LEFT' | 'SIDE_RIGHT', count: number) => update([{ side, operation: 'OPERATION_CONTRACT', count }]),
+          move: (side: 'SIDE_LEFT' | 'SIDE_RIGHT', cursor: string) => update([{ side, operation: 'OPERATION_MOVE', cursor }]),
         })
       },
     })

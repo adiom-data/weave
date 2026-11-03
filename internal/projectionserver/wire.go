@@ -80,10 +80,10 @@ func projectionNode(root *reactivev1.ProjectionNode, parameters map[string]*reac
 				return nil, fmt.Errorf("projection list %q requires an initial window", node.NodeId)
 			}
 			query, bindings = selection.List.Query, selection.List.Bindings
-			if selection.List.Window.From != reactivev1.InitialWindow_START && selection.List.Window.From != reactivev1.InitialWindow_END {
+			if selection.List.Window.From != reactivev1.InitialWindow_FROM_START && selection.List.Window.From != reactivev1.InitialWindow_FROM_END {
 				return nil, fmt.Errorf("projection list %q must start from START or END", node.NodeId)
 			}
-			window = querysubscription.InitialWindow{FromEnd: selection.List.Window.From == reactivev1.InitialWindow_END, Count: int(selection.List.Window.Count)}
+			window = querysubscription.InitialWindow{FromEnd: selection.List.Window.From == reactivev1.InitialWindow_FROM_END, Count: int(selection.List.Window.Count)}
 		default:
 			return nil, fmt.Errorf("projection node %q requires an entity or list selection", node.NodeId)
 		}
@@ -138,12 +138,12 @@ func projectionPlanBinding(binding *reactivev1.ProjectionBinding) (plan.Binding,
 		return plan.Binding{}, errors.New("projection binding requires a column")
 	}
 	op := map[reactivev1.Comparison_Operator]storage.ComparisonOperator{
-		reactivev1.Comparison_EQUAL:                 storage.ComparisonEqual,
-		reactivev1.Comparison_NOT_EQUAL:             storage.ComparisonNotEqual,
-		reactivev1.Comparison_LESS_THAN:             storage.ComparisonLess,
-		reactivev1.Comparison_LESS_THAN_OR_EQUAL:    storage.ComparisonLessOrEqual,
-		reactivev1.Comparison_GREATER_THAN:          storage.ComparisonGreater,
-		reactivev1.Comparison_GREATER_THAN_OR_EQUAL: storage.ComparisonGreaterOrEqual,
+		reactivev1.Comparison_OPERATOR_EQUAL:                 storage.ComparisonEqual,
+		reactivev1.Comparison_OPERATOR_NOT_EQUAL:             storage.ComparisonNotEqual,
+		reactivev1.Comparison_OPERATOR_LESS_THAN:             storage.ComparisonLess,
+		reactivev1.Comparison_OPERATOR_LESS_THAN_OR_EQUAL:    storage.ComparisonLessOrEqual,
+		reactivev1.Comparison_OPERATOR_GREATER_THAN:          storage.ComparisonGreater,
+		reactivev1.Comparison_OPERATOR_GREATER_THAN_OR_EQUAL: storage.ComparisonGreaterOrEqual,
 	}[binding.Operator]
 	if op == 0 {
 		return plan.Binding{}, fmt.Errorf("binding for %s requires a comparison operator", field.Display())
@@ -252,7 +252,7 @@ func storagePredicateCanonical(predicate *reactivev1.Predicate, negated bool, de
 	}
 	switch expression := predicate.Expression.(type) {
 	case *reactivev1.Predicate_Comparison:
-		op := map[reactivev1.Comparison_Operator]storage.ComparisonOperator{reactivev1.Comparison_EQUAL: storage.ComparisonEqual, reactivev1.Comparison_NOT_EQUAL: storage.ComparisonNotEqual, reactivev1.Comparison_LESS_THAN: storage.ComparisonLess, reactivev1.Comparison_LESS_THAN_OR_EQUAL: storage.ComparisonLessOrEqual, reactivev1.Comparison_GREATER_THAN: storage.ComparisonGreater, reactivev1.Comparison_GREATER_THAN_OR_EQUAL: storage.ComparisonGreaterOrEqual}[expression.Comparison.Operator]
+		op := map[reactivev1.Comparison_Operator]storage.ComparisonOperator{reactivev1.Comparison_OPERATOR_EQUAL: storage.ComparisonEqual, reactivev1.Comparison_OPERATOR_NOT_EQUAL: storage.ComparisonNotEqual, reactivev1.Comparison_OPERATOR_LESS_THAN: storage.ComparisonLess, reactivev1.Comparison_OPERATOR_LESS_THAN_OR_EQUAL: storage.ComparisonLessOrEqual, reactivev1.Comparison_OPERATOR_GREATER_THAN: storage.ComparisonGreater, reactivev1.Comparison_OPERATOR_GREATER_THAN_OR_EQUAL: storage.ComparisonGreaterOrEqual}[expression.Comparison.Operator]
 		if op == 0 {
 			return nil, errors.New("comparison operator is required")
 		}
@@ -290,9 +290,9 @@ func storagePredicateCanonical(predicate *reactivev1.Predicate, negated bool, de
 		return &storage.Predicate{Null: &storage.NullTest{Field: field, IsNull: expression.NullTest.IsNull != negated}}, nil
 	case *reactivev1.Predicate_Junction:
 		op := storage.JunctionAnd
-		if expression.Junction.Operator == reactivev1.Junction_OR {
+		if expression.Junction.Operator == reactivev1.Junction_OPERATOR_OR {
 			op = storage.JunctionOr
-		} else if expression.Junction.Operator != reactivev1.Junction_AND {
+		} else if expression.Junction.Operator != reactivev1.Junction_OPERATOR_AND {
 			return nil, errors.New("junction operator is required")
 		}
 		if negated {
@@ -333,9 +333,9 @@ func queryBoundaryChanges(update *reactivev1.UpdateWindow) ([]querysubscription.
 		}
 		converted := querysubscription.BoundaryChange{Count: int(change.Count)}
 		switch change.Side {
-		case reactivev1.BoundaryUpdate_LEFT:
+		case reactivev1.BoundaryUpdate_SIDE_LEFT:
 			converted.Side = querysubscription.BoundaryLeft
-		case reactivev1.BoundaryUpdate_RIGHT:
+		case reactivev1.BoundaryUpdate_SIDE_RIGHT:
 			converted.Side = querysubscription.BoundaryRight
 		default:
 			return nil, errors.New("boundary side is required")
@@ -345,15 +345,15 @@ func queryBoundaryChanges(update *reactivev1.UpdateWindow) ([]querysubscription.
 		}
 		seenSides[change.Side] = struct{}{}
 		switch change.Operation {
-		case reactivev1.BoundaryUpdate_MOVE:
+		case reactivev1.BoundaryUpdate_OPERATION_MOVE:
 			if len(change.Cursor) == 0 {
 				return nil, errors.New("move requires a cursor")
 			}
 			converted.Operation = querysubscription.BoundaryMove
 			converted.Cursor = append([]byte(nil), change.Cursor...)
-		case reactivev1.BoundaryUpdate_EXTEND:
+		case reactivev1.BoundaryUpdate_OPERATION_EXTEND:
 			converted.Operation = querysubscription.BoundaryExtend
-		case reactivev1.BoundaryUpdate_CONTRACT:
+		case reactivev1.BoundaryUpdate_OPERATION_CONTRACT:
 			converted.Operation = querysubscription.BoundaryContract
 		default:
 			return nil, errors.New("boundary operation is required")
@@ -543,14 +543,14 @@ func protoQueryWindow(bounds querysubscription.Bounds) (wireBounds, error) {
 func protoQueryBoundary(boundary querysubscription.Boundary) (*reactivev1.Boundary, error) {
 	switch boundary.Kind {
 	case querysubscription.BoundaryStart:
-		return &reactivev1.Boundary{Value: &reactivev1.Boundary_Sentinel_{Sentinel: reactivev1.Boundary_START}}, nil
+		return &reactivev1.Boundary{Value: &reactivev1.Boundary_Sentinel_{Sentinel: reactivev1.Boundary_SENTINEL_START}}, nil
 	case querysubscription.BoundaryCursor:
 		if len(boundary.Cursor) == 0 {
 			return nil, errors.New("cursor boundary has no cursor")
 		}
 		return &reactivev1.Boundary{Value: &reactivev1.Boundary_Cursor{Cursor: append([]byte(nil), boundary.Cursor...)}}, nil
 	case querysubscription.BoundaryEnd:
-		return &reactivev1.Boundary{Value: &reactivev1.Boundary_Sentinel_{Sentinel: reactivev1.Boundary_END}}, nil
+		return &reactivev1.Boundary{Value: &reactivev1.Boundary_Sentinel_{Sentinel: reactivev1.Boundary_SENTINEL_END}}, nil
 	default:
 		return nil, errors.New("unknown query boundary kind")
 	}

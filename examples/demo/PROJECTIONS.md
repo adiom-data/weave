@@ -73,7 +73,7 @@ function ProjectTasks({ client, projectId }: { client: ReactiveClient; projectId
     ? projection.data.value.taskLinks : undefined
 
   return <button disabled={projection.status !== 'ready' || !links} onClick={() => {
-    if (links) void projection.window(links).extend('LEFT', 20).catch(reportError)
+    if (links) void projection.window(links).extend('SIDE_LEFT', 20).catch(reportError)
   }}>Load earlier tasks</button>
 }
 ```
@@ -104,7 +104,7 @@ data. `control.bounds` is a read-only selection suitable for `useSelection`:
 ```ts
 const control = handle.window(list)
 const bounds = control.bounds.getSnapshot()
-if (bounds?.left?.cursor) await control.move('LEFT', bounds.left.cursor)
+if (bounds?.left?.cursor) await control.move('SIDE_LEFT', bounds.left.cursor)
 ```
 
 Bounds are `undefined` during rebuilding or after that occurrence disappears.

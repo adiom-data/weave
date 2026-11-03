@@ -1,6 +1,7 @@
 import { prepareProjectionRequest, ProtocolError } from './protocol.js'
 import { decodeSocketMessage, encodeSocketMessage } from './socket_protocol.js'
-import type { BoundaryUpdate, ClientMessage, DecodeLimits, ProjectionRequest, ServerMessage, TransactionMessage } from './protocol.js'
+import type { AuthStatus, SocketRequest } from './socket_protocol.js'
+import type { BoundaryUpdate, DecodeLimits, ProjectionRequest, ServerMessage, TransactionMessage } from './protocol.js'
 import { ModelStore } from './store.js'
 import { readProjection } from './projection.js'
 import type { ProjectionSnapshot } from './projection.js'
@@ -30,6 +31,9 @@ export interface ClientOptions extends DecodeLimits, ModelStoreOptions {
   /** Delivered asynchronously after state transitions; contains no model data. */
   readonly onDiagnostic?: (event: DiagnosticEvent) => void
   readonly onConnectionOpened?: (context: string) => void
+  /** Connection-level auth notices, not replies to individual token updates.
+   * Successful verification is silent. Token acquisition/scheduling is external. */
+  readonly onAuthStatus?: (status: AuthStatus) => void
   /** Runs after the complete transaction's model changes have been published. */
   readonly onTransaction?: (transaction: TransactionNotification) => void
   readonly url: string | (() => string)
@@ -106,6 +110,17 @@ export class ReactiveClient {
   private optimisticReceiptDecoders = new Set<ReceiptRegistration>()
   /** Undefined before the server handshake and immediately after disconnect. */
   get connectionContext(): string | undefined { return this.generation?.context }
+  /** Fire-and-forget WebSocket credential update; the server coalesces work.
+   * No request ID, acknowledgment, or automatic retry. The application obtains
+   * and periodically sends tokens; changed claims require reconnecting.
+   * No token is retained or replayed across connection generations. */
+  updateAuthToken(token: string): void {
+    const generation = this.generation
+    if (!generation?.opened || generation.socket?.readyState !== 1) throw new Error('Connection is not open')
+    if (!token || typeof token !== 'string') throw new Error('Authentication token is required')
+    try { this.send(generation, { authToken: { token } }) }
+    catch (error) { this.lost(generation, asError(error), 'send'); throw asError(error) }
+  }
   /** Observes routed metadata after atomic model publication; does not create a subscription. */
   subscribeTransactions(listener: (transaction: TransactionNotification) => void): () => void {
     this.transactionListeners.add(listener)
@@ -270,7 +285,7 @@ export class ReactiveClient {
     })
   }
   private requestId(): string { return `request-${++this.nextRequest}` }
-  private send(generation: ConnectionGeneration, message: ClientMessage | { readonly ping: string }): void {
+  private send(generation: ConnectionGeneration, message: SocketRequest): void {
     this.sendBytes(generation, encodeSocketMessage(message))
   }
   private sendBytes(generation: ConnectionGeneration, data: Uint8Array<ArrayBuffer>): void {
@@ -326,7 +341,9 @@ export class ReactiveClient {
         if (!(event.data instanceof ArrayBuffer) || event.data.byteLength > (this.options.maxMessageBytes ?? 8388608)) throw new ProtocolError('Invalid or oversized binary socket message')
         const message = decodeSocketMessage(new Uint8Array(event.data), this.options)
         if (message.type === 'model') this.receive(message.message, generation)
-        else if (generation.heartbeatId === message.id) {
+        else if (message.type === 'authStatus') {
+          invokeSafely(() => this.options.onAuthStatus?.(message.status), error => this.reportListenerError(error))
+        } else if (generation.heartbeatId === message.id) {
           clearTimeout(generation.heartbeatTimer)
           generation.heartbeatId = undefined
           this.scheduleHeartbeat(generation)

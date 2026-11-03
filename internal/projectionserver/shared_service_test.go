@@ -30,8 +30,8 @@ func TestStoragePredicatePushesNegationToLeaves(t *testing.T) {
 		return &reactivev1.Predicate{Expression: &reactivev1.Predicate_Comparison{Comparison: &reactivev1.Comparison{Column: &reactivev1.FieldPath{Segments: []string{column}}, Operator: operator, Value: &reactivev1.Value{Kind: &reactivev1.Value_TextValue{TextValue: value}}}}}
 	}
 	predicate := &reactivev1.Predicate{Expression: &reactivev1.Predicate_Negation{Negation: &reactivev1.Negation{Operand: &reactivev1.Predicate{
-		Expression: &reactivev1.Predicate_Junction{Junction: &reactivev1.Junction{Operator: reactivev1.Junction_AND, Operands: []*reactivev1.Predicate{
-			comparison("A", reactivev1.Comparison_EQUAL, "1"),
+		Expression: &reactivev1.Predicate_Junction{Junction: &reactivev1.Junction{Operator: reactivev1.Junction_OPERATOR_AND, Operands: []*reactivev1.Predicate{
+			comparison("A", reactivev1.Comparison_OPERATOR_EQUAL, "1"),
 			&reactivev1.Predicate{Expression: &reactivev1.Predicate_NullTest{NullTest: &reactivev1.NullTest{Column: &reactivev1.FieldPath{Segments: []string{"B"}}, IsNull: true}}},
 		}}},
 	}}}}
@@ -202,11 +202,11 @@ func TestAuthorizationOnlyCommitProducesClientRemoval(t *testing.T) {
 				Columns: []*reactivev1.FieldPath{{Segments: []string{"id"}}, {Segments: []string{"position"}}, {Segments: []string{"title"}}},
 				Order:   []*reactivev1.OrderTerm{{Column: &reactivev1.FieldPath{Segments: []string{"id"}}}},
 			},
-			Window: &reactivev1.InitialWindow{From: reactivev1.InitialWindow_START, Count: 10},
+			Window: &reactivev1.InitialWindow{From: reactivev1.InitialWindow_FROM_START, Count: 10},
 		}},
 	}
 	snapshot := receiveAuthorizationMessage(t, stream.sent)
-	if batch := snapshot.GetModelBatch(); batch == nil || batch.Kind != reactivev1.ModelBatch_SNAPSHOT || len(batch.Entities) != 1 {
+	if batch := snapshot.GetModelBatch(); batch == nil || batch.Kind != reactivev1.ModelBatch_KIND_SNAPSHOT || len(batch.Entities) != 1 {
 		t.Fatalf("snapshot = %#v", snapshot)
 	}
 	ready := receiveAuthorizationMessage(t, stream.sent)
@@ -222,7 +222,7 @@ func TestAuthorizationOnlyCommitProducesClientRemoval(t *testing.T) {
 	}
 	commit := receiveAuthorizationMessage(t, stream.sent)
 	batch := commit.GetModelBatch()
-	if batch == nil || batch.Kind != reactivev1.ModelBatch_COMMIT || !batch.Atomic || len(batch.Queries) != 1 {
+	if batch == nil || batch.Kind != reactivev1.ModelBatch_KIND_COMMIT || !batch.Atomic || len(batch.Queries) != 1 {
 		t.Fatalf("commit = %#v", commit)
 	}
 	delta := batch.Queries[0].GetDelta()
@@ -264,12 +264,12 @@ func TestProjectionRemainsLiveAfterReady(t *testing.T) {
 					Columns: []*reactivev1.FieldPath{{Segments: []string{"id"}}, {Segments: []string{"title"}}},
 					Order:   []*reactivev1.OrderTerm{{Column: &reactivev1.FieldPath{Segments: []string{"id"}}}},
 				},
-				Window: &reactivev1.InitialWindow{From: reactivev1.InitialWindow_START, Count: 10},
+				Window: &reactivev1.InitialWindow{From: reactivev1.InitialWindow_FROM_START, Count: 10},
 			}}},
 		}},
 	}
 	snapshotMessage := receiveAuthorizationMessage(t, stream.sent)
-	if snapshot := snapshotMessage.GetModelBatch(); snapshot == nil || snapshot.Kind != reactivev1.ModelBatch_SNAPSHOT {
+	if snapshot := snapshotMessage.GetModelBatch(); snapshot == nil || snapshot.Kind != reactivev1.ModelBatch_KIND_SNAPSHOT {
 		t.Fatalf("projection snapshot message = %v", snapshotMessage)
 	}
 	if ready := receiveAuthorizationMessage(t, stream.sent).GetReady(); ready == nil {
@@ -287,7 +287,7 @@ func TestProjectionRemainsLiveAfterReady(t *testing.T) {
 		t.Fatal(err)
 	}
 	commit := receiveAuthorizationMessage(t, stream.sent).GetModelBatch()
-	if commit == nil || commit.Kind != reactivev1.ModelBatch_COMMIT || len(commit.Entities) != 1 {
+	if commit == nil || commit.Kind != reactivev1.ModelBatch_KIND_COMMIT || len(commit.Entities) != 1 {
 		t.Fatalf("projection update = %#v", commit)
 	}
 }

@@ -107,7 +107,7 @@ test('typed hooks stabilize equal parameter values and replace scopes when param
   })
   assert.equal(container.textContent, 'Project')
   const beforeUnselected = renders
-  await act(async () => sockets[0].message({ connectionSequence: '1', modelBatch: { kind: 'COMMIT', entities: [entity('project', 'Project', { unselected: { textValue: 'new' } })] } }))
+  await act(async () => sockets[0].message({ connectionSequence: '1', modelBatch: { kind: 'KIND_COMMIT', entities: [entity('project', 'Project', { unselected: { textValue: 'new' } })] } }))
   assert.equal(renders, beforeUnselected, 'unselected values must not rerender the combined typed hook')
   await act(async () => root.render(createElement(StrictMode, null, createElement(View, { id: 'one' }))))
   assert.equal(subscriptions().length, count, 'new argument object with equal values must not resubscribe')

@@ -71,8 +71,8 @@ func projectionRequest(project int64, rows int) *reactivev1.ClientMessage {
 	return &reactivev1.ClientMessage{SubscriptionId: "project", RequestId: "project", Operation: &reactivev1.ClientMessage_SubscribeProjection{SubscribeProjection: &reactivev1.SubscribeProjection{
 		WaitForSync: true,
 		Root: &reactivev1.ProjectionNode{NodeId: "tasks", Selection: &reactivev1.ProjectionNode_List{List: &reactivev1.ProjectionList{
-			Query:  &reactivev1.Query{Schema: "bench", Table: "tasks", Columns: []*reactivev1.FieldPath{field("id"), field("project_id"), field("revision"), field("payload")}, Filter: &reactivev1.Predicate{Expression: &reactivev1.Predicate_Comparison{Comparison: &reactivev1.Comparison{Column: field("project_id"), Operator: reactivev1.Comparison_EQUAL, Value: &reactivev1.Value{Kind: &reactivev1.Value_IntegerValue{IntegerValue: strconv.FormatInt(project, 10)}}}}}},
-			Window: &reactivev1.InitialWindow{From: reactivev1.InitialWindow_START, Count: uint32(rows + 1)},
+			Query:  &reactivev1.Query{Schema: "bench", Table: "tasks", Columns: []*reactivev1.FieldPath{field("id"), field("project_id"), field("revision"), field("payload")}, Filter: &reactivev1.Predicate{Expression: &reactivev1.Predicate_Comparison{Comparison: &reactivev1.Comparison{Column: field("project_id"), Operator: reactivev1.Comparison_OPERATOR_EQUAL, Value: &reactivev1.Value{Kind: &reactivev1.Value_IntegerValue{IntegerValue: strconv.FormatInt(project, 10)}}}}}},
+			Window: &reactivev1.InitialWindow{From: reactivev1.InitialWindow_FROM_START, Count: uint32(rows + 1)},
 		}}},
 	}}}
 }
@@ -88,7 +88,7 @@ func (m *projectionImage) apply(batch *reactivev1.ModelBatch) ([]Change, error) 
 	if batch == nil {
 		return nil, fmt.Errorf("missing projection batch")
 	}
-	if batch.Kind == reactivev1.ModelBatch_SNAPSHOT {
+	if batch.Kind == reactivev1.ModelBatch_KIND_SNAPSHOT {
 		if m.snapshot || m.ready {
 			return nil, fmt.Errorf("unexpected projection resnapshot")
 		}
@@ -96,11 +96,11 @@ func (m *projectionImage) apply(batch *reactivev1.ModelBatch) ([]Change, error) 
 			return nil, fmt.Errorf("snapshot must introduce one task query")
 		}
 		reset := batch.Queries[0].GetReset_()
-		if reset.Left.GetSentinel() != reactivev1.Boundary_START || reset.Right.GetSentinel() != reactivev1.Boundary_END || len(reset.EntityIds) != m.count {
+		if reset.Left.GetSentinel() != reactivev1.Boundary_SENTINEL_START || reset.Right.GetSentinel() != reactivev1.Boundary_SENTINEL_END || len(reset.EntityIds) != m.count {
 			return nil, fmt.Errorf("projection must cover the entire filtered project")
 		}
 		m.snapshot = true
-	} else if batch.Kind != reactivev1.ModelBatch_COMMIT || !m.ready {
+	} else if batch.Kind != reactivev1.ModelBatch_KIND_COMMIT || !m.ready {
 		return nil, fmt.Errorf("unexpected projection batch kind %v", batch.Kind)
 	} else if len(batch.Queries) != 0 {
 		return nil, fmt.Errorf("unexpected task membership change")
@@ -115,7 +115,7 @@ func (m *projectionImage) apply(batch *reactivev1.ModelBatch) ([]Change, error) 
 			return nil, err
 		}
 		previous, exists := m.rows[entity.EntityId]
-		if batch.Kind == reactivev1.ModelBatch_SNAPSHOT && exists {
+		if batch.Kind == reactivev1.ModelBatch_KIND_SNAPSHOT && exists {
 			return nil, fmt.Errorf("duplicate snapshot entity")
 		}
 		if m.ready && (!exists || previous.ID != row.ID || previous.ProjectID != row.ProjectID) {
@@ -124,7 +124,7 @@ func (m *projectionImage) apply(batch *reactivev1.ModelBatch) ([]Change, error) 
 		m.rows[entity.EntityId] = row
 		changes = append(changes, Change{Task: row})
 	}
-	if batch.Kind == reactivev1.ModelBatch_SNAPSHOT {
+	if batch.Kind == reactivev1.ModelBatch_KIND_SNAPSHOT {
 		if len(m.rows) != m.count {
 			return nil, fmt.Errorf("incomplete projection snapshot")
 		}

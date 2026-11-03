@@ -93,7 +93,7 @@ func TestPostgresReceiptReachesProjectionWithoutSubscriptionsIntegration(t *test
 	select {
 	case message := <-stream.sent:
 		batch := message.GetModelBatch()
-		if batch == nil || batch.Kind != reactivev1.ModelBatch_COMMIT || !batch.Atomic || len(batch.Messages) != 1 || string(batch.Messages[0].Payload) != string([]byte{0, 255, 128}) || len(batch.Entities) != 0 {
+		if batch == nil || batch.Kind != reactivev1.ModelBatch_KIND_COMMIT || !batch.Atomic || len(batch.Messages) != 1 || string(batch.Messages[0].Payload) != string([]byte{0, 255, 128}) || len(batch.Entities) != 0 {
 			t.Fatalf("receipt = %v", message)
 		}
 	case <-ctx.Done():

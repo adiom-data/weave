@@ -144,7 +144,7 @@ func (a *policyAdmissions) query(external, request, internal, queryID string, sp
 					}
 					delete(a.pending, external)
 					a.subscriptions[external] = state
-					batch.Kind = reactivev1.ModelBatch_SNAPSHOT
+					batch.Kind = reactivev1.ModelBatch_KIND_SNAPSHOT
 					state.sequence++
 					if err := a.stream.Send(&reactivev1.ServerMessage{SubscriptionId: external, RequestId: request, Sequence: state.sequence, Event: &reactivev1.ServerMessage_ModelBatch{ModelBatch: batch}}); err != nil {
 						return proj.AdmissionWait{}, err
@@ -222,7 +222,7 @@ func (a *policyAdmissions) projection(external, request, prefix string, root *pr
 				}
 				delete(a.pending, external)
 				a.projections[external] = state
-				batch.Kind = reactivev1.ModelBatch_SNAPSHOT
+				batch.Kind = reactivev1.ModelBatch_KIND_SNAPSHOT
 				if waitForSync && len(filtered) > 0 {
 					batch.Checkpoint = checkpointString(filtered[0].Checkpoint)
 				}

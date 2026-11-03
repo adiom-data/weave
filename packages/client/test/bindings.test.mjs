@@ -26,7 +26,7 @@ test('allFields publishes whole parents without widening typed readers or child 
     assert.equal(sent.entity.query.columns, undefined)
     assert.equal(sent.children[0].allFields, undefined)
     assert.deepEqual(sent.children[0].entity.query.columns, [{ segments: ['name'] }])
-    socket.message({ subscriptionId: scope, sequence: '1', modelBatch: { kind: 'SNAPSHOT',
+    socket.message({ subscriptionId: scope, sequence: '1', modelBatch: { kind: 'KIND_SNAPSHOT',
       entities: [{ entityId: 'task', upsert: { values: taskValues('Title') } }, { entityId: 'user', upsert: { values: { name: { textValue: 'Alice' } } } }],
       projections: [attach('task-instance', 'root', { entityId: 'task' }, '', '', scope), attach('owner-instance', 'root.owner', { entityId: 'user' }, 'task-instance', 'task', scope)],
     } })
@@ -36,7 +36,7 @@ test('allFields publishes whole parents without widening typed readers or child 
     assert.deepEqual(Object.keys(before.value.owner.value), ['name'])
     assert.equal(before.value.owner.value.name, 'Alice')
     assert.equal(client.store.getEntity('task').values.title.textValue, 'Title')
-    socket.message({ connectionSequence: '1', modelBatch: { kind: 'COMMIT', entities: [{ entityId: 'task', upsert: { values: taskValues('Changed') } }] } })
+    socket.message({ connectionSequence: '1', modelBatch: { kind: 'KIND_COMMIT', entities: [{ entityId: 'task', upsert: { values: taskValues('Changed') } }] } })
     assert.equal(client.store.getEntity('task').values.title.textValue, 'Changed')
     assert.equal(handle.data.getSnapshot(), before)
   } finally { handle.dispose(); client.disconnect() }
@@ -59,20 +59,20 @@ test('nested output masks survive binary requests and shared selection shrink pr
   } } } })
   try {
     assert.deepEqual(socket.sent[0].subscribeProjection.root.fields, ownerMask)
-    socket.message({ subscriptionId: scope, sequence: '1', modelBatch: { kind: 'SNAPSHOT', entities: [{ entityId: 'e', upsert: { values: values(false) } }], projections: [attach('a', 'root', { entityId: 'e' }, '', '', scope)] } })
+    socket.message({ subscriptionId: scope, sequence: '1', modelBatch: { kind: 'KIND_SNAPSHOT', entities: [{ entityId: 'e', upsert: { values: values(false) } }], projections: [attach('a', 'root', { entityId: 'e' }, '', '', scope)] } })
     socket.message({ subscriptionId: scope, sequence: '2', ready: {} })
     const before = handle.data.getSnapshot()
     other = members.subscribe(client, {})
     const second = socket.sent.at(-1).subscriptionId
     assert.deepEqual(socket.sent.at(-1).subscribeProjection.root.fields, membersMask)
-    socket.message({ subscriptionId: second, sequence: '1', modelBatch: { kind: 'SNAPSHOT', entities: [{ entityId: 'e', upsert: { values: values(true) } }], projections: [attach('b', 'root', { entityId: 'e' }, '', '', second)] } })
+    socket.message({ subscriptionId: second, sequence: '1', modelBatch: { kind: 'KIND_SNAPSHOT', entities: [{ entityId: 'e', upsert: { values: values(true) } }], projections: [attach('b', 'root', { entityId: 'e' }, '', '', second)] } })
     socket.message({ subscriptionId: second, sequence: '2', ready: {} })
     assert.equal(handle.data.getSnapshot(), before)
     const items = other.data.getSnapshot().value.meta.members
     assert.deepEqual(items.map(item => item && item.name), ['Bob', null])
     assert.deepEqual(Object.keys(items[0]), ['name'])
     other.dispose()
-    socket.message({ connectionSequence: '1', modelBatch: { kind: 'COMMIT', entities: [{ entityId: 'e', upsert: { values: values(false) } }] } })
+    socket.message({ connectionSequence: '1', modelBatch: { kind: 'KIND_COMMIT', entities: [{ entityId: 'e', upsert: { values: values(false) } }] } })
     assert.equal(handle.data.getSnapshot(), before)
     assert.equal(client.store.getEntity('e').values.metadata.objectValue.fields.members, undefined)
   } finally { other?.dispose(); handle.dispose(); client.disconnect() }
@@ -96,7 +96,7 @@ test('compiled codecs preserve exact scalar values, structured data, lists and e
   const { client, handle, socket, scope } = setup(definition, { integer: 9223372036854775807n })
   try {
     assert.equal(socket.sent[0].subscribeProjection.parameters.integer.integerValue, '9223372036854775807')
-    socket.message({ subscriptionId: scope, sequence: '1', modelBatch: { kind: 'SNAPSHOT',
+    socket.message({ subscriptionId: scope, sequence: '1', modelBatch: { kind: 'KIND_SNAPSHOT',
       entities: [{ entityId: 'e', upsert: { values: {
         integer: { integerValue: '-9223372036854775808' }, decimal: { decimalValue: '1234567890.123456789' }, float: { floatValue: 'Infinity' }, bytes: { bytesValue: 'AP8=' }, timestamp: { datetimeValue: '2026-10-27T00:00:00.123456789Z' }, nil: { nullValue: true }, arbitrary: { objectValue: { fields: { x: { uuidValue: '10000000-0000-4000-8000-000000000001' } } } },
         nested: { objectValue: { fields: { 'odd.name': { textValue: 'value' }, list: { listValue: { values: [{ integerValue: '1' }, { integerValue: '2' }] } } } } },
@@ -118,13 +118,13 @@ test('compiled codecs preserve exact scalar values, structured data, lists and e
 })
 
 test('nested window locators distinguish the same entity reached along diamond paths', async () => {
-  const members = { nodeId: 'root.members', list: { query: { table: 'members' }, window: { from: 'START', count: 10 } }, children: [{ nodeId: 'root.members.entity', entity: { query: { table: 'items' } }, children: [{ nodeId: 'root.members.entity.children', list: { query: { table: 'items' }, window: { from: 'START', count: 10 } } }] }] }
+  const members = { nodeId: 'root.members', list: { query: { table: 'members' }, window: { from: 'FROM_START', count: 10 } }, children: [{ nodeId: 'root.members.entity', entity: { query: { table: 'items' } }, children: [{ nodeId: 'root.members.entity.children', list: { query: { table: 'items' }, window: { from: 'FROM_START', count: 10 } } }] }] }
   const definition = defineProjection({ ...root, children: [members] }, {
     nodeId: 'root', kind: 'entity', fields: [], children: { members: { nodeId: members.nodeId, kind: 'list', fields: [], children: { entity: { nodeId: 'root.members.entity', kind: 'entity', fields: [], children: { children: { nodeId: 'root.members.entity.children', kind: 'list', fields: [], children: {} } } } } } },
   }, [])
   const { client, handle, socket, scope } = setup(definition)
   try {
-    socket.message({ subscriptionId: scope, sequence: '1', modelBatch: { kind: 'SNAPSHOT',
+    socket.message({ subscriptionId: scope, sequence: '1', modelBatch: { kind: 'KIND_SNAPSHOT',
       entities: ['project', 'a', 'b', 'shared'].map(entityId => ({ entityId, upsert: { values: {} } })),
       queries: [reset('members', ['a', 'b']), reset('a-children', []), reset('b-children', [])],
       projections: [attach('r', 'root', { entityId: 'project' }, '', '', scope), attach('m', 'root.members', { querySubscriptionId: 'members' }, 'r', 'project', scope),
@@ -136,14 +136,14 @@ test('nested window locators distinguish the same entity reached along diamond p
     const first = handle.window(data[0].value.entity.value.children)
     const second = handle.window(data[1].value.entity.value.children)
     for (const [control, target, sequence] of [[first, 'a-list', '3'], [second, 'b-list', '4']]) {
-      const promise = control.extend('RIGHT', 1)
+      const promise = control.extend('SIDE_RIGHT', 1)
       const sent = socket.sent.at(-1)
       assert.equal(sent.updateProjectionWindow.instanceId, target)
-      socket.message({ subscriptionId: scope, requestId: sent.requestId, sequence, modelBatch: { kind: 'WINDOW' } })
+      socket.message({ subscriptionId: scope, requestId: sent.requestId, sequence, modelBatch: { kind: 'KIND_WINDOW' } })
       await promise
     }
-    socket.message({ connectionSequence: '1', modelBatch: { kind: 'COMMIT', projections: [{ occurrenceId: 'a-list', detached: {} }], queries: [{ querySubscriptionId: 'a-children', closed: {} }] } })
-    await assert.rejects(first.extend('RIGHT', 1), /no longer present/)
+    socket.message({ connectionSequence: '1', modelBatch: { kind: 'KIND_COMMIT', projections: [{ occurrenceId: 'a-list', detached: {} }], queries: [{ querySubscriptionId: 'a-children', closed: {} }] } })
+    await assert.rejects(first.extend('SIDE_RIGHT', 1), /no longer present/)
   } finally { handle.dispose(); client.disconnect() }
 })
 
@@ -151,11 +151,11 @@ test('schema mismatches fail typed reads without disconnecting a healthy stream'
   const definition = defineProjection(root, { nodeId: 'root', kind: 'entity', fields: [scalar('title', 'text')], children: {} }, [])
   const { client, handle, socket, scope } = setup(definition)
   try {
-    socket.message({ subscriptionId: scope, sequence: '1', modelBatch: { kind: 'SNAPSHOT', entities: [{ entityId: 'e', upsert: { values: { title: { boolValue: false } } } }], projections: [attach('r', 'root', { entityId: 'e' }, '', '', scope)] } })
+    socket.message({ subscriptionId: scope, sequence: '1', modelBatch: { kind: 'KIND_SNAPSHOT', entities: [{ entityId: 'e', upsert: { values: { title: { boolValue: false } } } }], projections: [attach('r', 'root', { entityId: 'e' }, '', '', scope)] } })
     socket.message({ subscriptionId: scope, sequence: '2', ready: {} })
     assert.throws(() => handle.data.getSnapshot(), ProjectionDecodeError)
     assert.equal(socket.readyState, 1)
-    socket.message({ connectionSequence: '1', modelBatch: { kind: 'COMMIT', entities: [{ entityId: 'e', upsert: { values: { title: { textValue: 'recovered' } } } }] } })
+    socket.message({ connectionSequence: '1', modelBatch: { kind: 'KIND_COMMIT', entities: [{ entityId: 'e', upsert: { values: { title: { textValue: 'recovered' } } } }] } })
     assert.equal(handle.data.getSnapshot().value.title, 'recovered')
   } finally { handle.dispose(); client.disconnect() }
 })
@@ -171,16 +171,16 @@ test('selected embedded values reconcile and subscribers keep independent notifi
     names: { listValue: { values: [{ objectValue: { fields: { name: { textValue: 'same' }, hidden: { textValue: hidden } } } }] } },
   } } } })
   try {
-    socket.message({ subscriptionId: scope, sequence: '1', modelBatch: { kind: 'SNAPSHOT', entities: [{ entityId: 'e', upsert: { values: values('Title', 'one') } }], projections: [attach('r', 'root', { entityId: 'e' }, '', '', scope)] } })
+    socket.message({ subscriptionId: scope, sequence: '1', modelBatch: { kind: 'KIND_SNAPSHOT', entities: [{ entityId: 'e', upsert: { values: values('Title', 'one') } }], projections: [attach('r', 'root', { entityId: 'e' }, '', '', scope)] } })
     socket.message({ subscriptionId: scope, sequence: '2', ready: {} })
     const before = handle.data.getSnapshot()
     const calls = [0, 0]
     const stopA = handle.data.subscribe(() => { calls[0]++; handle.data.getSnapshot() })
     const stopB = handle.data.subscribe(() => { calls[1]++ })
-    socket.message({ connectionSequence: '1', modelBatch: { kind: 'COMMIT', entities: [{ entityId: 'e', upsert: { values: values('Title', 'two') } }] } })
+    socket.message({ connectionSequence: '1', modelBatch: { kind: 'KIND_COMMIT', entities: [{ entityId: 'e', upsert: { values: values('Title', 'two') } }] } })
     assert.equal(handle.data.getSnapshot(), before)
     assert.deepEqual(calls, [0, 0])
-    socket.message({ connectionSequence: '2', modelBatch: { kind: 'COMMIT', entities: [{ entityId: 'e', upsert: { values: values('Changed', 'two') } }] } })
+    socket.message({ connectionSequence: '2', modelBatch: { kind: 'KIND_COMMIT', entities: [{ entityId: 'e', upsert: { values: values('Changed', 'two') } }] } })
     assert.notEqual(handle.data.getSnapshot(), before)
     assert.equal(handle.data.getSnapshot().value.metadata, before.value.metadata)
     assert.deepEqual(calls, [1, 1], 'an earlier cached read cannot swallow another subscriber notification')
@@ -193,12 +193,12 @@ test('mapped subscriptions report decode failures and notify recovery to an iden
   const { client, handle, socket, scope } = setup(definition)
   try {
     const upsert = value => ({ entityId: 'e', upsert: { values: { title: value } } })
-    socket.message({ subscriptionId: scope, sequence: '1', modelBatch: { kind: 'SNAPSHOT', entities: [upsert({ textValue: 'same' })], projections: [attach('r', 'root', { entityId: 'e' }, '', '', scope)] } })
+    socket.message({ subscriptionId: scope, sequence: '1', modelBatch: { kind: 'KIND_SNAPSHOT', entities: [upsert({ textValue: 'same' })], projections: [attach('r', 'root', { entityId: 'e' }, '', '', scope)] } })
     socket.message({ subscriptionId: scope, sequence: '2', ready: {} })
     let errors = 0, successes = 0
     const stop = handle.data.subscribe(() => { try { handle.data.getSnapshot(); successes++ } catch (error) { assert.ok(error instanceof ProjectionDecodeError); errors++ } })
-    socket.message({ connectionSequence: '1', modelBatch: { kind: 'COMMIT', entities: [upsert({ boolValue: true })] } })
-    socket.message({ connectionSequence: '2', modelBatch: { kind: 'COMMIT', entities: [upsert({ textValue: 'same' })] } })
+    socket.message({ connectionSequence: '1', modelBatch: { kind: 'KIND_COMMIT', entities: [upsert({ boolValue: true })] } })
+    socket.message({ connectionSequence: '2', modelBatch: { kind: 'KIND_COMMIT', entities: [upsert({ textValue: 'same' })] } })
     assert.equal(errors, 1); assert.equal(successes, 1)
     stop()
   } finally { handle.dispose(); client.disconnect() }

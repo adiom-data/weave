@@ -176,7 +176,7 @@ func TestDynamicPolicyInvalidationReevaluatesIdleProjection(t *testing.T) {
 		}
 	}()
 	stream.received <- &reactivev1.ClientMessage{SubscriptionId: "project", RequestId: "subscribe", Operation: &reactivev1.ClientMessage_SubscribeProjection{SubscribeProjection: &reactivev1.SubscribeProjection{Root: snapshotTestRequest(false, false).Root}}}
-	initial := receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_SNAPSHOT, "")
+	initial := receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_KIND_SNAPSHOT, "")
 	if len(initial.Entities) != 1 {
 		t.Fatalf("missing initial entity: %v", initial)
 	}
@@ -184,7 +184,7 @@ func TestDynamicPolicyInvalidationReevaluatesIdleProjection(t *testing.T) {
 	current = policy.Snapshot{Version: "deny", Policy: &policy.Relation{}}
 	mu.Unlock()
 	hints <- []policy.Key{{Namespace: "app", Name: "projects"}}
-	revoked := receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_HYDRATION, "")
+	revoked := receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_KIND_HYDRATION, "")
 	if len(revoked.Entities) != 1 || revoked.Entities[0].GetReleased() == nil {
 		t.Fatalf("idle revocation not published: %v", revoked)
 	}
@@ -192,7 +192,7 @@ func TestDynamicPolicyInvalidationReevaluatesIdleProjection(t *testing.T) {
 	current = policy.Snapshot{Version: "allow-again", Policy: &policy.Relation{Allow: []policy.Rule{{ID: "visible", When: "true"}}}}
 	mu.Unlock()
 	hints <- []policy.Key{{Namespace: "app", Name: "projects"}}
-	restored := receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_HYDRATION, "")
+	restored := receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_KIND_HYDRATION, "")
 	if len(restored.Entities) != 1 || restored.Entities[0].GetUpsert().GetValues()["title"].GetTextValue() != "retained" {
 		t.Fatalf("idle restoration lost data: %v", restored)
 	}
@@ -272,7 +272,7 @@ func TestPolicyInitializationWaitsForFactsAndKeepsCurrentImage(t *testing.T) {
 			updated := policyRow("projects", "p1", "new")
 			backend.commit(t, 15, q.SubscriptionEffect{SubscriptionID: projectRequest.ID, Batch: q.Batch{Changes: []q.Change{{Kind: q.Updated, Row: updated}}}})
 			close(release)
-			initial := receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_SNAPSHOT, "")
+			initial := receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_KIND_SNAPSHOT, "")
 			if len(initial.Entities) != 1 || initial.Entities[0].GetUpsert().GetValues()["title"].GetTextValue() != "new" {
 				t.Fatalf("initial snapshot was stale: %v", initial)
 			}
@@ -286,12 +286,12 @@ func TestPolicyInitializationWaitsForFactsAndKeepsCurrentImage(t *testing.T) {
 			}
 			grant := policyRow("grants", "g1", "grant")
 			backend.commit(t, 25, q.SubscriptionEffect{SubscriptionID: grantRequest.ID, Batch: q.Batch{Changes: []q.Change{{Kind: q.Removed, Row: q.Row{Key: grant.Key}}}, Membership: q.MembershipDelta{Removed: []storage.EntityKey{grant.Key}}}})
-			revoked := receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_COMMIT, "25")
+			revoked := receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_KIND_COMMIT, "25")
 			if len(revoked.Entities) != 1 || revoked.Entities[0].GetReleased() == nil {
 				t.Fatalf("grant revocation not propagated: %v", revoked)
 			}
 			backend.commit(t, 30, q.SubscriptionEffect{SubscriptionID: grantRequest.ID, Batch: q.Batch{Changes: []q.Change{{Kind: q.Added, Row: grant}}, Membership: q.MembershipDelta{Insertions: []q.Insertion{{Key: grant.Key, FinalIndex: 0}}}}})
-			restored := receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_COMMIT, "30")
+			restored := receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_KIND_COMMIT, "30")
 			if len(restored.Entities) != 1 || restored.Entities[0].GetUpsert().GetValues()["title"].GetTextValue() != "new" {
 				t.Fatalf("visibility restoration lost retained data: %v", restored)
 			}
@@ -419,11 +419,11 @@ func TestPolicyLiveUnknownKeepsPublishedImageUntilCurrentDecision(t *testing.T) 
 				stream.received <- request
 				projectRequest := receivePolicyRequest(t, ctx, backend, "projects")
 				grantRequest := receivePolicyRequest(t, ctx, backend, "grants")
-				receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_SNAPSHOT, "")
+				receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_KIND_SNAPSHOT, "")
 				<-stream.sent // Ready
 				stream.received <- &reactivev1.ClientMessage{SubscriptionId: "note", RequestId: "note", Operation: &reactivev1.ClientMessage_Subscribe{Subscribe: &reactivev1.Subscribe{Query: &reactivev1.Query{Schema: "app", Table: "notes", Columns: root.GetList().Query.Columns}, Window: root.GetList().Window}}}
 				noteRequest := receivePolicyRequest(t, ctx, backend, "notes")
-				receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_SNAPSHOT, "")
+				receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_KIND_SNAPSHOT, "")
 				<-stream.sent // Ready
 				projectKey := policyRow("projects", "p1", "").Key
 				for _, point := range []uint64{20, 25} {
@@ -439,7 +439,7 @@ func TestPolicyLiveUnknownKeepsPublishedImageUntilCurrentDecision(t *testing.T) 
 					if point == 20 {
 						receivePolicyRequest(t, ctx, backend, "backup")
 					}
-					batch := receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_COMMIT, checkpointString(&q.Position{Value: point}))
+					batch := receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_KIND_COMMIT, checkpointString(&q.Position{Value: point}))
 					for _, entity := range batch.Entities {
 						if entity.EntityId == publicEntityID(projectKey) {
 							t.Fatalf("published unresolved project data or flickered: %v", batch)
@@ -450,7 +450,7 @@ func TestPolicyLiveUnknownKeepsPublishedImageUntilCurrentDecision(t *testing.T) 
 					}
 				}
 				close(release)
-				resolved := receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_HYDRATION, "30")
+				resolved := receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_KIND_HYDRATION, "30")
 				expectedEntities := 1
 				if mode == "nested-projection" && !granted {
 					expectedEntities++
@@ -532,10 +532,10 @@ func TestPolicyPropagationReevaluatesDescendantsOnParentChanges(t *testing.T) {
 	}()
 	root := snapshotTestRequest(false, true).Root
 	task := root.Children[0]
-	root.Children = []*reactivev1.ProjectionNode{{NodeId: "links", Selection: &reactivev1.ProjectionNode_List{List: &reactivev1.ProjectionList{Query: &reactivev1.Query{Schema: "app", Table: "project_tasks", Columns: []*reactivev1.FieldPath{{Segments: []string{"id"}}, {Segments: []string{"title"}}}}, Window: &reactivev1.InitialWindow{From: reactivev1.InitialWindow_START, Count: 10}}}, Children: []*reactivev1.ProjectionNode{task}}}
+	root.Children = []*reactivev1.ProjectionNode{{NodeId: "links", Selection: &reactivev1.ProjectionNode_List{List: &reactivev1.ProjectionList{Query: &reactivev1.Query{Schema: "app", Table: "project_tasks", Columns: []*reactivev1.FieldPath{{Segments: []string{"id"}}, {Segments: []string{"title"}}}}, Window: &reactivev1.InitialWindow{From: reactivev1.InitialWindow_FROM_START, Count: 10}}}, Children: []*reactivev1.ProjectionNode{task}}}
 	stream.received <- &reactivev1.ClientMessage{SubscriptionId: "p", RequestId: "subscribe", Operation: &reactivev1.ClientMessage_SubscribeProjection{SubscribeProjection: &reactivev1.SubscribeProjection{Root: root}}}
 	rootRequest := receivePolicyRequest(t, ctx, backend, "projects")
-	initial := receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_SNAPSHOT, "")
+	initial := receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_KIND_SNAPSHOT, "")
 	if len(initial.Entities) != 3 {
 		t.Fatalf("propagation did not expose the valid path: %v", initial)
 	}
@@ -543,7 +543,7 @@ func TestPolicyPropagationReevaluatesDescendantsOnParentChanges(t *testing.T) {
 	updated := policyRow("projects", "p1", "project")
 	updated.Record["propagate"] = storage.Value{Type: storage.TypeBool, State: storage.ValuePresent, Data: []byte("false")}
 	backend.commit(t, 20, q.SubscriptionEffect{SubscriptionID: rootRequest.ID, Batch: q.Batch{Changes: []q.Change{{Kind: q.Updated, Row: updated}}}})
-	pruned := receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_COMMIT, "20")
+	pruned := receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_KIND_COMMIT, "20")
 	released := 0
 	for _, entity := range pruned.Entities {
 		if entity.GetReleased() != nil {

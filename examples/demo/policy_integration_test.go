@@ -132,7 +132,7 @@ CREATE PUBLICATION %[1]s FOR ALL TABLES;`, name)
 	}
 	defer conn.Close()
 	root := &reactivev1.ProjectionNode{NodeId: "project", Selection: &reactivev1.ProjectionNode_Entity{Entity: &reactivev1.ProjectionEntity{Query: &reactivev1.Query{Schema: name, Table: "projects", Columns: policyColumns("id", "title"), Filter: policyEqual("id", project)}}}}
-	root.Children = []*reactivev1.ProjectionNode{{NodeId: "links", Selection: &reactivev1.ProjectionNode_List{List: &reactivev1.ProjectionList{Query: &reactivev1.Query{Schema: name, Table: "project_tasks", Columns: policyColumns("id", "project_id", "task_id")}, Window: &reactivev1.InitialWindow{From: reactivev1.InitialWindow_START, Count: 10}, Bindings: []*reactivev1.ProjectionBinding{policyBinding("project_id", "id")}}}, Children: []*reactivev1.ProjectionNode{{NodeId: "task", Selection: &reactivev1.ProjectionNode_Entity{Entity: &reactivev1.ProjectionEntity{Query: &reactivev1.Query{Schema: name, Table: "tasks", Columns: policyColumns("id", "title")}, Bindings: []*reactivev1.ProjectionBinding{policyBinding("id", "task_id")}}}}}}}
+	root.Children = []*reactivev1.ProjectionNode{{NodeId: "links", Selection: &reactivev1.ProjectionNode_List{List: &reactivev1.ProjectionList{Query: &reactivev1.Query{Schema: name, Table: "project_tasks", Columns: policyColumns("id", "project_id", "task_id")}, Window: &reactivev1.InitialWindow{From: reactivev1.InitialWindow_FROM_START, Count: 10}, Bindings: []*reactivev1.ProjectionBinding{policyBinding("project_id", "id")}}}, Children: []*reactivev1.ProjectionNode{{NodeId: "task", Selection: &reactivev1.ProjectionNode_Entity{Entity: &reactivev1.ProjectionEntity{Query: &reactivev1.Query{Schema: name, Table: "tasks", Columns: policyColumns("id", "title")}, Bindings: []*reactivev1.ProjectionBinding{policyBinding("id", "task_id")}}}}}}}
 	client := reactivev1.NewReactiveQueriesClient(conn)
 	image, err := client.GetProjectionSnapshot(ctx, &reactivev1.ProjectionSnapshotRequest{Root: root, WaitForSync: true})
 	if err != nil {
@@ -279,8 +279,8 @@ func policyColumns(names ...string) []*reactivev1.FieldPath {
 	return columns
 }
 func policyEqual(column, value string) *reactivev1.Predicate {
-	return &reactivev1.Predicate{Expression: &reactivev1.Predicate_Comparison{Comparison: &reactivev1.Comparison{Column: &reactivev1.FieldPath{Segments: []string{column}}, Operator: reactivev1.Comparison_EQUAL, Value: &reactivev1.Value{Kind: &reactivev1.Value_UuidValue{UuidValue: value}}}}}
+	return &reactivev1.Predicate{Expression: &reactivev1.Predicate_Comparison{Comparison: &reactivev1.Comparison{Column: &reactivev1.FieldPath{Segments: []string{column}}, Operator: reactivev1.Comparison_OPERATOR_EQUAL, Value: &reactivev1.Value{Kind: &reactivev1.Value_UuidValue{UuidValue: value}}}}}
 }
 func policyBinding(column, parent string) *reactivev1.ProjectionBinding {
-	return &reactivev1.ProjectionBinding{Column: &reactivev1.FieldPath{Segments: []string{column}}, Operator: reactivev1.Comparison_EQUAL, Value: &reactivev1.ProjectionBinding_ParentColumn{ParentColumn: &reactivev1.FieldPath{Segments: []string{parent}}}}
+	return &reactivev1.ProjectionBinding{Column: &reactivev1.FieldPath{Segments: []string{column}}, Operator: reactivev1.Comparison_OPERATOR_EQUAL, Value: &reactivev1.ProjectionBinding_ParentColumn{ParentColumn: &reactivev1.FieldPath{Segments: []string{parent}}}}
 }

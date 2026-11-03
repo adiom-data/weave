@@ -36,7 +36,7 @@ test('generated demo bindings work through the live WebSocket and CDC', { skip: 
     await mutate('UpdateTask', { taskId: id, completed: true })
     await Promise.all(handles.map(handle => waitFor(handle, view => tasks(view).some(task => task.id === id && task.completed && task.title === title))))
     const list = handles[0].data.getSnapshot().value.taskLinks
-    await handles[0].window(list).extend('LEFT', 1)
+    await handles[0].window(list).extend('SIDE_LEFT', 1)
     clients[0].disconnect(); clients[0].connect()
     await waitFor(handles[0], view => view.status === 'ready' && tasks(view).some(task => task.id === id))
     await mutate('DeleteTask', { taskId: id })

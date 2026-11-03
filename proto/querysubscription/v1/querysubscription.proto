@@ -114,9 +114,9 @@ message Acknowledged {
 message PayloadChunk {
   enum Kind {
     KIND_UNSPECIFIED = 0;
-    QUERY_SNAPSHOT = 1;
-    ENTITY_INSTALLED = 2;
-    DELIVERY = 3;
+    KIND_QUERY_SNAPSHOT = 1;
+    KIND_ENTITY_INSTALLED = 2;
+    KIND_DELIVERY = 3;
   }
   Kind kind = 1;
   string subscription_id = 2;
@@ -130,10 +130,10 @@ message PayloadChunk {
 message Error {
   enum Code {
     CODE_UNSPECIFIED = 0;
-    INVALID_REQUEST = 1;
-    BACKPRESSURE = 2;
-    CLOSED = 3;
-    INTERNAL = 4;
+    CODE_INVALID_REQUEST = 1;
+    CODE_BACKPRESSURE = 2;
+    CODE_CLOSED = 3;
+    CODE_INTERNAL = 4;
   }
   Code code = 1;
   string subscription_id = 2;
@@ -162,12 +162,12 @@ message Predicate {
 message Comparison {
   enum Operator {
     OPERATOR_UNSPECIFIED = 0;
-    EQUAL = 1;
-    NOT_EQUAL = 2;
-    LESS_THAN = 3;
-    LESS_THAN_OR_EQUAL = 4;
-    GREATER_THAN = 5;
-    GREATER_THAN_OR_EQUAL = 6;
+    OPERATOR_EQUAL = 1;
+    OPERATOR_NOT_EQUAL = 2;
+    OPERATOR_LESS_THAN = 3;
+    OPERATOR_LESS_THAN_OR_EQUAL = 4;
+    OPERATOR_GREATER_THAN = 5;
+    OPERATOR_GREATER_THAN_OR_EQUAL = 6;
   }
   FieldPath field = 1;
   Operator operator = 2;
@@ -182,8 +182,8 @@ message NullTest {
 message Junction {
   enum Operator {
     OPERATOR_UNSPECIFIED = 0;
-    AND = 1;
-    OR = 2;
+    OPERATOR_AND = 1;
+    OPERATOR_OR = 2;
   }
   Operator operator = 1;
   repeated Predicate operands = 2;
@@ -198,9 +198,9 @@ message OrderTerm {
 message Value {
   enum State {
     STATE_UNSPECIFIED = 0;
-    NULL = 1;
-    PRESENT = 2;
-    UNAVAILABLE = 3;
+    STATE_NULL = 1;
+    STATE_PRESENT = 2;
+    STATE_UNAVAILABLE = 3;
   }
   State state = 1;
   string type = 2;
@@ -255,9 +255,9 @@ message Record {
 message Boundary {
   enum Kind {
     KIND_UNSPECIFIED = 0;
-    START = 1;
-    CURSOR = 2;
-    END = 3;
+    KIND_START = 1;
+    KIND_CURSOR = 2;
+    KIND_END = 3;
   }
   Kind kind = 1;
   bytes cursor = 2;
@@ -321,14 +321,14 @@ message EntitySnapshot {
 message BoundaryChange {
   enum Side {
     SIDE_UNSPECIFIED = 0;
-    LEFT = 1;
-    RIGHT = 2;
+    SIDE_LEFT = 1;
+    SIDE_RIGHT = 2;
   }
   enum Operation {
     OPERATION_UNSPECIFIED = 0;
-    MOVE = 1;
-    EXTEND = 2;
-    CONTRACT = 3;
+    OPERATION_MOVE = 1;
+    OPERATION_EXTEND = 2;
+    OPERATION_CONTRACT = 3;
   }
   Side side = 1;
   Operation operation = 2;
@@ -339,9 +339,9 @@ message BoundaryChange {
 message DeliveryMetadata {
   enum Kind {
     KIND_UNSPECIFIED = 0;
-    COMMIT = 1;
-    HYDRATION = 2;
-    WINDOW = 3;
+    KIND_COMMIT = 1;
+    KIND_HYDRATION = 2;
+    KIND_WINDOW = 3;
   }
   Kind kind = 1;
   Position checkpoint = 2;
@@ -354,9 +354,9 @@ message DeliveryMetadata {
 message Change {
   enum Kind {
     KIND_UNSPECIFIED = 0;
-    ADDED = 1;
-    UPDATED = 2;
-    REMOVED = 3;
+    KIND_ADDED = 1;
+    KIND_UPDATED = 2;
+    KIND_REMOVED = 3;
   }
   Kind kind = 1;
   Row row = 2;

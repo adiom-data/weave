@@ -100,7 +100,7 @@ func TestProjectionInitialAuthorizationIncludesCommitsWhileDescendantsLoad(t *te
 	}
 	close(childRelease)
 	initial := receiveAuthorizationMessage(t, stream.sent).GetModelBatch()
-	if initial == nil || initial.Kind != reactivev1.ModelBatch_SNAPSHOT || len(initial.Entities) != 0 {
+	if initial == nil || initial.Kind != reactivev1.ModelBatch_KIND_SNAPSHOT || len(initial.Entities) != 0 {
 		t.Fatalf("initial image exposed a project revoked while loading: %v", initial)
 	}
 	if message := receiveAuthorizationMessage(t, stream.sent); message.GetReady() == nil {
@@ -214,7 +214,7 @@ func testProjectionAuthorizationCatchup(t *testing.T, remove bool) {
 		t.Fatalf("live revocation = %v", message)
 	}
 	close(policy.release)
-	if message := receiveAuthorizationMessage(t, stream.sent); message.GetModelBatch() == nil || message.GetModelBatch().Kind != reactivev1.ModelBatch_SNAPSHOT {
+	if message := receiveAuthorizationMessage(t, stream.sent); message.GetModelBatch() == nil || message.GetModelBatch().Kind != reactivev1.ModelBatch_KIND_SNAPSHOT {
 		t.Fatalf("slow snapshot = %v", message)
 	}
 	if message := receiveAuthorizationMessage(t, stream.sent); message.GetReady() == nil {

@@ -34,7 +34,7 @@ test('one layer creates a nested graph, shares temporary records, and retires at
   const seen = []
   const selection = store.observe(read)
   selection.subscribe(() => seen.push(selection.getSnapshot()))
-  store.apply(batch({ kind: 'COMMIT', atomic: true,
+  store.apply(batch({ kind: 'KIND_COMMIT', atomic: true,
     entities: [entity('real-link', 'Link'), entity('real-task', 'Actual task')],
     queries: [reset('list', ['m1', 'm2', 'real-link'], '2')],
     projections: [attach('real-child', 'task', { entityId: 'real-task' }, 'members', 'real-link')],
@@ -69,7 +69,7 @@ test('list operations compose explicitly; missing backing and anchors stay dorma
   const anchor = store.beginOptimistic({ mutationId: 'anchor', lists: [{ target, type: 'move', entityId: 'c', position: { before: 'missing' } }] })
   assert.deepEqual(read(), ['a', 'b', 'x', 'c'])
   anchor.rollback()
-  store.apply(batch({ kind: 'COMMIT', atomic: true }), { retireOptimistic: ['pending'] })
+  store.apply(batch({ kind: 'KIND_COMMIT', atomic: true }), { retireOptimistic: ['pending'] })
   assert.deepEqual(read(), ['a', 'b', 'c'])
   assert.equal(title(store, 'x'), 'Loaded')
 })
@@ -138,7 +138,7 @@ test('unbacked slot changes remain dormant and become unavailable when deleted b
   assert.equal(seen[0].entityId, 'b')
   assert.equal(seen[0].entity.status, 'unavailable')
   seen.length = 0
-  store.apply(batch({ kind: 'COMMIT', atomic: true }), { retireOptimistic: ['m'] })
+  store.apply(batch({ kind: 'KIND_COMMIT', atomic: true }), { retireOptimistic: ['m'] })
   assert.equal(seen.length, 1)
   assert.equal(seen[0].entityId, 'a', 'whole-layer retirement restores the authoritative slot')
 })
@@ -181,10 +181,10 @@ test('ordered overlapping layers rebase on CDC and retire independently', () => 
   store.apply(batch({ entities: [entity('a', 'Base', { completed: { boolValue: false } })] }))
   const first = store.beginOptimistic({ mutationId: 'm1', patches: [patch('a', 'First')] })
   const second = store.beginOptimistic({ mutationId: 'm2', patches: [{ entityId: 'a', set: { title: text('Second'), completed: { boolValue: true } } }] })
-  store.apply(batch({ kind: 'COMMIT', atomic: true, entities: [entity('a', 'Remote', { completed: { boolValue: false }, extra: text('new') })] }))
+  store.apply(batch({ kind: 'KIND_COMMIT', atomic: true, entities: [entity('a', 'Remote', { completed: { boolValue: false }, extra: text('new') })] }))
   assert.equal(title(store), 'Second')
   assert.equal(store.getEntity('a').values.extra.textValue, 'new')
-  store.apply(batch({ kind: 'COMMIT', atomic: true }), { retireOptimistic: ['m1'] })
+  store.apply(batch({ kind: 'KIND_COMMIT', atomic: true }), { retireOptimistic: ['m1'] })
   assert.equal(title(store), 'Second')
   first.rollback()
   second.rollback()
@@ -206,7 +206,7 @@ test('matching predictions retain references and never notify effective-value re
   const handle = store.beginOptimistic({ mutationId: 'change', patches: [patch('a', 'Predicted')] })
   const predicted = selection.getSnapshot()
   assert.equal(visibleCalls, 1)
-  store.apply(batch({ kind: 'COMMIT', atomic: true, entities: [entity('a', 'Predicted')] }), { retireOptimistic: ['same', 'change'] })
+  store.apply(batch({ kind: 'KIND_COMMIT', atomic: true, entities: [entity('a', 'Predicted')] }), { retireOptimistic: ['same', 'change'] })
   handle.rollback()
   assert.equal(selection.getSnapshot(), predicted)
   assert.equal(visibleCalls, 1)
@@ -220,7 +220,7 @@ test('authoritative changes, query membership, and overlay retirement publish at
   const seen = []
   const selection = store.observe(store => ({ title: title(store), ids: store.getQuery('q').ids }))
   selection.subscribe(() => { seen.push(selection.getSnapshot()) })
-  store.apply(batch({ kind: 'COMMIT', atomic: true, entities: [entity('a', 'Actual')], queries: [reset('q', ['b', 'a'], '2')] }), { retireOptimistic: ['m'] })
+  store.apply(batch({ kind: 'KIND_COMMIT', atomic: true, entities: [entity('a', 'Actual')], queries: [reset('q', ['b', 'a'], '2')] }), { retireOptimistic: ['m'] })
   assert.deepEqual(seen, [{ title: 'Actual', ids: ['b', 'a'] }])
 })
 
@@ -231,8 +231,8 @@ test('validation and invalid CDC leave optimistic and authoritative state untouc
   assert.throws(() => store.beginOptimistic({ mutationId: 'm', patches: [patch('a', 'Duplicate')] }), /unique/)
   assert.throws(() => store.beginOptimistic({ mutationId: 'bad', patches: [{ entityId: 'a', set: { title: {} } }] }))
   assert.throws(() => store.beginOptimistic({ mutationId: 'bad', patches: [{ entityId: 'a', set: { title: text('Bad') }, unset: ['title'] }] }), /disjoint/)
-  assert.throws(() => store.apply(batch({ kind: 'COMMIT', atomic: true, entities: [entity('a', 'Bad')], queries: [{ querySubscriptionId: 'q', delta: { baseVersion: '5', resultVersion: '6' } }] }), { retireOptimistic: ['m'] }), /version/)
-  assert.throws(() => store.apply(batch({ kind: 'SNAPSHOT', entities: [entity('a', 'Bad')] }), { retireOptimistic: ['m'] }), /atomic commit/)
+  assert.throws(() => store.apply(batch({ kind: 'KIND_COMMIT', atomic: true, entities: [entity('a', 'Bad')], queries: [{ querySubscriptionId: 'q', delta: { baseVersion: '5', resultVersion: '6' } }] }), { retireOptimistic: ['m'] }), /version/)
+  assert.throws(() => store.apply(batch({ kind: 'KIND_SNAPSHOT', entities: [entity('a', 'Bad')] }), { retireOptimistic: ['m'] }), /atomic commit/)
   assert.equal(title(store), 'Predicted')
   assert.equal(store.getAuthoritativeEntity('a').values.title.textValue, 'Base')
   handle.rollback()
@@ -248,7 +248,7 @@ test('unbacked predictions are dormant until backing arrives; old handles cannot
     assert.notEqual(store.getEntity('a').status, 'available')
     store.apply(batch({ entities: [entity('a', 'Reloaded')] }))
     assert.equal(title(store), 'Still pending')
-    store.apply(batch({ kind: 'COMMIT', atomic: true }), { retireOptimistic: ['old'] })
+    store.apply(batch({ kind: 'KIND_COMMIT', atomic: true }), { retireOptimistic: ['old'] })
     assert.equal(title(store), 'Reloaded')
   }
   const store = new ModelStore()
@@ -278,7 +278,7 @@ test('disconnect rolls back graph membership and temporary slots across projecti
   const { client, handle, sockets } = setup(t)
   const second = client.subscribeProjection(request)
   sockets[0].message({ subscriptionId: second.id, sequence: '1', modelBatch: {
-    kind: 'SNAPSHOT', projections: [attach('second-root', 'project', { entityId: 'project' }, '', '', second.id)],
+    kind: 'KIND_SNAPSHOT', projections: [attach('second-root', 'project', { entityId: 'project' }, '', '', second.id)],
   } })
   sockets[0].message({ subscriptionId: second.id, sequence: '2', ready: {} })
   const task = client.temporaryEntity(), link = client.temporaryEntity()
@@ -319,7 +319,7 @@ test('synthetic nested lists are displayable, targetable, and never pretend to h
   })
   const children = handle.data.getSnapshot().value.members
   assert.equal(children[0].entityId, child.entityId)
-  await assert.rejects(handle.window(children).extend('RIGHT', 1), /no active server window/)
+  await assert.rejects(handle.window(children).extend('SIDE_RIGHT', 1), /no active server window/)
   const removal = client.beginOptimistic({ mutationId: 'remove-child', lists: [{ target: handle.target(children), type: 'remove', entityId: child.entityId }] })
   assert.equal(handle.data.getSnapshot().value.members.length, 0)
   removal.rollback()
@@ -368,7 +368,7 @@ test('typed provisional records permit missing fields but keep authoritative dec
   assert.equal(value.entityId, temporary.entityId)
   layer.rollback()
   assert.equal(handle.data.getSnapshot(), undefined)
-  sockets[0].message({ connectionSequence: '1', modelBatch: { kind: 'COMMIT',
+  sockets[0].message({ connectionSequence: '1', modelBatch: { kind: 'KIND_COMMIT',
     entities: [entity('real', 'Title')], projections: [attach('real-root', 'item', { entityId: 'real' }, '', '', handle.id)],
   } })
   assert.throws(() => handle.data.getSnapshot(), /id/)
@@ -383,7 +383,7 @@ test('application receipt decoding retires overlays before projection/transactio
   handle.data.subscribe(() => { seen.push(handle.data.getSnapshot().row.entity.values.title.textValue) })
   let receiptTitle
   client.subscribeTransactions(() => { receiptTitle = handle.data.getSnapshot().row.entity.values.title.textValue })
-  sockets[0].message({ connectionSequence: '1', modelBatch: { kind: 'COMMIT', atomic: true,
+  sockets[0].message({ connectionSequence: '1', modelBatch: { kind: 'KIND_COMMIT', atomic: true,
     entities: [entity('project', 'Actual')], messages: [{ kind: 'confirm', payload: btoa('m') }] } })
   assert.deepEqual(seen, ['Actual'])
   assert.equal(receiptTitle, 'Actual')
@@ -396,7 +396,7 @@ test('disconnect retains the authoritative view, never its optimistic prediction
     await t.test(close, t => {
       const { client, handle, sockets } = setup(t)
       client.beginOptimistic({ mutationId: 'm', patches: [patch('project', 'Predicted'), patch('shared', 'Predicted task')] })
-      sockets[0].message({ connectionSequence: '1', modelBatch: { kind: 'COMMIT', entities: [entity('project', 'Latest confirmed')] } })
+      sockets[0].message({ connectionSequence: '1', modelBatch: { kind: 'KIND_COMMIT', entities: [entity('project', 'Latest confirmed')] } })
       assert.equal(handle.data.getSnapshot().row.entity.values.title.textValue, 'Predicted')
       if (close === 'manual') client.disconnect(); else sockets[0].close()
       const view = handle.view.getSnapshot()
@@ -414,7 +414,7 @@ test('result rejection rolls back against the latest base; a late old rejection 
   let reject
   const result = new Promise((_, fail) => { reject = fail })
   client.beginOptimistic({ mutationId: 'm', patches: [patch('project', 'Predicted')], result })
-  sockets[0].message({ connectionSequence: '1', modelBatch: { kind: 'COMMIT', entities: [entity('project', 'Latest confirmed')] } })
+  sockets[0].message({ connectionSequence: '1', modelBatch: { kind: 'KIND_COMMIT', entities: [entity('project', 'Latest confirmed')] } })
   reject(new Error('rejected'))
   await Promise.resolve()
   assert.equal(title(client.store, 'project'), 'Latest confirmed')
@@ -425,7 +425,7 @@ test('result rejection rolls back against the latest base; a late old rejection 
   client.disconnect(); client.connect(); sockets[1].open()
   sockets[1].message({ connectionOpened: { connectionContext: 'new-context' } })
   // Load a base without requiring a replacement projection to become ready.
-  sockets[1].message({ connectionSequence: '1', modelBatch: { kind: 'COMMIT', entities: [entity('project', 'New base')] } })
+  sockets[1].message({ connectionSequence: '1', modelBatch: { kind: 'KIND_COMMIT', entities: [entity('project', 'New base')] } })
   client.beginOptimistic({ mutationId: 'same-id', patches: [patch('project', 'New prediction')] })
   rejectOld(new Error('late rejection'))
   await Promise.resolve()
@@ -438,13 +438,13 @@ test('RPC success and non-atomic metadata do not retire a prediction', async t =
   client.beginOptimistic({ mutationId: 'm', patches: [patch('project', 'Predicted')], result: Promise.resolve() })
   await Promise.resolve()
   assert.equal(title(client.store, 'project'), 'Predicted')
-  sockets[0].message({ connectionSequence: '1', modelBatch: { kind: 'COMMIT', atomic: false, messages: [{ kind: 'confirm' }] } })
+  sockets[0].message({ connectionSequence: '1', modelBatch: { kind: 'KIND_COMMIT', atomic: false, messages: [{ kind: 'confirm' }] } })
   assert.equal(title(client.store, 'project'), 'Predicted')
   stop()
-  sockets[0].message({ connectionSequence: '2', modelBatch: { kind: 'COMMIT', atomic: true, messages: [{ kind: 'confirm' }] } })
+  sockets[0].message({ connectionSequence: '2', modelBatch: { kind: 'KIND_COMMIT', atomic: true, messages: [{ kind: 'confirm' }] } })
   assert.equal(title(client.store, 'project'), 'Predicted')
   client.registerOptimisticReceiptDecoder(() => ['m', 'm', 'unknown'])
-  sockets[0].message({ connectionSequence: '3', modelBatch: { kind: 'COMMIT', atomic: true, messages: [{ kind: 'confirm' }] } })
+  sockets[0].message({ connectionSequence: '3', modelBatch: { kind: 'KIND_COMMIT', atomic: true, messages: [{ kind: 'confirm' }] } })
   assert.equal(title(client.store, 'project'), 'Project')
 })
 
@@ -467,11 +467,11 @@ test('mixed layer operations match a simple ordered reference model', () => {
     } else if (action === 1) {
       const values = { title: text(`confirmed-${i}`), other: text(`field-${i}`) }
       base.set(entityId, values)
-      store.apply(batch({ kind: 'COMMIT', atomic: true, entities: [{ entityId, upsert: { values } }] }))
+      store.apply(batch({ kind: 'KIND_COMMIT', atomic: true, entities: [{ entityId, upsert: { values } }] }))
     } else if (layers.size) {
       const id = [...layers.keys()][random(layers.size)]
       if (action === 2) handles.get(id).rollback()
-      else store.apply(batch({ kind: 'COMMIT', atomic: true }), { retireOptimistic: [id] })
+      else store.apply(batch({ kind: 'KIND_COMMIT', atomic: true }), { retireOptimistic: [id] })
       handles.delete(id); layers.delete(id)
     }
     for (const [id, authoritative] of base) {

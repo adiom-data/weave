@@ -67,7 +67,7 @@ func testInitialVisibilityWaitDoesNotRetainProcessedTransactions(t *testing.T, s
 	// update while the projection's initial authorization remains unresolved.
 	stream.received <- &reactivev1.ClientMessage{SubscriptionId: "note", RequestId: "note", Operation: &reactivev1.ClientMessage_Subscribe{Subscribe: &reactivev1.Subscribe{Query: &reactivev1.Query{Schema: "app", Table: "notes", Columns: root.GetList().Query.Columns}, Window: root.GetList().Window}}}
 	note := receivePolicyRequest(t, ctx, backend, "notes")
-	receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_SNAPSHOT, "")
+	receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_KIND_SNAPSHOT, "")
 	select {
 	case ready := <-stream.sent:
 		if ready.GetReady() == nil {
@@ -83,13 +83,13 @@ func testInitialVisibilityWaitDoesNotRetainProcessedTransactions(t *testing.T, s
 			effects = append(effects, q.SubscriptionEffect{SubscriptionID: project.ID, Batch: q.Batch{Changes: []q.Change{{Kind: q.Updated, Row: policyRow("projects", "p1", title)}}}})
 		}
 		backend.commit(t, point, effects...)
-		batch := receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_COMMIT, title)
+		batch := receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_KIND_COMMIT, title)
 		if len(batch.Entities) != 1 || batch.Entities[0].GetEntityId() != publicEntityID(policyRow("notes", "n1", "").Key) {
 			t.Fatalf("published project before authorization resolved: %v", batch)
 		}
 	}
 	close(release)
-	initial := receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_SNAPSHOT, "")
+	initial := receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_KIND_SNAPSHOT, "")
 	if len(initial.Entities) != 1 || initial.Entities[0].GetUpsert().GetValues()["title"].GetTextValue() != "30" {
 		t.Fatalf("initial snapshot lost processed updates: %v", initial)
 	}
@@ -102,7 +102,7 @@ func testInitialVisibilityWaitDoesNotRetainProcessedTransactions(t *testing.T, s
 		t.Fatal("no project readiness")
 	}
 	backend.commit(t, 31, q.SubscriptionEffect{SubscriptionID: project.ID, Batch: q.Batch{Changes: []q.Change{{Kind: q.Updated, Row: policyRow("projects", "p1", "live")}}}})
-	live := receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_COMMIT, "31")
+	live := receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_KIND_COMMIT, "31")
 	if len(live.Entities) != 1 || live.Entities[0].GetUpsert().GetValues()["title"].GetTextValue() != "live" {
 		t.Fatalf("live handoff lost update: %v", live)
 	}

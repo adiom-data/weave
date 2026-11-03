@@ -222,9 +222,9 @@ func referenceProjection(schema string, hinted bool) *pb.ProjectionNode {
 		return q
 	}
 	binding := func(field, parent string) *pb.ProjectionBinding {
-		return &pb.ProjectionBinding{Column: &pb.FieldPath{Segments: []string{field}}, Operator: pb.Comparison_EQUAL, Value: &pb.ProjectionBinding_ParentColumn{ParentColumn: &pb.FieldPath{Segments: []string{parent}}}}
+		return &pb.ProjectionBinding{Column: &pb.FieldPath{Segments: []string{field}}, Operator: pb.Comparison_OPERATOR_EQUAL, Value: &pb.ProjectionBinding_ParentColumn{ParentColumn: &pb.FieldPath{Segments: []string{parent}}}}
 	}
-	list := &pb.ProjectionList{Query: query("links", "id", "task_id"), Window: &pb.InitialWindow{Count: 2, From: pb.InitialWindow_START}, Bindings: []*pb.ProjectionBinding{binding("project_id", "id")}}
+	list := &pb.ProjectionList{Query: query("links", "id", "task_id"), Window: &pb.InitialWindow{Count: 2, From: pb.InitialWindow_FROM_START}, Bindings: []*pb.ProjectionBinding{binding("project_id", "id")}}
 	if hinted {
 		list.FetchReference = "task"
 	}
@@ -557,7 +557,7 @@ func TestReferenceProjectionEndToEndIntegration(t *testing.T) {
 			if queryID == "" || !initialTask || joins != 1 || batches != 0 || taskReads != 0 || taskPlans != 0 {
 				t.Fatalf("initial path: query=%q task=%v operations=%d/%d/%d/%d", queryID, initialTask, joins, batches, taskReads, taskPlans)
 			}
-			stream.received <- &pb.ClientMessage{SubscriptionId: "view", RequestId: "extend", Operation: &pb.ClientMessage_UpdateProjectionWindow{UpdateProjectionWindow: &pb.UpdateProjectionWindow{InstanceId: queryID, Updates: []*pb.BoundaryUpdate{{Side: pb.BoundaryUpdate_RIGHT, Operation: pb.BoundaryUpdate_EXTEND, Count: 2}}}}}
+			stream.received <- &pb.ClientMessage{SubscriptionId: "view", RequestId: "extend", Operation: &pb.ClientMessage_UpdateProjectionWindow{UpdateProjectionWindow: &pb.UpdateProjectionWindow{InstanceId: queryID, Updates: []*pb.BoundaryUpdate{{Side: pb.BoundaryUpdate_SIDE_RIGHT, Operation: pb.BoundaryUpdate_OPERATION_EXTEND, Count: 2}}}}}
 			seenTwo, seenThree, windowAck := false, false, false
 			referenceUntil(t, ctx, stream, func(message *pb.ServerMessage) bool {
 				if batch := message.GetModelBatch(); batch != nil {
@@ -587,7 +587,7 @@ func TestReferenceProjectionEndToEndIntegration(t *testing.T) {
 				}
 				for _, entity := range batch.Entities {
 					if entity.GetUpsert().GetValues()["title"].GetTextValue() == "updated" {
-						if !batch.Atomic || batch.Kind != pb.ModelBatch_COMMIT {
+						if !batch.Atomic || batch.Kind != pb.ModelBatch_KIND_COMMIT {
 							t.Fatal("target update lost normal commit semantics")
 						}
 						return true
@@ -655,9 +655,9 @@ func TestReferenceProjectionEndToEndIntegration(t *testing.T) {
 				operation pb.BoundaryUpdate_Operation
 				count     uint32
 			}{
-				{"contract", pb.BoundaryUpdate_CONTRACT, 2}, {"reextend", pb.BoundaryUpdate_EXTEND, 1},
+				{"contract", pb.BoundaryUpdate_OPERATION_CONTRACT, 2}, {"reextend", pb.BoundaryUpdate_OPERATION_EXTEND, 1},
 			} {
-				stream.received <- &pb.ClientMessage{SubscriptionId: "view", RequestId: update.token, Operation: &pb.ClientMessage_UpdateProjectionWindow{UpdateProjectionWindow: &pb.UpdateProjectionWindow{InstanceId: queryID, Updates: []*pb.BoundaryUpdate{{Side: pb.BoundaryUpdate_RIGHT, Operation: update.operation, Count: update.count}}}}}
+				stream.received <- &pb.ClientMessage{SubscriptionId: "view", RequestId: update.token, Operation: &pb.ClientMessage_UpdateProjectionWindow{UpdateProjectionWindow: &pb.UpdateProjectionWindow{InstanceId: queryID, Updates: []*pb.BoundaryUpdate{{Side: pb.BoundaryUpdate_SIDE_RIGHT, Operation: update.operation, Count: update.count}}}}}
 				referenceUntil(t, ctx, stream, func(message *pb.ServerMessage) bool {
 					return message.RequestId == update.token && message.GetModelBatch() != nil
 				})
@@ -809,7 +809,7 @@ func TestReferenceProjectionGuardedSelectorsShareEntityNotMembershipIntegration(
 	hinted := referenceProjection(schema, true)
 	hinted.Children[0].GetList().Window.Count = 10
 	entity := hinted.Children[0].Children[0].GetEntity()
-	entity.Bindings = append(entity.Bindings, &pb.ProjectionBinding{Column: &pb.FieldPath{Segments: []string{"organization_id"}}, Operator: pb.Comparison_EQUAL, Value: &pb.ProjectionBinding_ParentColumn{ParentColumn: &pb.FieldPath{Segments: []string{"organization_id"}}}})
+	entity.Bindings = append(entity.Bindings, &pb.ProjectionBinding{Column: &pb.FieldPath{Segments: []string{"organization_id"}}, Operator: pb.Comparison_OPERATOR_EQUAL, Value: &pb.ProjectionBinding_ParentColumn{ParentColumn: &pb.FieldPath{Segments: []string{"organization_id"}}}})
 	response, err := service.GetProjectionSnapshot(ctx, &pb.ProjectionSnapshotRequest{Root: hinted, WaitForSync: true})
 	if err != nil {
 		t.Fatal(err)

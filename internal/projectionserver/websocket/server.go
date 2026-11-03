@@ -22,11 +22,12 @@ type Stream interface {
 }
 type ServeStream func(Stream, http.Header) error
 type handler struct {
-	serve        ServeStream
-	origin       string
-	logger       *slog.Logger
-	upgrader     websocket.Upgrader
-	socketConfig SocketConfig
+	serve           ServeStream
+	origin          string
+	logger          *slog.Logger
+	upgrader        websocket.Upgrader
+	socketConfig    SocketConfig
+	validationSlots chan struct{}
 }
 
 // SocketConfig belongs to the WebSocket edge, not the reactive query protocol.
@@ -38,6 +39,9 @@ type SocketConfig struct {
 	IdleTimeout     time.Duration
 	MaxMessageBytes int64
 	MaxMessageDepth int
+	// Authentication is opt-in. Without it, admission remains entirely owned
+	// by serve and in-protocol renewal is unavailable.
+	Authentication *AuthenticationOptions
 }
 
 // DefaultSocketConfig returns conservative edge limits for a browser client.
@@ -62,13 +66,19 @@ func (c SocketConfig) withDefaults() SocketConfig {
 	return c
 }
 
-// NewHandler mounts the binary WebSocket endpoint. The host authenticates the
-// supplied request headers and calls its projection service with trusted claims.
+// NewHandler mounts the binary WebSocket endpoint. With Authentication enabled,
+// the hook authenticates admission and installs trusted claims on Stream.Context.
+// Otherwise serve owns admission, as before.
 func NewHandler(serve ServeStream, origin string, logger *slog.Logger, config SocketConfig) http.Handler {
 	if logger == nil {
 		logger = slog.Default()
 	}
 	h := &handler{serve: serve, origin: origin, logger: logger, socketConfig: config.withDefaults()}
+	if config.Authentication != nil {
+		auth := config.Authentication.withDefaults()
+		h.socketConfig.Authentication = &auth
+		h.validationSlots = make(chan struct{}, auth.MaxConcurrentValidations)
+	}
 	h.upgrader = websocket.Upgrader{CheckOrigin: func(r *http.Request) bool {
 		return origin == "*" || r.Header.Get("Origin") == "" || r.Header.Get("Origin") == origin
 	}}
@@ -89,6 +99,15 @@ func (h *handler) middleware(next http.Handler) http.Handler {
 	})
 }
 func (h *handler) reactiveSocket(w http.ResponseWriter, r *http.Request) {
+	var authentication *authenticationLease
+	if options := h.socketConfig.Authentication; options != nil {
+		var err error
+		authentication, err = h.authenticate(r.Context(), r.Header.Clone())
+		if err != nil {
+			http.Error(w, "authentication unavailable or rejected", http.StatusUnauthorized)
+			return
+		}
+	}
 	socket, err := h.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		return
@@ -96,11 +115,19 @@ func (h *handler) reactiveSocket(w http.ResponseWriter, r *http.Request) {
 	defer socket.Close()
 	ctx, cancel := context.WithCancel(r.Context())
 	defer cancel()
+	if authentication != nil {
+		ctx = authentication.context(ctx)
+	}
 	socket.SetReadLimit(h.socketConfig.MaxMessageBytes)
 	var activity atomic.Pointer[time.Time]
 	touch := func() { now := time.Now(); activity.Store(&now) }
 	touch()
-	stream := &socketStream{ctx: ctx, socket: socket, config: h.socketConfig, touch: touch}
+	stream := &socketStream{ctx: ctx, socket: socket, config: h.socketConfig, touch: touch, auth: authentication, handler: h, cancel: cancel, headers: r.Header.Clone()}
+	if authentication != nil {
+		stream.tokens = newTokenUpdates()
+		go stream.validateTokens()
+		go authentication.watch(ctx, cancel)
+	}
 	// Closing is concurrent-safe and releases a blocked Recv or Send, including
 	// readers owned by the projection service when that service returns.
 	go func() {
@@ -131,11 +158,16 @@ func (h *handler) reactiveSocket(w http.ResponseWriter, r *http.Request) {
 }
 
 type socketStream struct {
-	ctx    context.Context
-	socket *websocket.Conn
-	config SocketConfig
-	touch  func()
-	writer sync.Mutex
+	ctx     context.Context
+	socket  *websocket.Conn
+	config  SocketConfig
+	touch   func()
+	writer  sync.Mutex
+	auth    *authenticationLease
+	handler *handler
+	cancel  context.CancelFunc
+	tokens  *tokenUpdates
+	headers http.Header
 }
 
 func (s *socketStream) Context() context.Context { return s.ctx }
@@ -149,6 +181,13 @@ func (s *socketStream) write(frame *reactivev1.WebSocketServerFrame) error {
 	}
 	s.writer.Lock()
 	defer s.writer.Unlock()
+	if err := s.ctx.Err(); err != nil {
+		return err
+	}
+	if s.auth != nil && !s.auth.current() {
+		s.cancel()
+		return errors.New("authentication expired")
+	}
 	if err := s.socket.SetWriteDeadline(time.Now().Add(s.config.WriteTimeout)); err != nil {
 		return err
 	}
@@ -174,6 +213,10 @@ func (s *socketStream) Recv() (*reactivev1.ClientMessage, error) {
 			return nil, err
 		}
 		switch payload := frame.Payload.(type) {
+		case *reactivev1.WebSocketClientFrame_AuthToken:
+			if err := s.updateAuthToken(payload.AuthToken); err != nil {
+				return nil, err
+			}
 		case *reactivev1.WebSocketClientFrame_Ping:
 			if payload.Ping == nil || payload.Ping.Id == "" || len(payload.Ping.Id) > 128 {
 				return nil, errors.New("invalid WebSocket heartbeat")

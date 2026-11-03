@@ -108,7 +108,7 @@ func TestSocketAuthenticatesOnceAndCallsProjectionDirectly(t *testing.T) {
 	}}
 	c := validConfig()
 	c.WebOrigin = "*"
-	host := httptest.NewServer(newSocketHandler(c, nil, authenticate, service))
+	host := httptest.NewServer(newSocketHandler(c, nil, authenticate, service, nil))
 	defer host.Close()
 	socket, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(host.URL, "http")+"/api/reactive", http.Header{"Authorization": []string{"Bearer token"}})
 	if err != nil {
@@ -130,3 +130,41 @@ func TestSocketAuthenticatesOnceAndCallsProjectionDirectly(t *testing.T) {
 }
 
 var _ projectionws.Stream = trustedSocketStream{}
+
+func TestConfiguredHostUsesOptionalSocketAuthenticationClaims(t *testing.T) {
+	var checks atomic.Int32
+	options := &projectionws.AuthenticationOptions{Authenticate: func(context.Context, http.Header) (projectionws.Authentication, error) {
+		checks.Add(1)
+		return projectionws.Authentication{Claims: accesscontrol.Claims{}, ExpiresAt: time.Now().Add(time.Minute)}, nil
+	}}
+	authenticate := identity.Authenticator(func(context.Context, []string) (accesscontrol.Claims, error) {
+		t.Error("configured admission must not override application WebSocket authentication")
+		return nil, nil
+	})
+	called := make(chan struct{})
+	service := socketService{serve: func(stream projectionserver.Stream) error {
+		if _, err := accesscontrol.ClaimsFromContext(stream.Context()); err != nil {
+			t.Error(err)
+		}
+		close(called)
+		_, err := stream.Recv()
+		return err
+	}}
+	c := validConfig()
+	c.WebOrigin = "*"
+	host := httptest.NewServer(newSocketHandler(c, nil, authenticate, service, options))
+	defer host.Close()
+	socket, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(host.URL, "http")+"/api/reactive", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer socket.Close()
+	select {
+	case <-called:
+	case <-time.After(3 * time.Second):
+		t.Fatal("no projection session")
+	}
+	if checks.Load() != 1 {
+		t.Fatal("expected exactly one admission check")
+	}
+}

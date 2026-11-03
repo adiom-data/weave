@@ -16,9 +16,9 @@ function check(client: ReactiveClient, data: ProjectDetailsData): void {
   }
   const list = data.value.taskLinks
   if (!list) return
-  void handle.window(list).extend('RIGHT', 20)
+  void handle.window(list).extend('SIDE_RIGHT', 20)
   const bounds = handle.window(list).bounds.getSnapshot()
-  if (bounds?.left?.cursor) void handle.window(list).move('LEFT', bounds.left.cursor)
+  if (bounds?.left?.cursor) void handle.window(list).move('SIDE_LEFT', bounds.left.cursor)
   // @ts-expect-error window bounds are a read-only selection
   handle.window(list).bounds.stage({})
   // @ts-expect-error plain arrays are not projection-owned lists

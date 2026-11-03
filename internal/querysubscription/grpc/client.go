@@ -365,7 +365,7 @@ func (s *remoteFeed) receive() {
 				continue
 			}
 			switch chunk.Kind {
-			case querysubscriptionv1.PayloadChunk_ENTITY_INSTALLED:
+			case querysubscriptionv1.PayloadChunk_KIND_ENTITY_INSTALLED:
 				var value querysubscriptionv1.EntityInstallation
 				if err := proto.Unmarshal(data, &value); err != nil {
 					s.fail(err)
@@ -388,14 +388,14 @@ func (s *remoteFeed) receive() {
 					s.fail(err)
 					return
 				}
-			case querysubscriptionv1.PayloadChunk_QUERY_SNAPSHOT:
+			case querysubscriptionv1.PayloadChunk_KIND_QUERY_SNAPSHOT:
 				var snapshot querysubscriptionv1.QuerySnapshot
 				if err := proto.Unmarshal(data, &snapshot); err != nil {
 					s.fail(fmt.Errorf("decode snapshot payload: %w", err))
 					return
 				}
 				s.routeSnapshot(message.RequestId, chunk.SubscriptionId, &snapshot)
-			case querysubscriptionv1.PayloadChunk_DELIVERY:
+			case querysubscriptionv1.PayloadChunk_KIND_DELIVERY:
 				var envelope querysubscriptionv1.DeliveryEnvelope
 				if err := proto.Unmarshal(data, &envelope); err != nil {
 					s.fail(fmt.Errorf("decode delivery payload: %w", err))
@@ -520,12 +520,12 @@ func (s *remoteFeed) acceptPayload(requestID string, chunk *querysubscriptionv1.
 	var assemblies map[string]*payloadAssembly
 	var key string
 	switch chunk.Kind {
-	case querysubscriptionv1.PayloadChunk_QUERY_SNAPSHOT:
+	case querysubscriptionv1.PayloadChunk_KIND_QUERY_SNAPSHOT:
 		if requestID == "" || chunk.SubscriptionId == "" {
 			return false, nil, errors.New("snapshot payload requires request and subscription IDs")
 		}
 		assemblies, key = snapshots, requestID
-	case querysubscriptionv1.PayloadChunk_ENTITY_INSTALLED:
+	case querysubscriptionv1.PayloadChunk_KIND_ENTITY_INSTALLED:
 		if requestID != "" {
 			if chunk.SubscriptionId == "" {
 				return false, nil, errors.New("entity response requires a subscription ID")
@@ -537,7 +537,7 @@ func (s *remoteFeed) acceptPayload(requestID string, chunk *querysubscriptionv1.
 			}
 			assemblies, key = batches, strconv.FormatUint(chunk.PayloadId, 10)
 		}
-	case querysubscriptionv1.PayloadChunk_DELIVERY:
+	case querysubscriptionv1.PayloadChunk_KIND_DELIVERY:
 		if requestID != "" || chunk.SubscriptionId != "" {
 			return false, nil, errors.New("delivery payload has invalid request or subscription ID")
 		}
@@ -781,9 +781,9 @@ func remoteError(wire *querysubscriptionv1.Error) error {
 	}
 	var sentinel error
 	switch wire.Code {
-	case querysubscriptionv1.Error_BACKPRESSURE:
+	case querysubscriptionv1.Error_CODE_BACKPRESSURE:
 		sentinel = querysubscription.ErrBackpressure
-	case querysubscriptionv1.Error_CLOSED:
+	case querysubscriptionv1.Error_CODE_CLOSED:
 		sentinel = querysubscription.ErrClosed
 	}
 	if sentinel != nil {

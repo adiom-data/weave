@@ -13,7 +13,7 @@ function setup(t, options = {}) {
   reactive.connect(); sockets[0].open(); sockets[0].message({ connectionOpened: { connectionContext: 'context' } })
   let sequence = 0
   const commit = (ids = [], extra = {}) => sockets[0].message({ connectionSequence: String(++sequence), modelBatch: {
-    kind: 'COMMIT', atomic: true, checkpoint: `checkpoint-${sequence}`, messages: ids.map(id => ({ kind: 'receipt', payload: btoa(id) })), ...extra,
+    kind: 'KIND_COMMIT', atomic: true, checkpoint: `checkpoint-${sequence}`, messages: ids.map(id => ({ kind: 'receipt', payload: btoa(id) })), ...extra,
   } })
   commit([], { entities: [entity('e', 'Base')] })
   const harness = new MutationHarness(reactive, { synchronizationTimeoutMs: 1000,

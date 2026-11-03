@@ -39,6 +39,12 @@ the framework's mounting interface.
 - `Routes` mounts application HTTP routes with their own authentication/CORS
   middleware. Additional services use their own message limits and CORS as well.
   They must not shadow built-in projection/WebSocket/health endpoints.
+- `WebSocketAuthentication` optionally supplies application-owned credential
+  verification, canonical claims, and renewable deadlines for WebSockets only.
+  It replaces configured WebSocket admission; RPC/mutation admission is unchanged.
+  Nil preserves existing admission with no renewal requirement. See the
+  [renewal hooks](../projectionserver/websocket/README.md). The standalone command
+  does not enable these application hooks through YAML automatically.
 - The application owns mutation handlers and resources, such as its write pool.
   The host neither initializes an application schema nor closes those resources.
 - `New` initializes capture but does not listen. Always call `Close`, including

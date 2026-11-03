@@ -14,6 +14,7 @@ import (
 	"github.com/adiom-data/weave/pkg/accesscontrol/policy"
 	"github.com/adiom-data/weave/pkg/gen/reactive/v1/reactivev1connect"
 	"github.com/adiom-data/weave/pkg/projectionserver"
+	projectionws "github.com/adiom-data/weave/pkg/projectionserver/websocket"
 	"github.com/adiom-data/weave/pkg/queryserver"
 	"github.com/adiom-data/weave/pkg/storage"
 )
@@ -26,6 +27,9 @@ type Options struct {
 	Services              []httpapp.ConnectService
 	AuthenticatedServices []httpapp.ConnectService
 	Routes                []httpapp.Route
+	// Optional application-owned WebSocket authentication/renewal. When set,
+	// its verified claims replace configured admission for WebSockets only.
+	WebSocketAuthentication *projectionws.AuthenticationOptions
 }
 
 // Host owns reactive resources and one HTTP listener, not application resources.
@@ -111,7 +115,7 @@ func New(parent context.Context, c Config, options Options) (Host, error) {
 	}
 	routes := append([]httpapp.Route(nil), options.Routes...)
 	if c.Socket.Enabled {
-		routes = append(routes, httpapp.Handle("/api/reactive", newSocketHandler(c, logger, authenticate, h.projections)))
+		routes = append(routes, httpapp.Handle("/api/reactive", newSocketHandler(c, logger, authenticate, h.projections, options.WebSocketAuthentication)))
 	}
 	h.app = httpapp.NewService(
 		httpapp.WithServiceAddr(c.Address), httpapp.WithServiceLogger(logger),

@@ -163,7 +163,7 @@ export default function App() {
           ))}
         </div>
         <button disabled={!ready || !taskLinks} onClick={() => {
-          if (taskLinks) void projection.window(taskLinks).extend('LEFT', 20).catch(reason => setError(String(reason)))
+          if (taskLinks) void projection.window(taskLinks).extend('SIDE_LEFT', 20).catch(reason => setError(String(reason)))
         }}>Load earlier tasks</button>
       </section>
     </main>

@@ -120,7 +120,7 @@ func TestProjectionInitializationOverflowKeepsOtherProjectionsLive(t *testing.T)
 	}
 	update(healthy, "tasks", "Still live", 3)
 	live := receiveAuthorizationMessage(t, stream.sent)
-	if live.GetModelBatch() == nil || live.GetModelBatch().Kind != reactivev1.ModelBatch_COMMIT || len(live.GetModelBatch().Entities) != 1 {
+	if live.GetModelBatch() == nil || live.GetModelBatch().Kind != reactivev1.ModelBatch_KIND_COMMIT || len(live.GetModelBatch().Entities) != 1 {
 		t.Fatalf("healthy projection stopped after another projection overflowed: %v", live)
 	}
 	if live.GetModelBatch().Entities[0].GetUpsert().Values["title"].GetTextValue() != "Still live" {

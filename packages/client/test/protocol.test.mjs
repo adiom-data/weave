@@ -2,11 +2,26 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { create, fromBinary, fromJson, toBinary } from '@bufbuild/protobuf'
 import { decodeServerMessage } from '../dist/index.js'
-import { ClientMessageSchema, ServerMessageSchema } from '../dist/gen/reactive/v1/reactive_pb.js'
+import { BoundarySchema, BoundaryUpdateSchema, ClientMessageSchema, ComparisonSchema, InitialWindowSchema, JunctionSchema, ModelBatchSchema, ServerMessageSchema } from '../dist/gen/reactive/v1/reactive_pb.js'
 import { WebSocketServerFrameSchema } from '../dist/gen/reactive/v1/websocket_pb.js'
 import { decodeSocketMessage, encodeSocketMessage } from '../dist/socket_protocol.js'
 import { clientFrame, entity, FakeSocket, modelBytes, request, serverBytes } from './helpers.mjs'
 import { ReactiveClient } from '../dist/index.js'
+
+test('prefixed protobuf JSON enum names retain their original binary numbers', () => {
+  const cases = [
+    [ComparisonSchema, { operator: 'OPERATOR_EQUAL' }, { operator: 'EQUAL' }, [16, 1]],
+    [JunctionSchema, { operator: 'OPERATOR_AND' }, { operator: 'AND' }, [8, 1]],
+    [InitialWindowSchema, { from: 'FROM_END' }, { from: 'END' }, [8, 2]],
+    [BoundaryUpdateSchema, { side: 'SIDE_RIGHT', operation: 'OPERATION_EXTEND' }, { side: 'RIGHT', operation: 'EXTEND' }, [8, 2, 16, 1]],
+    [BoundarySchema, { sentinel: 'SENTINEL_END' }, { sentinel: 'END' }, [8, 2]],
+    [ModelBatchSchema, { kind: 'KIND_COMMIT' }, { kind: 'COMMIT' }, [40, 2]],
+  ]
+  for (const [schema, json, legacy, bytes] of cases) {
+    assert.deepEqual([...toBinary(schema, fromJson(schema, json))], bytes)
+    assert.throws(() => fromJson(schema, legacy), /enum/)
+  }
+})
 
 test('connection-opened events normalize through the binary WebSocket path', () => {
   const opened = decodeSocketMessage(serverBytes({ connectionOpened: { connectionContext: 'generation-context' } }), {}).message
@@ -18,16 +33,17 @@ test('connection-opened events normalize through the binary WebSocket path', () 
 
 test('committed transaction messages survive normalization without entering entity data', () => {
   const output = decodeServerMessage(modelBytes({ connectionSequence: '1', modelBatch: {
-    kind: 'COMMIT', atomic: true, checkpoint: '10', messages: [
+    kind: 'KIND_COMMIT', atomic: true, checkpoint: '10', messages: [
       { kind: 'mutation.receipt', payload: 'AP+A' }, { kind: 'empty-payload' },
     ],
   } }))
+  assert.equal(output.event.batch.kind, 'COMMIT', 'normalized runtime kinds are not protobuf JSON names')
   assert.deepEqual(output.event.batch.messages, [
     { kind: 'mutation.receipt', payload: 'AP+A' }, { kind: 'empty-payload', payload: '' },
   ])
   assert.deepEqual(output.event.batch.entities, [])
   assert.ok(Object.isFrozen(output.event.batch.messages[0]))
-  assert.throws(() => decodeServerMessage(modelBytes({ modelBatch: { kind: 'SNAPSHOT', messages: [{ kind: 'receipt' }] } })), /commit batch/)
+  assert.throws(() => decodeServerMessage(modelBytes({ modelBatch: { kind: 'KIND_SNAPSHOT', messages: [{ kind: 'receipt' }] } })), /commit batch/)
 })
 
 test('binary protobuf preserves uint64, exact numeric strings, bytes, and nanosecond timestamps', () => {
@@ -41,7 +57,7 @@ test('binary protobuf preserves uint64, exact numeric strings, bytes, and nanose
     object: { objectValue: { fields: { number: { decimalValue: '1e1000' } } } },
   }
   const input = { sequence: '18446744073709551615', connectionSequence: '9007199254740993',
-    modelBatch: { kind: 'COMMIT', atomic: true, entities: [entity('a', 'Exact', expected)] } }
+    modelBatch: { kind: 'KIND_COMMIT', atomic: true, entities: [entity('a', 'Exact', expected)] } }
   const output = decodeSocketMessage(serverBytes(input), {}).message
   assert.equal(output.sequence, 18446744073709551615n)
   assert.equal(output.connectionSequence, 9007199254740993n)
@@ -57,7 +73,7 @@ test('outgoing projection requests and window cursors use generated binary bindi
   assert.ok(bytes instanceof Uint8Array)
   assert.deepEqual(clientFrame(bytes), { subscriptionId: 'p', requestId: 'r', subscribeProjection: request })
   const window = encodeSocketMessage({ subscriptionId: 'p', requestId: 'w', updateProjectionWindow: {
-    instanceId: 'list', updates: [{ side: 'RIGHT', operation: 'MOVE', cursor: 'AAEC//4=' }],
+    instanceId: 'list', updates: [{ side: 'SIDE_RIGHT', operation: 'OPERATION_MOVE', cursor: 'AAEC//4=' }],
   } })
   assert.equal(clientFrame(window).updateProjectionWindow.updates[0].cursor, 'AAEC//4=')
   assert.throws(() => encodeSocketMessage({ subscribeProjection: { root: { nodeId: 'root', entity: {}, list: {} } } }))

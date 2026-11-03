@@ -44,7 +44,7 @@ func (c *Compiler) node(field *ast.Field, parent *ast.Definition, id string, dep
 		for i, child := range children {
 			left, _ := c.mappedField(parent, parents[i])
 			right, _ := c.mappedField(target, child)
-			bindings = append(bindings, &reactivev1.ProjectionBinding{Column: path(column(right)), Operator: reactivev1.Comparison_EQUAL, Value: &reactivev1.ProjectionBinding_ParentColumn{ParentColumn: path(column(left))}})
+			bindings = append(bindings, &reactivev1.ProjectionBinding{Column: path(column(right)), Operator: reactivev1.Comparison_OPERATOR_EQUAL, Value: &reactivev1.ProjectionBinding_ParentColumn{ParentColumn: path(column(left))}})
 		}
 	}
 	bound := map[string]bool{}
@@ -75,7 +75,7 @@ func (c *Compiler) node(field *ast.Field, parent *ast.Definition, id string, dep
 		if value == nil {
 			continue
 		}
-		binding := &reactivev1.ProjectionBinding{Column: path(column(stored)), Operator: reactivev1.Comparison_EQUAL}
+		binding := &reactivev1.ProjectionBinding{Column: path(column(stored)), Operator: reactivev1.Comparison_OPERATOR_EQUAL}
 		if value.Kind == ast.Variable {
 			binding.Value = &reactivev1.ProjectionBinding_Parameter{Parameter: value.Raw}
 		} else {
@@ -117,9 +117,9 @@ func (c *Compiler) node(field *ast.Field, parent *ast.Definition, id string, dep
 			if err != nil || count == 0 {
 				return nil, nil, fmt.Errorf("%s: window count must be positive", id)
 			}
-			from := reactivev1.InitialWindow_START
+			from := reactivev1.InitialWindow_FROM_START
 			if text(argument(directive, "from")) == "END" {
-				from = reactivev1.InitialWindow_END
+				from = reactivev1.InitialWindow_FROM_END
 			} else if value := argument(directive, "from"); value != nil && value.Kind != ast.EnumValue {
 				return nil, nil, fmt.Errorf("%s: window direction must be constant", id)
 			}
@@ -160,7 +160,7 @@ func (c *Compiler) node(field *ast.Field, parent *ast.Definition, id string, dep
 			if query.Filter == nil {
 				query.Filter = predicate
 			} else {
-				query.Filter = &reactivev1.Predicate{Expression: &reactivev1.Predicate_Junction{Junction: &reactivev1.Junction{Operator: reactivev1.Junction_AND, Operands: []*reactivev1.Predicate{query.Filter, predicate}}}}
+				query.Filter = &reactivev1.Predicate{Expression: &reactivev1.Predicate_Junction{Junction: &reactivev1.Junction{Operator: reactivev1.Junction_OPERATOR_AND, Operands: []*reactivev1.Predicate{query.Filter, predicate}}}}
 			}
 		default:
 			return nil, nil, fmt.Errorf("%s: unsupported projection directive @%s", id, directive.Name)
@@ -240,7 +240,7 @@ func (c *Compiler) node(field *ast.Field, parent *ast.Definition, id string, dep
 			return nil, nil, fmt.Errorf("%s: @fetchReference must name a selected immediate entity child with identity bindings", id)
 		}
 		for _, binding := range referenced.Bindings {
-			if binding.GetParentColumn() == nil || binding.Operator != reactivev1.Comparison_EQUAL {
+			if binding.GetParentColumn() == nil || binding.Operator != reactivev1.Comparison_OPERATOR_EQUAL {
 				return nil, nil, fmt.Errorf("%s: @fetchReference requires only parent-column equality bindings", id)
 			}
 		}

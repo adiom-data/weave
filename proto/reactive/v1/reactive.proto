@@ -168,12 +168,12 @@ message Negation {
 message Comparison {
   enum Operator {
     OPERATOR_UNSPECIFIED = 0;
-    EQUAL = 1;
-    NOT_EQUAL = 2;
-    LESS_THAN = 3;
-    LESS_THAN_OR_EQUAL = 4;
-    GREATER_THAN = 5;
-    GREATER_THAN_OR_EQUAL = 6;
+    OPERATOR_EQUAL = 1;
+    OPERATOR_NOT_EQUAL = 2;
+    OPERATOR_LESS_THAN = 3;
+    OPERATOR_LESS_THAN_OR_EQUAL = 4;
+    OPERATOR_GREATER_THAN = 5;
+    OPERATOR_GREATER_THAN_OR_EQUAL = 6;
   }
   FieldPath column = 1;
   Operator operator = 2;
@@ -183,8 +183,8 @@ message Comparison {
 message Junction {
   enum Operator {
     OPERATOR_UNSPECIFIED = 0;
-    AND = 1;
-    OR = 2;
+    OPERATOR_AND = 1;
+    OPERATOR_OR = 2;
   }
   Operator operator = 1;
   repeated Predicate operands = 2;
@@ -204,8 +204,8 @@ message OrderTerm {
 message InitialWindow {
   enum From {
     FROM_UNSPECIFIED = 0;
-    START = 1;
-    END = 2;
+    FROM_START = 1;
+    FROM_END = 2;
   }
   From from = 1;
   uint32 count = 2;
@@ -220,14 +220,14 @@ message UpdateWindow {
 message BoundaryUpdate {
   enum Side {
     SIDE_UNSPECIFIED = 0;
-    LEFT = 1;
-    RIGHT = 2;
+    SIDE_LEFT = 1;
+    SIDE_RIGHT = 2;
   }
   enum Operation {
     OPERATION_UNSPECIFIED = 0;
-    EXTEND = 1;
-    CONTRACT = 2;
-    MOVE = 3;
+    OPERATION_EXTEND = 1;
+    OPERATION_CONTRACT = 2;
+    OPERATION_MOVE = 3;
   }
   Side side = 1;
   Operation operation = 2;
@@ -311,10 +311,10 @@ message ModelBatch {
 
   enum Kind {
     KIND_UNSPECIFIED = 0;
-    SNAPSHOT = 1;
-    COMMIT = 2;
-    HYDRATION = 3;
-    WINDOW = 4;
+    KIND_SNAPSHOT = 1;
+    KIND_COMMIT = 2;
+    KIND_HYDRATION = 3;
+    KIND_WINDOW = 4;
   }
 }
 
@@ -403,8 +403,8 @@ message ProjectionDetached {}
 message Boundary {
   enum Sentinel {
     SENTINEL_UNSPECIFIED = 0;
-    START = 1;
-    END = 2;
+    SENTINEL_START = 1;
+    SENTINEL_END = 2;
   }
   oneof value {
     Sentinel sentinel = 1;

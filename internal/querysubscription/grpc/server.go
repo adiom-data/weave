@@ -123,7 +123,7 @@ func (state *serverFeed) receiveRequests(operations *sync.WaitGroup) error {
 		}
 		if cancellation := message.GetCancelRequest(); cancellation != nil {
 			if message.RequestId == "" || cancellation.TargetRequestId == "" {
-				if sendErr := state.sendError(message.RequestId, "", querysubscriptionv1.Error_INVALID_REQUEST, "request_id and target_request_id are required"); sendErr != nil {
+				if sendErr := state.sendError(message.RequestId, "", querysubscriptionv1.Error_CODE_INVALID_REQUEST, "request_id and target_request_id are required"); sendErr != nil {
 					return sendErr
 				}
 				continue
@@ -136,7 +136,7 @@ func (state *serverFeed) receiveRequests(operations *sync.WaitGroup) error {
 		}
 		operationCtx, finish, beginErr := state.beginOperation(message.RequestId, message.GetCloseFeed() != nil)
 		if beginErr != nil {
-			_ = state.sendError(message.RequestId, operationSubscriptionID(message), querysubscriptionv1.Error_INVALID_REQUEST, beginErr.Error())
+			_ = state.sendError(message.RequestId, operationSubscriptionID(message), querysubscriptionv1.Error_CODE_INVALID_REQUEST, beginErr.Error())
 			continue
 		}
 		operations.Add(1)
@@ -203,7 +203,7 @@ func (s *serverFeed) cancelOperation(requestID string) {
 
 func (s *serverFeed) handle(ctx context.Context, message *querysubscriptionv1.ClientMessage) {
 	if message == nil || message.RequestId == "" {
-		_ = s.sendError("", "", querysubscriptionv1.Error_INVALID_REQUEST, "request_id is required")
+		_ = s.sendError("", "", querysubscriptionv1.Error_CODE_INVALID_REQUEST, "request_id is required")
 		return
 	}
 	var err error
@@ -277,7 +277,7 @@ func (s *serverFeed) subscribe(ctx context.Context, requestID string, request *q
 		}
 		s.subscriptions[request.SubscriptionId] = subscription
 		s.mu.Unlock()
-		if sendErr := s.sendPayload(requestID, request.SubscriptionId, querysubscriptionv1.PayloadChunk_QUERY_SNAPSHOT, converted); sendErr != nil {
+		if sendErr := s.sendPayload(requestID, request.SubscriptionId, querysubscriptionv1.PayloadChunk_KIND_QUERY_SNAPSHOT, converted); sendErr != nil {
 			s.removeSubscription(request.SubscriptionId, subscription)
 			return sendErr
 		}
@@ -320,7 +320,7 @@ func (s *serverFeed) subscribeEntity(ctx context.Context, requestID string, requ
 		}
 		s.subscriptions[request.SubscriptionId] = subscription
 		s.mu.Unlock()
-		if sendErr := s.sendPayload(requestID, request.SubscriptionId, querysubscriptionv1.PayloadChunk_ENTITY_INSTALLED, converted); sendErr != nil {
+		if sendErr := s.sendPayload(requestID, request.SubscriptionId, querysubscriptionv1.PayloadChunk_KIND_ENTITY_INSTALLED, converted); sendErr != nil {
 			s.removeSubscription(request.SubscriptionId, subscription)
 			return sendErr
 		}
@@ -353,7 +353,7 @@ func (s *serverFeed) forwardFeed() error {
 			if err != nil {
 				return err
 			}
-			if err := s.sendPayload("", "", querysubscriptionv1.PayloadChunk_ENTITY_INSTALLED, value); err != nil {
+			if err := s.sendPayload("", "", querysubscriptionv1.PayloadChunk_KIND_ENTITY_INSTALLED, value); err != nil {
 				return err
 			}
 		case event.Delivery != nil && event.Progress == nil && event.Failure == nil:
@@ -361,7 +361,7 @@ func (s *serverFeed) forwardFeed() error {
 			if convertErr != nil {
 				return fmt.Errorf("encode delivery: %w", convertErr)
 			}
-			if sendErr := s.sendPayload("", "", querysubscriptionv1.PayloadChunk_DELIVERY, converted); sendErr != nil {
+			if sendErr := s.sendPayload("", "", querysubscriptionv1.PayloadChunk_KIND_DELIVERY, converted); sendErr != nil {
 				return sendErr
 			}
 		case event.Progress != nil && event.Delivery == nil && event.Failure == nil:
@@ -517,10 +517,10 @@ func operationSubscriptionID(message *querysubscriptionv1.ClientMessage) string 
 func errorCode(err error) querysubscriptionv1.Error_Code {
 	switch {
 	case errors.Is(err, querysubscription.ErrBackpressure):
-		return querysubscriptionv1.Error_BACKPRESSURE
+		return querysubscriptionv1.Error_CODE_BACKPRESSURE
 	case errors.Is(err, querysubscription.ErrClosed), errors.Is(err, context.Canceled):
-		return querysubscriptionv1.Error_CLOSED
+		return querysubscriptionv1.Error_CODE_CLOSED
 	default:
-		return querysubscriptionv1.Error_INVALID_REQUEST
+		return querysubscriptionv1.Error_CODE_INVALID_REQUEST
 	}
 }

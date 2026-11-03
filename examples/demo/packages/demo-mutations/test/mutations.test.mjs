@@ -23,7 +23,7 @@ function setup(t, fetch, options = {}) {
 }
 function receipt(socket, mutationId, sequence = '1', extra = {}) {
   const payload = Buffer.from(mutationId, 'utf8').toString('base64')
-  socket.message({ connectionSequence: sequence, modelBatch: { kind: 'COMMIT', atomic: true, messages: [{ kind: receiptKind, payload }], ...extra } })
+  socket.message({ connectionSequence: sequence, modelBatch: { kind: 'KIND_COMMIT', atomic: true, messages: [{ kind: receiptKind, payload }], ...extra } })
 }
 
 test('binary RPC carries correlation; receipt may precede response without subscriptions', async t => {
@@ -63,7 +63,7 @@ test('update and delete use the same binary correlation and atomic overlay retir
         requests.push(new Request(input, init))
         return new Response(toBinary(responseSchema, create(responseSchema)), { headers: { 'Content-Type': 'application/proto' } })
       })
-      sockets[0].message({ connectionSequence: '1', modelBatch: { kind: 'COMMIT', entities: [{ entityId: 'opaque-task', upsert: { values: { completed: { boolValue: false } } } }] } })
+      sockets[0].message({ connectionSequence: '1', modelBatch: { kind: 'KIND_COMMIT', entities: [{ entityId: 'opaque-task', upsert: { values: { completed: { boolValue: false } } } }] } })
       const hooks = { optimistic: draft => remove ? draft.delete({ entityId: 'opaque-task' }) : draft.patch({ entityId: 'opaque-task' }, { completed: { boolValue: true } }) }
       const operation = remove ? mutations.deleteTask({ projectId: input.projectId, taskId: 'application-id' }, hooks)
         : mutations.updateTask({ projectId: input.projectId, taskId: 'application-id', completed: true }, hooks)
@@ -93,7 +93,7 @@ test('RPC success waits for its own valid atomic receipt, and observers can unsu
   completed(operation).then(() => { done = true })
   receipt(sockets[0], crypto.randomUUID())
   receipt(sockets[0], operation.mutationId, '2', { atomic: false })
-  sockets[0].message({ connectionSequence: '3', modelBatch: { kind: 'COMMIT', atomic: true, messages: [{ kind: receiptKind, payload: '/w==' }] } })
+  sockets[0].message({ connectionSequence: '3', modelBatch: { kind: 'KIND_COMMIT', atomic: true, messages: [{ kind: receiptKind, payload: '/w==' }] } })
   await Promise.resolve()
   assert.equal(done, false)
   stop()
@@ -244,7 +244,7 @@ test('missing receipts time out as unknown; calls without a handshake never send
 
 test('demo receipt decoding joins authoritative updates with optimistic retirement', async t => {
   const { mutations, reactive, sockets } = setup(t, async () => reply())
-  sockets[0].message({ connectionSequence: '1', modelBatch: { kind: 'COMMIT', entities: [
+  sockets[0].message({ connectionSequence: '1', modelBatch: { kind: 'KIND_COMMIT', entities: [
     { entityId: 'e', upsert: { values: { title: { textValue: 'Base' } } } },
   ] } })
   const operation = mutations.createTask(input, { optimistic: draft => draft.patch({ entityId: 'e' }, { title: { textValue: 'Predicted' } }) })
@@ -264,7 +264,7 @@ test('command rejection removes its bound overlay without modifying authoritativ
   const { mutations, reactive, sockets } = setup(t, async () => new Response(JSON.stringify({ code: 'permission_denied' }), {
     status: 403, headers: { 'Content-Type': 'application/json' },
   }))
-  sockets[0].message({ connectionSequence: '1', modelBatch: { kind: 'COMMIT', entities: [
+  sockets[0].message({ connectionSequence: '1', modelBatch: { kind: 'KIND_COMMIT', entities: [
     { entityId: 'e', upsert: { values: { title: { textValue: 'Base' } } } },
   ] } })
   const operation = mutations.createTask(input, { optimistic: draft => draft.patch({ entityId: 'e' }, { title: { textValue: 'Predicted' } }) })

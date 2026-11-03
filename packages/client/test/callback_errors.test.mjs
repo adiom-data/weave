@@ -28,7 +28,7 @@ test('async lifecycle and observer failures reach the error hook without blockin
   stops.push(client.store.subscribeCommits(fail('commit listener')))
   stops.push(handle.data.subscribe(fail('projection data listener')))
   stops.push(handle.view.subscribe(fail('projection view listener')))
-  sockets[0].message({ connectionSequence: '1', modelBatch: { kind: 'COMMIT', atomic: true, checkpoint: '10',
+  sockets[0].message({ connectionSequence: '1', modelBatch: { kind: 'KIND_COMMIT', atomic: true, checkpoint: '10',
     entities: [entity('project', 'Changed')], messages: [{ kind: 'application', payload: '' }],
   } })
   assert.equal(client.store.getEntity('project').values.title.textValue, 'Changed')

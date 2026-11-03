@@ -119,7 +119,7 @@ func (p *policyPublications) wait(h *publicationHold, activity <-chan struct{}) 
 }
 
 func (p *policyPublications) send(id string, sequence *uint64, h *publicationHold, batch *reactivev1.ModelBatch) error {
-	batch.Kind = reactivev1.ModelBatch_HYDRATION
+	batch.Kind = reactivev1.ModelBatch_KIND_HYDRATION
 	batch.Checkpoint = checkpointString(p.position)
 	coalesceEntityEvents(batch)
 	if len(batch.Entities)+len(batch.Queries)+len(batch.Projections) > 0 {
@@ -147,7 +147,7 @@ func (p *policyPublications) acknowledgeWindow(scope, request, query string, seq
 	if p.model.queries[query] == nil {
 		message.Event = &reactivev1.ServerMessage_Error{Error: &reactivev1.SubscriptionError{Code: "WINDOW_FAILED", Message: "window target is no longer visible"}}
 	} else {
-		message.Event = &reactivev1.ServerMessage_ModelBatch{ModelBatch: &reactivev1.ModelBatch{Kind: reactivev1.ModelBatch_WINDOW}}
+		message.Event = &reactivev1.ServerMessage_ModelBatch{ModelBatch: &reactivev1.ModelBatch{Kind: reactivev1.ModelBatch_KIND_WINDOW}}
 	}
 	return p.stream.Send(message)
 }

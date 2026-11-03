@@ -83,7 +83,7 @@ func TestReactiveProjectionWaitForSyncFoldsCatchupAndPreservesLiveHandoff(t *tes
 		Position: &querysubscription.Position{SourceID: "test", Value: 10}, Revision: 2, PreviousRevision: 1,
 	}}
 	initial := receiveAuthorizationMessage(t, stream.sent).GetModelBatch()
-	if initial == nil || initial.Kind != reactivev1.ModelBatch_SNAPSHOT || initial.Checkpoint != "10" {
+	if initial == nil || initial.Kind != reactivev1.ModelBatch_KIND_SNAPSHOT || initial.Checkpoint != "10" {
 		t.Fatalf("synchronized initial image = %v", initial)
 	}
 	found := false
@@ -108,7 +108,7 @@ func TestReactiveProjectionWaitForSyncFoldsCatchupAndPreservesLiveHandoff(t *tes
 	}
 	// Replaying the catch-up transaction would produce an older commit here.
 	live := receiveAuthorizationMessage(t, stream.sent).GetModelBatch()
-	if live == nil || live.Kind != reactivev1.ModelBatch_COMMIT || live.Checkpoint != "11" || !live.Atomic {
+	if live == nil || live.Kind != reactivev1.ModelBatch_KIND_COMMIT || live.Checkpoint != "11" || !live.Atomic {
 		t.Fatalf("first live batch = %v", live)
 	}
 	if len(live.Entities) != 1 || live.Entities[0].GetUpsert().Values["title"].GetTextValue() != "Live task" {
@@ -231,7 +231,7 @@ func TestReactiveProjectionCanUnsubscribeWhileWaitingForSync(t *testing.T) {
 		Operation: &reactivev1.ClientMessage_SubscribeProjection{SubscribeProjection: &reactivev1.SubscribeProjection{Root: snapshotTestRequest(false, false).Root}},
 	}
 	snapshot := receiveAuthorizationMessage(t, stream.sent)
-	if snapshot.SubscriptionId != "ordinary" || snapshot.GetModelBatch() == nil || snapshot.GetModelBatch().Kind != reactivev1.ModelBatch_SNAPSHOT {
+	if snapshot.SubscriptionId != "ordinary" || snapshot.GetModelBatch() == nil || snapshot.GetModelBatch().Kind != reactivev1.ModelBatch_KIND_SNAPSHOT {
 		t.Fatalf("ordinary projection after cancellation = %v", snapshot)
 	}
 	if ready := receiveAuthorizationMessage(t, stream.sent); ready.SubscriptionId != "ordinary" || ready.GetReady() == nil {

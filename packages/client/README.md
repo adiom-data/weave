@@ -68,7 +68,7 @@ const definition: ProjectionRequest = {
         schema: 'tenant_001', table: 'projects',
         columns: [{ segments: ['id'] }, { segments: ['title'] }],
       },
-      bindings: [{ column: { segments: ['id'] }, operator: 'EQUAL', parameter: 'id' }],
+      bindings: [{ column: { segments: ['id'] }, operator: 'OPERATOR_EQUAL', parameter: 'id' }],
     },
   },
   parameters: { id: { uuidValue: projectId } },
@@ -555,9 +555,20 @@ handle selections instead.
 The URL callback can supply application-specific connection parameters at
 reconnect. Authentication must match your application's WebSocket edge; the
 browser's native WebSocket API cannot attach arbitrary authorization headers.
-The runtime does not verify JWTs, implement token refresh, persist offline state,
+The runtime does not verify JWTs, obtain or automatically refresh tokens, persist offline state,
 or execute mutations. Optimistic layers only affect presentation. The local demo uses
 server-provided fixed claims, with no authentication token.
+
+For servers opting into [WebSocket authentication renewal](../../../pkg/projectionserver/websocket/README.md),
+call `client.updateAuthToken(token)` periodically while connected. This is
+fire-and-forget: there is no request ID, Promise, acknowledgment, or request
+timeout. Successful verification silently renews the server-side deadline.
+Use `ClientOptions.onAuthStatus` for connection notices (`rejected`, `reconnect`,
+or `unknown`), not per-token outcomes. The application owns token acquisition
+and scheduling; the client sends no authentication messages by default and does
+not retain/replay tokens after reconnect. Server verification coalesces pending
+updates and never replaces the connection's original policy claims. Changed
+claims require reconnecting; expiry closes the connection even during validation.
 
 | Option | Default | Purpose |
 | --- | --- | --- |
@@ -637,6 +648,13 @@ convenience for application-level decoding, not a universal type conversion.
 Projection definitions retain their object-literal shape through generated
 JSON-shaped input types; this does not imply JSON on the wire. The generated
 codec validates those input objects and produces native protobuf messages.
+
+Enum strings in these input types use their full protobuf names, for example
+`OPERATOR_EQUAL`, `FROM_START`, `SIDE_RIGHT`, `OPERATION_EXTEND`, and
+`SENTINEL_END`. Raw model-batch JSON fixtures use `KIND_COMMIT`; the normalized
+runtime's `ModelBatch.kind` remains `COMMIT`. GraphQL directive enums retain
+their GraphQL vocabulary (`EQUAL`, `START`, etc.); regenerate projection bindings
+with the updated compiler to produce the prefixed protocol definitions.
 
 Each WebSocket binary frame holds one `WebSocketClientFrame` or
 `WebSocketServerFrame` from `proto/reactive/v1/websocket.proto`. Reactive payloads

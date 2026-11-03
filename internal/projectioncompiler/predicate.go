@@ -13,6 +13,26 @@ import (
 	reactivev1 "github.com/adiom-data/weave/pkg/gen/reactive/v1"
 )
 
+// GraphQL has its own enum vocabulary; do not couple it to protobuf JSON names.
+func graphqlComparisonOperator(value string) (reactivev1.Comparison_Operator, bool) {
+	switch value {
+	case "EQUAL":
+		return reactivev1.Comparison_OPERATOR_EQUAL, true
+	case "NOT_EQUAL":
+		return reactivev1.Comparison_OPERATOR_NOT_EQUAL, true
+	case "LESS_THAN":
+		return reactivev1.Comparison_OPERATOR_LESS_THAN, true
+	case "LESS_THAN_OR_EQUAL":
+		return reactivev1.Comparison_OPERATOR_LESS_THAN_OR_EQUAL, true
+	case "GREATER_THAN":
+		return reactivev1.Comparison_OPERATOR_GREATER_THAN, true
+	case "GREATER_THAN_OR_EQUAL":
+		return reactivev1.Comparison_OPERATOR_GREATER_THAN_OR_EQUAL, true
+	default:
+		return reactivev1.Comparison_OPERATOR_UNSPECIFIED, false
+	}
+}
+
 func literal(typ *ast.Type, value *ast.Value) (*reactivev1.Value, error) {
 	if value == nil || value.Kind == ast.Variable || value.Kind == ast.NullValue || typ.Elem != nil {
 		return nil, fmt.Errorf("binding/filter literals must be concrete non-null scalars")
@@ -115,15 +135,15 @@ func (c *Compiler) predicate(def *ast.Definition, value *ast.Value, depth int) (
 		if opValue == nil || opValue.Kind != ast.EnumValue {
 			return nil, fmt.Errorf("comparison predicate requires constant op")
 		}
-		op, ok := reactivev1.Comparison_Operator_value[opValue.Raw]
-		if !ok || op == 0 {
+		op, ok := graphqlComparisonOperator(opValue.Raw)
+		if !ok {
 			return nil, fmt.Errorf("unknown comparison operator")
 		}
 		encoded, err := literal(field.Type, values.ForName("value"))
 		if err != nil {
 			return nil, err
 		}
-		return &reactivev1.Predicate{Expression: &reactivev1.Predicate_Comparison{Comparison: &reactivev1.Comparison{Column: path(column(field)), Operator: reactivev1.Comparison_Operator(op), Value: encoded}}}, nil
+		return &reactivev1.Predicate{Expression: &reactivev1.Predicate_Comparison{Comparison: &reactivev1.Comparison{Column: path(column(field)), Operator: op, Value: encoded}}}, nil
 	}
 	if values.ForName("op") != nil || values.ForName("value") != nil || values.ForName("isNull") != nil {
 		return nil, fmt.Errorf("junction predicate cannot contain comparison fields")
@@ -140,9 +160,9 @@ func (c *Compiler) predicate(def *ast.Definition, value *ast.Value, depth int) (
 			if children.Kind != ast.ListValue || len(children.Children) == 0 {
 				return nil, fmt.Errorf("predicate %s must be a nonempty constant list", key)
 			}
-			junction := &reactivev1.Junction{Operator: reactivev1.Junction_AND}
+			junction := &reactivev1.Junction{Operator: reactivev1.Junction_OPERATOR_AND}
 			if key == "or" {
-				junction.Operator = reactivev1.Junction_OR
+				junction.Operator = reactivev1.Junction_OPERATOR_OR
 			}
 			for _, child := range children.Children {
 				lowered, err := c.predicate(def, child.Value, depth+1)

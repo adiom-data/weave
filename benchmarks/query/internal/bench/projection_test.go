@@ -11,12 +11,12 @@ func projectionFixture() *reactivev1.ModelBatch {
 	integer := func(value string) *reactivev1.Value {
 		return &reactivev1.Value{Kind: &reactivev1.Value_IntegerValue{IntegerValue: value}}
 	}
-	return &reactivev1.ModelBatch{Kind: reactivev1.ModelBatch_SNAPSHOT,
+	return &reactivev1.ModelBatch{Kind: reactivev1.ModelBatch_KIND_SNAPSHOT,
 		Entities: []*reactivev1.EntityEvent{{EntityId: "task-1", Event: &reactivev1.EntityEvent_Upsert{Upsert: &reactivev1.EntityUpsert{Values: map[string]*reactivev1.Value{
 			"id": integer("1"), "project_id": integer("1"), "revision": integer("9007199254740993"), "payload": {Kind: &reactivev1.Value_TextValue{TextValue: "x"}},
 		}}}}},
 		Queries: []*reactivev1.QueryEvent{{Event: &reactivev1.QueryEvent_Reset_{Reset_: &reactivev1.QueryReset{
-			Left: &reactivev1.Boundary{Value: &reactivev1.Boundary_Sentinel_{Sentinel: reactivev1.Boundary_START}}, Right: &reactivev1.Boundary{Value: &reactivev1.Boundary_Sentinel_{Sentinel: reactivev1.Boundary_END}}, EntityIds: []string{"task-1"},
+			Left: &reactivev1.Boundary{Value: &reactivev1.Boundary_Sentinel_{Sentinel: reactivev1.Boundary_SENTINEL_START}}, Right: &reactivev1.Boundary{Value: &reactivev1.Boundary_Sentinel_{Sentinel: reactivev1.Boundary_SENTINEL_END}}, EntityIds: []string{"task-1"},
 		}}}},
 	}
 }
@@ -32,7 +32,7 @@ func TestProjectionAdapterPreservesIntegersAndReplacesRows(t *testing.T) {
 	}
 	image.ready = true
 	update := proto.Clone(batch).(*reactivev1.ModelBatch)
-	update.Kind, update.Queries = reactivev1.ModelBatch_COMMIT, nil
+	update.Kind, update.Queries = reactivev1.ModelBatch_KIND_COMMIT, nil
 	update.Entities[0].GetUpsert().Values["revision"] = &reactivev1.Value{Kind: &reactivev1.Value_IntegerValue{IntegerValue: "9007199254740994"}}
 	changes, err := image.apply(update)
 	if err != nil || len(changes) != 1 || changes[0].Task.Revision != 9007199254740994 {
@@ -44,7 +44,7 @@ func TestProjectionAdapterPreservesIntegersAndReplacesRows(t *testing.T) {
 	}
 	for _, changeID := range []bool{false, true} {
 		update = projectionFixture()
-		update.Kind, update.Queries = reactivev1.ModelBatch_COMMIT, nil
+		update.Kind, update.Queries = reactivev1.ModelBatch_KIND_COMMIT, nil
 		if changeID {
 			update.Entities[0].GetUpsert().Values["id"] = &reactivev1.Value{Kind: &reactivev1.Value_IntegerValue{IntegerValue: "2"}}
 		} else {
@@ -81,7 +81,7 @@ func TestProjectionAdapterRejectsIncompleteOrUnexpectedPublications(t *testing.T
 			case "pending":
 				batch.Entities[0].Event = &reactivev1.EntityEvent_Pending{Pending: &reactivev1.EntityPending{}}
 			case "early-commit":
-				batch.Kind = reactivev1.ModelBatch_COMMIT
+				batch.Kind = reactivev1.ModelBatch_KIND_COMMIT
 			}
 			if _, err := image.apply(batch); err == nil {
 				t.Fatal("invalid publication accepted")

@@ -167,7 +167,7 @@ func TestProjectionConnectionWithNoSubscriptionsReceivesMessageOnlyCommit(t *tes
 	commitReceipt(t, broker, 10, opened.ConnectionContext)
 	message := receiveAuthorizationMessage(t, stream.sent)
 	batch := message.GetModelBatch()
-	if batch == nil || batch.Kind != reactivev1.ModelBatch_COMMIT || len(batch.Messages) != 1 || len(batch.Entities) != 0 || message.ConnectionSequence != 1 || batch.Checkpoint != "10" {
+	if batch == nil || batch.Kind != reactivev1.ModelBatch_KIND_COMMIT || len(batch.Messages) != 1 || len(batch.Entities) != 0 || message.ConnectionSequence != 1 || batch.Checkpoint != "10" {
 		t.Fatalf("message-only commit = %+v", message)
 	}
 	cancel()
@@ -205,7 +205,7 @@ func TestReceiptAndVisibleEntityUpdateShareModelBatch(t *testing.T) {
 	}()
 	opened := receiveAuthorizationMessage(t, stream.sent).GetConnectionOpened()
 	stream.received <- &reactivev1.ClientMessage{SubscriptionId: "direct", RequestId: "subscribe", Operation: &reactivev1.ClientMessage_Subscribe{Subscribe: &reactivev1.Subscribe{
-		Query: snapshotTestRequest(false, false).Root.GetList().Query, Window: &reactivev1.InitialWindow{From: reactivev1.InitialWindow_START, Count: 10},
+		Query: snapshotTestRequest(false, false).Root.GetList().Query, Window: &reactivev1.InitialWindow{From: reactivev1.InitialWindow_FROM_START, Count: 10},
 	}}}
 	if receiveAuthorizationMessage(t, stream.sent).GetModelBatch() == nil || receiveAuthorizationMessage(t, stream.sent).GetReady() == nil {
 		t.Fatal("subscription did not initialize")
@@ -219,7 +219,7 @@ func TestReceiptAndVisibleEntityUpdateShareModelBatch(t *testing.T) {
 	}
 	message := receiveAuthorizationMessage(t, stream.sent)
 	batch := message.GetModelBatch()
-	if batch == nil || batch.Kind != reactivev1.ModelBatch_COMMIT || !batch.Atomic || len(batch.Messages) != 1 || len(batch.Entities) != 1 || batch.Checkpoint != "10" {
+	if batch == nil || batch.Kind != reactivev1.ModelBatch_KIND_COMMIT || !batch.Atomic || len(batch.Messages) != 1 || len(batch.Entities) != 1 || batch.Checkpoint != "10" {
 		t.Fatalf("not one atomic update/receipt: %v", message)
 	}
 	if got := batch.Entities[0].GetUpsert().GetValues()["title"].GetTextValue(); got != "updated" {

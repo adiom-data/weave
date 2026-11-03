@@ -531,7 +531,7 @@ func (session *connectionSession) run() error {
 			return nil
 		}
 		connectionSequence++
-		return stream.Send(&reactivev1.ServerMessage{ConnectionSequence: connectionSequence, Event: &reactivev1.ServerMessage_ModelBatch{ModelBatch: &reactivev1.ModelBatch{Kind: reactivev1.ModelBatch_WINDOW, Entities: batch.Entities}}})
+		return stream.Send(&reactivev1.ServerMessage{ConnectionSequence: connectionSequence, Event: &reactivev1.ServerMessage_ModelBatch{ModelBatch: &reactivev1.ModelBatch{Kind: reactivev1.ModelBatch_KIND_WINDOW, Entities: batch.Entities}}})
 	}
 	closeDirect := func(state *sharedSubscription, cause error) error {
 		state.publication.close()
@@ -750,9 +750,9 @@ func (session *connectionSession) run() error {
 				return err
 			}
 			if delivery.metadata.Kind == querysubscription.DeliveryHydration {
-				batch.Kind = reactivev1.ModelBatch_HYDRATION
+				batch.Kind = reactivev1.ModelBatch_KIND_HYDRATION
 			} else {
-				batch.Kind = reactivev1.ModelBatch_COMMIT
+				batch.Kind = reactivev1.ModelBatch_KIND_COMMIT
 			}
 			batch.Atomic = delivery.metadata.Atomic
 			coalesceEntityEvents(batch)
@@ -841,7 +841,7 @@ func (session *connectionSession) run() error {
 			appendModelBatch(batch, windowBatch)
 			requestID = window.Token
 		}
-		batch.Kind = reactivev1.ModelBatch_WINDOW
+		batch.Kind = reactivev1.ModelBatch_KIND_WINDOW
 		coalesceEntityEvents(batch)
 		if len(batch.Entities) == 0 && len(batch.Queries) == 0 && len(batch.Projections) == 0 && requestID == "" {
 			return nil
@@ -892,7 +892,7 @@ func (session *connectionSession) run() error {
 		if err != nil {
 			return closeDirect(state, err)
 		}
-		batch.Kind = reactivev1.ModelBatch_WINDOW
+		batch.Kind = reactivev1.ModelBatch_KIND_WINDOW
 		state.sequence++
 		return stream.Send(&reactivev1.ServerMessage{SubscriptionId: state.externalID, RequestId: requestID, Sequence: state.sequence, Event: &reactivev1.ServerMessage_ModelBatch{ModelBatch: batch}})
 	}
@@ -901,7 +901,7 @@ func (session *connectionSession) run() error {
 		switch item := raw.(type) {
 		case transactionMessage:
 			connectionSequence++
-			batch := &reactivev1.ModelBatch{Kind: reactivev1.ModelBatch_COMMIT, Atomic: true, Checkpoint: checkpointString(item.transaction.Position), Messages: item.transaction.Messages}
+			batch := &reactivev1.ModelBatch{Kind: reactivev1.ModelBatch_KIND_COMMIT, Atomic: true, Checkpoint: checkpointString(item.transaction.Position), Messages: item.transaction.Messages}
 			return stream.Send(&reactivev1.ServerMessage{ConnectionSequence: connectionSequence, Event: &reactivev1.ServerMessage_ModelBatch{ModelBatch: batch}})
 		case queryEventMessage:
 			if item.err != nil {

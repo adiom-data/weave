@@ -22,7 +22,7 @@ test('failure policy receives close details; clear is terminal and drops retaine
   const events = [], failures = []
   const { client, handle, sockets } = setup(t, { onDiagnostic: event => events.push(event), failurePolicy: failure => { failures.push(failure); return 'clear' } })
   client.beginOptimistic({ mutationId: 'm', patches: [{ entityId: 'project', set: { title: { textValue: 'Prediction' } } }] })
-  const pending = handle.updateWindow('members', [{ side: 'RIGHT', operation: 'EXTEND', count: 1 }])
+  const pending = handle.updateWindow('members', [{ side: 'SIDE_RIGHT', operation: 'OPERATION_EXTEND', count: 1 }])
   const rejected = assert.rejects(pending, /Connection closed/)
   sockets[0].onclose({ code: 4401, reason: 'SECRET reason', wasClean: true })
   await rejected

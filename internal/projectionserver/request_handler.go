@@ -30,13 +30,13 @@ func (s *server) handleSharedMessage(ctx context.Context, stream Stream, prefix 
 			return sendSharedError(stream, message.SubscriptionId, message.RequestId, "INVALID_QUERY", err.Error())
 		}
 		window := operation.Subscribe.Window
-		if window == nil || (window.From != reactivev1.InitialWindow_START && window.From != reactivev1.InitialWindow_END) {
+		if window == nil || (window.From != reactivev1.InitialWindow_FROM_START && window.From != reactivev1.InitialWindow_FROM_END) {
 			return sendSharedError(stream, message.SubscriptionId, message.RequestId, "INVALID_WINDOW", "window must start from START or END")
 		}
 		internalID := prefix + message.SubscriptionId + ":" + strconv.FormatUint(streamSequence.Add(1), 10)
 		queryID := "query:" + internalID
 		externalID, requestID := message.SubscriptionId, message.RequestId
-		initialWindow := querysubscription.InitialWindow{FromEnd: window.From == reactivev1.InitialWindow_END, Count: int(window.Count)}
+		initialWindow := querysubscription.InitialWindow{FromEnd: window.From == reactivev1.InitialWindow_FROM_END, Count: int(window.Count)}
 		if s.policyAccess != nil {
 			return admissions.query(externalID, requestID, internalID, queryID, spec, selected, initialWindow)
 		}
@@ -83,7 +83,7 @@ func (s *server) handleSharedMessage(ctx context.Context, stream Stream, prefix 
 						}
 						return sendSharedError(stream, externalID, requestID, "SUBSCRIBE_FAILED", modelErr.Error())
 					}
-					batch.Kind = reactivev1.ModelBatch_SNAPSHOT
+					batch.Kind = reactivev1.ModelBatch_KIND_SNAPSHOT
 					state.sequence++
 					if sendErr := stream.Send(&reactivev1.ServerMessage{SubscriptionId: externalID, RequestId: requestID, Sequence: state.sequence, Event: &reactivev1.ServerMessage_ModelBatch{ModelBatch: batch}}); sendErr != nil {
 						return sendErr
@@ -207,7 +207,7 @@ func (s *server) handleSharedMessage(ctx context.Context, stream Stream, prefix 
 					}
 					return sendSharedError(stream, externalID, requestID, "SUBSCRIBE_FAILED", modelErr.Error())
 				}
-				initialBatch.Kind = reactivev1.ModelBatch_SNAPSHOT
+				initialBatch.Kind = reactivev1.ModelBatch_KIND_SNAPSHOT
 				if operation.SubscribeProjection.WaitForSync && len(initial) > 0 {
 					checkpoint := initial[0].Checkpoint
 					for _, event := range initial {

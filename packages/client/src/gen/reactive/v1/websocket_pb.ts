@@ -2,8 +2,8 @@
 // @generated from file reactive/v1/websocket.proto (package reactive.v1, syntax proto3)
 /* eslint-disable */
 
-import type { GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
-import { fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
+import type { GenEnum, GenFile, GenMessage } from "@bufbuild/protobuf/codegenv2";
+import { enumDesc, fileDesc, messageDesc } from "@bufbuild/protobuf/codegenv2";
 import type { ClientMessage, ClientMessageJson, ServerMessage, ServerMessageJson } from "./reactive_pb.js";
 import { file_reactive_v1_reactive } from "./reactive_pb.js";
 import type { Message } from "@bufbuild/protobuf";
@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file reactive/v1/websocket.proto.
  */
 export const file_reactive_v1_websocket: GenFile = /*@__PURE__*/
-  fileDesc("ChtyZWFjdGl2ZS92MS93ZWJzb2NrZXQucHJvdG8SC3JlYWN0aXZlLnYxIoEBChRXZWJTb2NrZXRDbGllbnRGcmFtZRItCgdtZXNzYWdlGAEgASgLMhoucmVhY3RpdmUudjEuQ2xpZW50TWVzc2FnZUgAEi8KBHBpbmcYAiABKAsyHy5yZWFjdGl2ZS52MS5XZWJTb2NrZXRIZWFydGJlYXRIAEIJCgdwYXlsb2FkIoEBChRXZWJTb2NrZXRTZXJ2ZXJGcmFtZRItCgdtZXNzYWdlGAEgASgLMhoucmVhY3RpdmUudjEuU2VydmVyTWVzc2FnZUgAEi8KBHBvbmcYAiABKAsyHy5yZWFjdGl2ZS52MS5XZWJTb2NrZXRIZWFydGJlYXRIAEIJCgdwYXlsb2FkIiAKEldlYlNvY2tldEhlYXJ0YmVhdBIKCgJpZBgBIAEoCUI8WjpnaXRodWIuY29tL2FkaW9tLWRhdGEvd2VhdmUvcGtnL2dlbi9yZWFjdGl2ZS92MTtyZWFjdGl2ZXYxYgZwcm90bzM", [file_reactive_v1_reactive]);
+  fileDesc("ChtyZWFjdGl2ZS92MS93ZWJzb2NrZXQucHJvdG8SC3JlYWN0aXZlLnYxIrgBChRXZWJTb2NrZXRDbGllbnRGcmFtZRItCgdtZXNzYWdlGAEgASgLMhoucmVhY3RpdmUudjEuQ2xpZW50TWVzc2FnZUgAEi8KBHBpbmcYAiABKAsyHy5yZWFjdGl2ZS52MS5XZWJTb2NrZXRIZWFydGJlYXRIABI1CgphdXRoX3Rva2VuGAMgASgLMh8ucmVhY3RpdmUudjEuV2ViU29ja2V0QXV0aFRva2VuSABCCQoHcGF5bG9hZCK6AQoUV2ViU29ja2V0U2VydmVyRnJhbWUSLQoHbWVzc2FnZRgBIAEoCzIaLnJlYWN0aXZlLnYxLlNlcnZlck1lc3NhZ2VIABIvCgRwb25nGAIgASgLMh8ucmVhY3RpdmUudjEuV2ViU29ja2V0SGVhcnRiZWF0SAASNwoLYXV0aF9zdGF0dXMYAyABKAsyIC5yZWFjdGl2ZS52MS5XZWJTb2NrZXRBdXRoU3RhdHVzSABCCQoHcGF5bG9hZCIgChJXZWJTb2NrZXRIZWFydGJlYXQSCgoCaWQYASABKAkiIwoSV2ViU29ja2V0QXV0aFRva2VuEg0KBXRva2VuGAEgASgJIpsBChNXZWJTb2NrZXRBdXRoU3RhdHVzEjcKBnN0YXR1cxgBIAEoDjInLnJlYWN0aXZlLnYxLldlYlNvY2tldEF1dGhTdGF0dXMuU3RhdHVzIksKBlN0YXR1cxIWChJTVEFUVVNfVU5TUEVDSUZJRUQQABITCg9TVEFUVVNfUkVKRUNURUQQARIUChBTVEFUVVNfUkVDT05ORUNUEAJCPFo6Z2l0aHViLmNvbS9hZGlvbS1kYXRhL3dlYXZlL3BrZy9nZW4vcmVhY3RpdmUvdjE7cmVhY3RpdmV2MWIGcHJvdG8z", [file_reactive_v1_reactive]);
 
 /**
  * One complete envelope per binary WebSocket frame. Transport liveness stays
@@ -36,6 +36,12 @@ export type WebSocketClientFrame = Message<"reactive.v1.WebSocketClientFrame"> &
      */
     value: WebSocketHeartbeat;
     case: "ping";
+  } | {
+    /**
+     * @generated from field: reactive.v1.WebSocketAuthToken auth_token = 3;
+     */
+    value: WebSocketAuthToken;
+    case: "authToken";
   } | { case: undefined; value?: undefined };
 };
 
@@ -55,6 +61,11 @@ export type WebSocketClientFrameJson = {
    * @generated from field: reactive.v1.WebSocketHeartbeat ping = 2;
    */
   ping?: WebSocketHeartbeatJson;
+
+  /**
+   * @generated from field: reactive.v1.WebSocketAuthToken auth_token = 3;
+   */
+  authToken?: WebSocketAuthTokenJson;
 };
 
 /**
@@ -83,6 +94,12 @@ export type WebSocketServerFrame = Message<"reactive.v1.WebSocketServerFrame"> &
      */
     value: WebSocketHeartbeat;
     case: "pong";
+  } | {
+    /**
+     * @generated from field: reactive.v1.WebSocketAuthStatus auth_status = 3;
+     */
+    value: WebSocketAuthStatus;
+    case: "authStatus";
   } | { case: undefined; value?: undefined };
 };
 
@@ -99,6 +116,11 @@ export type WebSocketServerFrameJson = {
    * @generated from field: reactive.v1.WebSocketHeartbeat pong = 2;
    */
   pong?: WebSocketHeartbeatJson;
+
+  /**
+   * @generated from field: reactive.v1.WebSocketAuthStatus auth_status = 3;
+   */
+  authStatus?: WebSocketAuthStatusJson;
 };
 
 /**
@@ -134,4 +156,99 @@ export type WebSocketHeartbeatJson = {
  */
 export const WebSocketHeartbeatSchema: GenMessage<WebSocketHeartbeat, {jsonType: WebSocketHeartbeatJson}> = /*@__PURE__*/
   messageDesc(file_reactive_v1_websocket, 2);
+
+/**
+ * Transport-only renewal. Tokens never enter the reactive model or WAL stream.
+ *
+ * @generated from message reactive.v1.WebSocketAuthToken
+ */
+export type WebSocketAuthToken = Message<"reactive.v1.WebSocketAuthToken"> & {
+  /**
+   * @generated from field: string token = 1;
+   */
+  token: string;
+};
+
+/**
+ * Transport-only renewal. Tokens never enter the reactive model or WAL stream.
+ *
+ * @generated from message reactive.v1.WebSocketAuthToken
+ */
+export type WebSocketAuthTokenJson = {
+  /**
+   * @generated from field: string token = 1;
+   */
+  token?: string;
+};
+
+/**
+ * Describes the message reactive.v1.WebSocketAuthToken.
+ * Use `create(WebSocketAuthTokenSchema)` to create a new message.
+ */
+export const WebSocketAuthTokenSchema: GenMessage<WebSocketAuthToken, {jsonType: WebSocketAuthTokenJson}> = /*@__PURE__*/
+  messageDesc(file_reactive_v1_websocket, 3);
+
+/**
+ * Connection-level notification, not an acknowledgment of a particular token.
+ * Successful verification is silent; expiry is enforced by the server.
+ *
+ * @generated from message reactive.v1.WebSocketAuthStatus
+ */
+export type WebSocketAuthStatus = Message<"reactive.v1.WebSocketAuthStatus"> & {
+  /**
+   * @generated from field: reactive.v1.WebSocketAuthStatus.Status status = 1;
+   */
+  status: WebSocketAuthStatus_Status;
+};
+
+/**
+ * Connection-level notification, not an acknowledgment of a particular token.
+ * Successful verification is silent; expiry is enforced by the server.
+ *
+ * @generated from message reactive.v1.WebSocketAuthStatus
+ */
+export type WebSocketAuthStatusJson = {
+  /**
+   * @generated from field: reactive.v1.WebSocketAuthStatus.Status status = 1;
+   */
+  status?: WebSocketAuthStatus_StatusJson;
+};
+
+/**
+ * Describes the message reactive.v1.WebSocketAuthStatus.
+ * Use `create(WebSocketAuthStatusSchema)` to create a new message.
+ */
+export const WebSocketAuthStatusSchema: GenMessage<WebSocketAuthStatus, {jsonType: WebSocketAuthStatusJson}> = /*@__PURE__*/
+  messageDesc(file_reactive_v1_websocket, 4);
+
+/**
+ * @generated from enum reactive.v1.WebSocketAuthStatus.Status
+ */
+export enum WebSocketAuthStatus_Status {
+  /**
+   * @generated from enum value: STATUS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: STATUS_REJECTED = 1;
+   */
+  REJECTED = 1,
+
+  /**
+   * @generated from enum value: STATUS_RECONNECT = 2;
+   */
+  RECONNECT = 2,
+}
+
+/**
+ * @generated from enum reactive.v1.WebSocketAuthStatus.Status
+ */
+export type WebSocketAuthStatus_StatusJson = "STATUS_UNSPECIFIED" | "STATUS_REJECTED" | "STATUS_RECONNECT";
+
+/**
+ * Describes the enum reactive.v1.WebSocketAuthStatus.Status.
+ */
+export const WebSocketAuthStatus_StatusSchema: GenEnum<WebSocketAuthStatus_Status, WebSocketAuthStatus_StatusJson> = /*@__PURE__*/
+  enumDesc(file_reactive_v1_websocket, 4, 0);
 
