@@ -32,20 +32,45 @@ func (s *server) prepareAccess(ctx context.Context, feed q.Feed, id accesscontro
 }
 
 func (p *policyAccess) watch(ctx context.Context) error {
+	requested, awaiting := false, false
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-p.session.FactChanges():
 			p.session.Refresh()
+			requested = true
 		case <-p.session.PolicyChanges():
 			p.session.Refresh()
+			requested = true
 		case <-p.progress:
+			requested = true
+		case <-p.progressConsumed:
+			awaiting = false
 		}
+		if !requested || awaiting {
+			continue
+		}
+		// RequestProgress queues a report; returning does not mean the
+		// connection has consumed it. Coalesce further wakeups until that
+		// ordered report reaches the consumer, retaining a follow-up request
+		// for facts installed after the first request captured progress.
+		requested, awaiting = false, true
 		if err := p.session.RequestProgress(ctx); err != nil {
 			return err
 		}
 	}
+}
+
+func (p *policyAccess) observe(event q.Event) ([]authorization.Occurrence, error) {
+	affected, err := p.session.Observe(event)
+	if err == nil && event.Progress != nil {
+		select {
+		case p.progressConsumed <- struct{}{}:
+		default:
+		}
+	}
+	return affected, err
 }
 func (p *policyAccess) requestProgress() {
 	select {
@@ -59,11 +84,12 @@ func (p *policyAccess) requestProgress() {
 // an unresolved decision withholds output and keeps its dependency ownership.
 // No historical datastore read is fabricated to satisfy an older snapshot.
 type policyAccess struct {
-	mu       sync.Mutex
-	session  *authorization.Session
-	id       accesscontrol.PreparedID
-	prepared bool
-	progress chan struct{}
+	mu               sync.Mutex
+	session          *authorization.Session
+	id               accesscontrol.PreparedID
+	prepared         bool
+	progress         chan struct{}
+	progressConsumed chan struct{}
 }
 
 func newPolicyAccess(ctx context.Context, feed q.Feed, evaluator *policy.Evaluator, claims accesscontrol.Claims, options authorization.Options) (*policyAccess, error) {
@@ -71,7 +97,7 @@ func newPolicyAccess(ctx context.Context, feed q.Feed, evaluator *policy.Evaluat
 	if err != nil {
 		return nil, err
 	}
-	return &policyAccess{session: session, progress: make(chan struct{}, 1)}, nil
+	return &policyAccess{session: session, progress: make(chan struct{}, 1), progressConsumed: make(chan struct{}, 1)}, nil
 }
 func (p *policyAccess) Prepare(_ context.Context, request accesscontrol.PrepareRequest) (accesscontrol.Prepared, error) {
 	p.mu.Lock()

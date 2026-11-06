@@ -539,16 +539,14 @@ func TestProjectionExpandsParameterizedChildrenAndTracksNewParents(t *testing.T)
 		t.Fatal(err)
 	}
 	rebuilt, err := projection.Next(eventCtx)
-	if err != nil || len(rebuilt.Events) != 2 || rebuilt.Events[0].Type != ProjectionInstanceClosed || rebuilt.Events[1].Type != ProjectionRowChanged {
-		t.Fatalf("rebuilt subtree batch = %+v, err=%v", rebuilt, err)
+	if err != nil || len(rebuilt.Events) != 1 || rebuilt.Events[0].Type != ProjectionRowChanged {
+		t.Fatalf("unchanged child selector caused structural changes: %+v, err=%v", rebuilt, err)
 	}
-	reopened, err := projection.Next(eventCtx)
-	reopened = completeTestPublication(t, projection, reopened)
-	if err != nil || len(reopened.Events) != 2 || reopened.Events[0].Type != ProjectionInstanceOpened || reopened.Events[1].Type != ProjectionRowChanged {
-		t.Fatalf("reopened subtree batch = %+v, err=%v", reopened, err)
-	}
-	if rebuilt.Events[0].InstanceID == reopened.Events[0].InstanceID {
-		t.Fatal("rebuilt child reused a closed server instance ID")
+	projection.mu.Lock()
+	childID := projection.instances[initial[0].InstanceID].members[p1].children[0]
+	projection.mu.Unlock()
+	if childID != initial[2].InstanceID {
+		t.Fatal("unchanged child selector replaced its subscription")
 	}
 }
 
@@ -670,7 +668,7 @@ func TestProjectionChildSnapshotDoesNotBlockParentDelivery(t *testing.T) {
 		t.Fatal(err)
 	}
 	second, err := projection.Next(eventCtx)
-	if err != nil || len(second.Events) != 2 || second.Events[1].Key != p1 {
+	if err != nil || len(second.Events) != 1 || second.Events[0].Key != p1 {
 		t.Fatalf("delivery while child blocked = %+v, err=%v", second, err)
 	}
 }

@@ -137,8 +137,8 @@ func TestCurrentImageAdmissionKeepsUnpublishedDescendantsCurrent(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	node := func(name string, children ...*ProjectionNode) *ProjectionNode {
-		return &ProjectionNode{Name: name, Children: children, BuildQuery: func(storage.Record) (storage.QuerySpec, error) {
-			return storage.QuerySpec{Relation: storage.RelationName{Name: name}}, nil
+		return &ProjectionNode{Name: name, Children: children, BuildQuery: func(parent storage.Record) (storage.QuerySpec, error) {
+			return storage.QuerySpec{Relation: storage.RelationName{Name: name}, Filter: &storage.Predicate{Comparison: &storage.Comparison{Field: "binding", Operator: storage.ComparisonEqual, Value: storage.Literal{Data: parent["binding"].Data}}}}, nil
 		}}
 	}
 	p, err := BeginProjection(ctx, &admissionTreeFeed{}, node("roots", node("children", node("leaves"))), StartOptions{QueueLimit: 1, CurrentImageAdmission: true})
@@ -166,7 +166,7 @@ func TestCurrentImageAdmissionKeepsUnpublishedDescendantsCurrent(t *testing.T) {
 		p.mu.Lock()
 		key := p.instances[id].order[0]
 		p.mu.Unlock()
-		_, out, err := p.ApplyDelivery(q.DeliveryEnvelope{Delivery: q.DeliveryMetadata{Kind: q.DeliveryCommit, Checkpoint: &q.Position{SourceID: "test", Value: point}, Revision: point}, Effects: []q.SubscriptionEffect{{SubscriptionID: id, Batch: q.Batch{Changes: []q.Change{{Kind: q.Updated, Row: q.Row{Key: key, Record: storage.Record{"id": {Type: storage.TypeText, State: storage.ValuePresent, Data: []byte("one")}}}}}}}}})
+		_, out, err := p.ApplyDelivery(q.DeliveryEnvelope{Delivery: q.DeliveryMetadata{Kind: q.DeliveryCommit, Checkpoint: &q.Position{SourceID: "test", Value: point}, Revision: point}, Effects: []q.SubscriptionEffect{{SubscriptionID: id, Batch: q.Batch{Changes: []q.Change{{Kind: q.Updated, Row: q.Row{Key: key, Record: storage.Record{"id": {Type: storage.TypeText, State: storage.ValuePresent, Data: []byte("one")}, "binding": {Type: storage.TypeText, State: storage.ValuePresent, Data: []byte(strconv.FormatUint(point, 10))}}}}}}}}})
 		if err != nil || out {
 			t.Fatalf("pre-admission update failed: %v %v", out, err)
 		}

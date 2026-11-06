@@ -57,7 +57,7 @@ func TestReactiveProjectionWaitForSyncFoldsCatchupAndPreservesLiveHandoff(t *tes
 		}
 	}
 	project := opened()
-	opened() // Initial task subscription.
+	task := opened()
 	select {
 	case <-queries.progress:
 	case <-ctx.Done():
@@ -69,7 +69,7 @@ func TestReactiveProjectionWaitForSyncFoldsCatchupAndPreservesLiveHandoff(t *tes
 	default:
 	}
 	// Update the older parent while initialization waits for the child's newer
-	// snapshot. This also replaces the child subscription during catch-up.
+	// snapshot. Its unchanged child selector must keep the original subscription.
 	if err := project.offer(querysubscription.DeliveryEnvelope{
 		Delivery: querysubscription.DeliveryMetadata{Kind: querysubscription.DeliveryCommit, Checkpoint: &querysubscription.Position{SourceID: "test", Value: 9}, Revision: 1, Atomic: true},
 		Effects: []querysubscription.SubscriptionEffect{{SubscriptionID: project.id, Batch: querysubscription.Batch{
@@ -78,7 +78,6 @@ func TestReactiveProjectionWaitForSyncFoldsCatchupAndPreservesLiveHandoff(t *tes
 	}); err != nil {
 		t.Fatal(err)
 	}
-	task := opened()
 	project.owner.events <- querysubscription.Event{Progress: &querysubscription.Progress{
 		Position: &querysubscription.Position{SourceID: "test", Value: 10}, Revision: 2, PreviousRevision: 1,
 	}}

@@ -909,7 +909,7 @@ func (session *connectionSession) run() error {
 			}
 			if s.policyAccess != nil {
 				publications.observe(item.event)
-				affected, err := s.policyAccess.session.Observe(item.event)
+				affected, err := s.policyAccess.observe(item.event)
 				if err != nil {
 					return err
 				}

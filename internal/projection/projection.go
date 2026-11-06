@@ -54,8 +54,10 @@ func DefaultLimits() Limits {
 // nodes use the entity interface; its implementation may use a count-one
 // query without exposing window controls here.
 type ProjectionNode struct {
-	Name           string
-	Entity         bool
+	Name   string
+	Entity bool
+	// BuildQuery is a pure binding operation. It is also used to decide
+	// whether a parent update changes an existing child's selector.
 	BuildQuery     func(parent storage.Record) (storage.QuerySpec, error)
 	Window         querysubscription.InitialWindow
 	Children       []*ProjectionNode
@@ -202,24 +204,31 @@ type projectionInstance struct {
 }
 
 // A member owns one immutable row image and its expansion state, all guarded
-// by Projection.mu. Every upsert replaces the entry: its identity is the
-// generation token for asynchronous child loads, including remove/readd.
+// by Projection.mu. Row images are replaced on upsert; expansion tokens change
+// only when selectors change or the row is removed/readded.
 type projectionMember struct {
-	record   storage.Record
-	version  querysubscription.RecordVersion
-	cursor   []byte
-	pending  bool
-	children []string
-	expanded bool // An empty completed expansion differs from one not yet opened.
+	record         storage.Record
+	version        querysubscription.RecordVersion
+	cursor         []byte
+	pending        bool
+	children       []string
+	expanded       bool // An empty completed expansion differs from one not yet opened.
+	expansionToken *expansionGeneration
+	// Published predecessors remain resident and count toward instance limits
+	// until the replacement for their particular child slot is published.
+	replacementRoots map[*ProjectionNode][]string
 }
 
+// Nonzero size gives distinct live allocations distinct pointer identities.
+type expansionGeneration struct{ marker byte }
+
 func newProjectionMember(record storage.Record, version querysubscription.RecordVersion, cursor []byte, pending bool) *projectionMember {
-	return &projectionMember{record: storage.CloneRecord(record), version: version, cursor: append([]byte(nil), cursor...), pending: pending}
+	return &projectionMember{record: storage.CloneRecord(record), version: version, cursor: append([]byte(nil), cursor...), pending: pending, expansionToken: &expansionGeneration{}}
 }
 
 // completeExpansion requires Projection.mu.
 func (m *projectionMember) completeExpansion(children []string) {
-	m.children, m.expanded = children, true
+	m.children, m.expanded = append(m.children, children...), true
 }
 
 // capture requires Projection.mu and owns its payloads independently of future
@@ -794,9 +803,21 @@ func (p *Projection) openNode(node *ProjectionNode, parent storage.Record, path 
 	return instance, nil
 }
 
-func (p *Projection) openChildren(parent *projectionInstance, parentKey storage.EntityKey, record storage.Record, depth int) ([]string, error) {
+func (p *Projection) openChildren(expansion projectionExpansion) ([]string, error) {
+	parent, parentKey, record, depth := expansion.parent, expansion.key, expansion.record, expansion.parent.depth
+	p.mu.Lock()
+	retained := make(map[*ProjectionNode]bool)
+	for _, id := range expansion.member.children {
+		if instance := p.instances[id]; instance != nil {
+			retained[instance.node] = true
+		}
+	}
+	p.mu.Unlock()
 	var ids []string
 	for _, child := range parent.node.Children {
+		if retained[child] {
+			continue
+		}
 		path := append(append([]string(nil), parent.path...), parentKey.Value, child.Name)
 		instance, err := p.openNode(child, record, path, parent.id, parentKey, depth+1)
 		if err != nil {
@@ -993,6 +1014,7 @@ func (p *Projection) completePublication(publication projectionPublication) (Pro
 		if !eligible {
 			continue
 		}
+		result.Events = append(result.Events, p.retireReplacedChildren(instance)...)
 		events, err := p.currentEvents(id)
 		if err != nil {
 			p.processMu.Unlock()
@@ -1082,10 +1104,7 @@ func (p *Projection) processBatch(instance *projectionInstance, metadata querysu
 			projectionEvent.Cursor = append([]byte(nil), event.Cursor...)
 		}
 		p.mu.Lock()
-		var previousChildren []string
-		if previous := instance.members[event.Key]; previous != nil {
-			previousChildren = previous.children
-		}
+		previous := instance.members[event.Key]
 		var member *projectionMember
 		if event.Kind == querysubscription.Removed {
 			delete(instance.members, event.Key)
@@ -1094,23 +1113,19 @@ func (p *Projection) processBatch(instance *projectionInstance, metadata querysu
 			instance.members[event.Key] = member
 		}
 		p.mu.Unlock()
+		closed, preserved, err := p.reconcileChildren(instance, previous, member)
+		if err != nil {
+			return ProjectionBatch{}, nil, err
+		}
+		projectionBatch.Events = append(projectionBatch.Events, closed...)
 		if event.Kind == querysubscription.Removed && p.expansions != nil {
 			p.expansions.discard(instance.id, event.Key)
-		}
-		for _, id := range previousChildren {
-			closed := p.closeInstanceEvents(id)
-			projectionBatch.Events = append(projectionBatch.Events, closed...)
-			// Closing an obsolete subtree can discard a private subscription batch
-			// from this same source transaction. The parent transition already
-			// describes the subtree's authoritative final state, so account for all
-			// closed sources here and let the connection assembler finish without
-			// depending on watcher scheduling.
 		}
 		projectionBatch.Events = append(projectionBatch.Events, projectionEvent)
 		p.mu.Lock()
 		mayExpand := p.initializing || p.awaitingAdmission || instance.published
 		p.mu.Unlock()
-		if event.Kind != querysubscription.Removed && !event.Pending && len(instance.node.Children) > 0 && mayExpand {
+		if event.Kind != querysubscription.Removed && !event.Pending && len(instance.node.Children) > 0 && mayExpand && !preserved {
 			revision := uint64(0)
 			if metadata.Kind != 0 {
 				revision = metadata.Revision
@@ -1179,7 +1194,7 @@ func (p *Projection) expandChildren(expansion projectionExpansion) {
 	if !current || p.ctx.Err() != nil {
 		return
 	}
-	ids, err := p.openChildren(expansion.parent, expansion.key, expansion.record, expansion.parent.depth)
+	ids, err := p.openChildren(expansion)
 	if err != nil {
 		if p.ctx.Err() == nil {
 			p.shutdown(err)
@@ -1191,7 +1206,7 @@ func (p *Projection) expandChildren(expansion projectionExpansion) {
 	current = p.expansionCurrentLocked(expansion)
 	parentPublished := current && expansion.parent.published
 	if current {
-		expansion.member.completeExpansion(ids)
+		expansion.parent.members[expansion.key].completeExpansion(ids)
 	}
 	p.mu.Unlock()
 	if !current || p.ctx.Err() != nil {
@@ -1325,7 +1340,9 @@ func (p *Projection) missingPublishedExpansionsLocked(rootIDs []string) []projec
 // Member identities cannot be reused while an older worker still holds one.
 func (p *Projection) expansionCurrentLocked(expansion projectionExpansion) bool {
 	return expansion.member != nil && p.instances[expansion.parent.id] == expansion.parent &&
-		expansion.parent.members[expansion.key] == expansion.member && !expansion.member.pending && !expansion.member.expanded
+		expansion.parent.members[expansion.key] != nil &&
+		expansion.parent.members[expansion.key].expansionToken == expansion.member.expansionToken &&
+		!expansion.parent.members[expansion.key].pending && !expansion.parent.members[expansion.key].expanded
 }
 
 func (p *Projection) openMissingChildren(expansion projectionExpansion) error {
@@ -1335,7 +1352,7 @@ func (p *Projection) openMissingChildren(expansion projectionExpansion) error {
 	if !current {
 		return nil
 	}
-	ids, err := p.openChildren(expansion.parent, expansion.key, expansion.record, expansion.parent.depth)
+	ids, err := p.openChildren(expansion)
 	if err != nil {
 		return err
 	}
@@ -1343,7 +1360,7 @@ func (p *Projection) openMissingChildren(expansion projectionExpansion) error {
 	p.mu.Lock()
 	current = p.expansionCurrentLocked(expansion)
 	if current {
-		expansion.member.completeExpansion(ids)
+		expansion.parent.members[expansion.key].completeExpansion(ids)
 	}
 	p.mu.Unlock()
 	p.processMu.Unlock()
@@ -1460,6 +1477,9 @@ func (p *Projection) closeInstanceEvents(id string) []ProjectionEvent {
 	var children []string
 	for _, member := range instance.members {
 		children = append(children, member.children...)
+		for _, roots := range member.replacementRoots {
+			children = append(children, roots...)
+		}
 	}
 	p.mu.Unlock()
 	if p.expansions != nil {

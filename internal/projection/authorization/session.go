@@ -82,10 +82,15 @@ func (s *Session) Refresh() []Occurrence {
 	if s.closed {
 		return nil
 	}
-	changed := make(map[Occurrence]struct{})
-	if len(ids) > 0 || len(policies) > 0 {
-		s.factEpoch++
+	// An ordered progress report is not itself new authorization evidence.
+	// Only fact/policy changes may wake evaluation waiters or invalidate an
+	// evaluation already in flight. Otherwise requesting progress can wake a
+	// waiter which requests the same progress again, without any source work.
+	if len(ids) == 0 && len(policies) == 0 {
+		return nil
 	}
+	changed := make(map[Occurrence]struct{})
+	s.factEpoch++
 	for _, id := range ids {
 		for occurrence := range s.dependents[id] {
 			s.dirty[occurrence] = struct{}{}

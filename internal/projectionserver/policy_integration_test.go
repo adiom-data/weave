@@ -555,8 +555,8 @@ func TestPolicyPropagationReevaluatesDescendantsOnParentChanges(t *testing.T) {
 	}
 	backend.commit(t, 25, q.SubscriptionEffect{SubscriptionID: rootRequest.ID, Batch: q.Batch{Changes: []q.Change{{Kind: q.Updated, Row: project}}}})
 	upserts := 0
-	// Parent updates intentionally re-expand descendants. The commit removes
-	// old occurrences; newly loaded descendants publish through later windows.
+	// Unchanged child selectors retain their subscriptions. Authorization must
+	// restore their occurrences through the existing retained raw topology.
 	for upserts < 2 {
 		select {
 		case message := <-stream.sent:

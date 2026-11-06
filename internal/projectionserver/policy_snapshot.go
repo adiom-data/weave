@@ -51,7 +51,7 @@ func (s *server) policySnapshot(ctx context.Context, feed q.Feed, p *proj.Projec
 				if item.err != nil {
 					return nil, nil, item.err
 				}
-				affected, err := s.policyAccess.session.Observe(item.event)
+				affected, err := s.policyAccess.observe(item.event)
 				if err != nil {
 					return nil, nil, err
 				}

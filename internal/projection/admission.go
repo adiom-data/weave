@@ -108,8 +108,17 @@ func (p *Projection) tryCurrentImage(initial bool, accept func(string) (bool, er
 		return AdmissionWait{}, err
 	}
 	p.mu.Lock()
+	var retired []string
 	for _, instance := range p.instances {
 		instance.published = true
+		// Admission/reconciliation consumes the complete current topology;
+		// queued replacement tokens must not detach its predecessors again.
+		for _, member := range instance.members {
+			for _, roots := range member.replacementRoots {
+				retired = append(retired, roots...)
+			}
+			member.replacementRoots = nil
+		}
 	}
 	if initial {
 		p.initialChanges = nil
@@ -119,5 +128,8 @@ func (p *Projection) tryCurrentImage(initial bool, accept func(string) (bool, er
 		p.readyPositions = nil
 	}
 	p.mu.Unlock()
+	for _, id := range retired {
+		p.closeInstance(id)
+	}
 	return AdmissionWait{Accepted: true}, nil
 }
