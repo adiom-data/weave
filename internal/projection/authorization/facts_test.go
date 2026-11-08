@@ -196,6 +196,66 @@ func TestCoalescedFactsAreFencedAndOwned(t *testing.T) {
 	}
 }
 
+type completingFeed struct {
+	*testFeed
+	installed chan struct{}
+	release   chan struct{}
+}
+
+func (f *completingFeed) SubscribeQuery(ctx context.Context, request q.QuerySubscribeRequest, install q.QuerySnapshotInstaller) error {
+	if err := f.testFeed.SubscribeQuery(ctx, request, install); err != nil {
+		return err
+	}
+	close(f.installed)
+	select {
+	case <-f.release:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func TestFactProgressDemandWaitsForSubscriptionCompletion(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	feed := &completingFeed{testFeed: newTestFeed(), installed: make(chan struct{}), release: make(chan struct{})}
+	facts, err := NewObservedFacts(ctx, feed, Options{MaxQueries: 10, MaxRows: 10, LoadConcurrency: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer facts.Close()
+	lease, err := facts.Acquire(selector("p1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lease.Close(ctx)
+	i := receive(t, feed.testFeed)
+	install(t, feed.testFeed, i, snapshot(20, 1))
+	select {
+	case <-feed.installed:
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	if targets := facts.ProgressTargets(); len(targets) != 0 {
+		t.Fatal("installer callback prematurely justified a progress request", targets)
+	}
+	close(feed.release)
+	select {
+	case <-facts.Changed():
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	if targets := facts.ProgressTargets(); len(targets) != 1 || targets[0].Value != 20 {
+		t.Fatal("completed load did not expose its required checkpoint", targets)
+	}
+	if err := facts.Observe(progress(20, 2, 0)); err != nil {
+		t.Fatal(err)
+	}
+	if targets := facts.ProgressTargets(); len(targets) != 0 {
+		t.Fatal("covered facts still request progress", targets)
+	}
+}
+
 func TestTransactionAndHydrationKeepEvidenceOrdered(t *testing.T) {
 	f, feed := newFacts(t, Options{10, 10, 2})
 	lease, _ := f.Acquire(selector("p1"))

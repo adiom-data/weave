@@ -316,6 +316,7 @@ type pendingSharedSubscription struct {
 	projection *proj.Projection
 	generation string
 	admit      func() (proj.AdmissionWait, error)
+	loaded     bool // The subscription call, not just its installer, has completed.
 	retry      bool
 	wait       <-chan struct{}
 	policyOwns func(string) bool
@@ -461,7 +462,7 @@ func (session *connectionSession) run() error {
 	outbound := make(chan outboundMessage, s.options.OutboundQueueLimit)
 	if s.policyAccess != nil {
 		go func() {
-			if err := s.policyAccess.watch(ctx); err != nil && ctx.Err() == nil {
+			if err := s.policyAccess.runProgress(ctx); err != nil && ctx.Err() == nil {
 				select {
 				case outbound <- queryEventMessage{err: err}:
 				case <-ctx.Done():
@@ -1041,6 +1042,40 @@ func (session *connectionSession) run() error {
 	if s.policyAccess != nil {
 		publications = &policyPublications{ctx: ctx, service: s, prepared: prepared, model: model, subscriptions: subscriptions, projections: projections, stream: stream, outbound: outbound, loaders: &loaders, closeDirect: closeDirect, closeProjection: closeProjection}
 	}
+	var factActivity, policyActivity <-chan struct{}
+	if s.policyAccess != nil {
+		factActivity = s.policyAccess.session.FactChanges()
+		policyActivity = s.policyAccess.session.PolicyChanges()
+	}
+	refreshPolicy := func() error {
+		s.policyAccess.refresh()
+		for _, loading := range pending {
+			loading.retry = true
+		}
+		if publications.position == nil {
+			return nil
+		}
+		// Local evidence can change at an unchanged source position. Reevaluate
+		// there without inventing a feed revision or requesting another report.
+		return emitDeliveries([]feedDelivery{{metadata: querysubscription.DeliveryMetadata{
+			Kind: querysubscription.DeliveryHydration, Checkpoint: publications.position, Revision: publications.revision,
+		}}})
+	}
+	retryPolicy := func() error {
+		if s.policyAccess == nil {
+			return nil
+		}
+		if err := admissions.retry(); err != nil {
+			return err
+		}
+		return publications.retry()
+	}
+	refreshAndRetryPolicy := func() error {
+		if err := refreshPolicy(); err != nil {
+			return err
+		}
+		return retryPolicy()
+	}
 	drain := func() error {
 		for {
 			select {
@@ -1048,13 +1083,16 @@ func (session *connectionSession) run() error {
 				if err := sendOutbound(item); err != nil {
 					return err
 				}
-				if s.policyAccess != nil {
-					if err := admissions.retry(); err != nil {
-						return err
-					}
-					if err := publications.retry(); err != nil {
-						return err
-					}
+				if err := retryPolicy(); err != nil {
+					return err
+				}
+			case <-policyActivity:
+				if err := refreshAndRetryPolicy(); err != nil {
+					return err
+				}
+			case <-factActivity:
+				if err := refreshAndRetryPolicy(); err != nil {
+					return err
 				}
 			default:
 				return nil
@@ -1066,6 +1104,14 @@ func (session *connectionSession) run() error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-policyActivity:
+			if err := refreshAndRetryPolicy(); err != nil {
+				return err
+			}
+		case <-factActivity:
+			if err := refreshAndRetryPolicy(); err != nil {
+				return err
+			}
 		case err := <-receiveErr:
 			if errors.Is(err, io.EOF) {
 				return nil
@@ -1075,13 +1121,8 @@ func (session *connectionSession) run() error {
 			if err := sendOutbound(item); err != nil {
 				return err
 			}
-			if s.policyAccess != nil {
-				if err := admissions.retry(); err != nil {
-					return err
-				}
-				if err := publications.retry(); err != nil {
-					return err
-				}
+			if err := retryPolicy(); err != nil {
+				return err
 			}
 		case message, ok := <-messages:
 			if !ok {
@@ -1159,15 +1200,20 @@ func handleQueryEvent(
 			}
 		}
 		for _, state := range projections {
-			if state.projection.OwnsSubscription(failure.SubscriptionID) {
-				return closeProjection(state, failure.Cause)
+			if _, _, err := state.projection.ApplyEvent(event); err != nil {
+				return closeProjection(state, err)
 			}
 		}
 		for _, state := range pending {
-			if state.owns != nil && state.owns(failure.SubscriptionID) {
-				if state.projection != nil {
-					state.projection.Close()
+			if state.projection != nil {
+				if _, _, err := state.projection.ApplyEvent(event); err != nil {
+					state.cancel()
+					state.retry = true
+					return nil
 				}
+				continue
+			}
+			if state.owns != nil && state.owns(failure.SubscriptionID) {
 				state.cancel()
 				state.retry = true
 				return nil

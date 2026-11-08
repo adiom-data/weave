@@ -2,9 +2,42 @@ package projection
 
 import (
 	"reflect"
+	"sync"
 
 	"github.com/adiom-data/weave/internal/storage"
 )
+
+// memberBindings is private to one immutable parent image. Both selector
+// comparison and asynchronous expansion use exactly the same bound queries.
+type memberBindings struct {
+	once    sync.Once
+	queries map[*ProjectionNode]storage.QuerySpec
+	err     error
+}
+
+func (p *Projection) childBindings(node *ProjectionNode, member *projectionMember) (map[*ProjectionNode]storage.QuerySpec, error) {
+	if len(node.Children) == 0 {
+		return nil, nil
+	}
+	p.mu.Lock()
+	if member.bindings == nil {
+		member.bindings = &memberBindings{}
+	}
+	bindings := member.bindings
+	p.mu.Unlock()
+	bindings.once.Do(func() {
+		bindings.queries = make(map[*ProjectionNode]storage.QuerySpec, len(node.Children))
+		for _, child := range node.Children {
+			query, err := child.BuildQuery(member.record)
+			if err != nil {
+				bindings.err = err
+				return
+			}
+			bindings.queries[child] = query
+		}
+	})
+	return bindings.queries, bindings.err
+}
 
 // reconcileChildren separates immutable row images from expansion lifetimes.
 // Unchanged selectors retain subscriptions (including their current windows).
@@ -31,16 +64,16 @@ func (p *Projection) reconcileChildren(parent *projectionInstance, previous, nex
 	unchanged := make(map[*ProjectionNode]bool)
 	all := !previous.pending && !next.pending
 	if all {
+		before, err := p.childBindings(parent.node, previous)
+		if err != nil {
+			return nil, false, err
+		}
+		after, err := p.childBindings(parent.node, next)
+		if err != nil {
+			return nil, false, err
+		}
 		for _, child := range parent.node.Children {
-			before, err := child.BuildQuery(storage.CloneRecord(previous.record))
-			if err != nil {
-				return nil, false, err
-			}
-			after, err := child.BuildQuery(storage.CloneRecord(next.record))
-			if err != nil {
-				return nil, false, err
-			}
-			unchanged[child] = reflect.DeepEqual(before, after)
+			unchanged[child] = reflect.DeepEqual(before[child], after[child])
 			all = all && unchanged[child]
 		}
 	}

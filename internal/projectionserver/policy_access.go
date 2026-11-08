@@ -31,52 +31,44 @@ func (s *server) prepareAccess(ctx context.Context, feed q.Feed, id accesscontro
 	return s, prepared, err
 }
 
-func (p *policyAccess) watch(ctx context.Context) error {
-	requested, awaiting := false, false
+// runProgress is the only worker that can block on requesting a source report.
+// Fact/policy wakeups are consumed directly by the publication owner instead.
+func (p *policyAccess) runProgress(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-p.session.FactChanges():
-			p.session.Refresh()
-			requested = true
-		case <-p.session.PolicyChanges():
-			p.session.Refresh()
-			requested = true
-		case <-p.progress:
-			requested = true
-		case <-p.progressConsumed:
-			awaiting = false
-		}
-		if !requested || awaiting {
-			continue
-		}
-		// RequestProgress queues a report; returning does not mean the
-		// connection has consumed it. Coalesce further wakeups until that
-		// ordered report reaches the consumer, retaining a follow-up request
-		// for facts installed after the first request captured progress.
-		requested, awaiting = false, true
-		if err := p.session.RequestProgress(ctx); err != nil {
-			return err
+		case <-p.progress.wake:
+			if p.progress.take() {
+				if err := p.session.RequestProgress(ctx); err != nil {
+					return err
+				}
+			}
 		}
 	}
 }
 
 func (p *policyAccess) observe(event q.Event) ([]authorization.Occurrence, error) {
 	affected, err := p.session.Observe(event)
-	if err == nil && event.Progress != nil {
-		select {
-		case p.progressConsumed <- struct{}{}:
-		default:
+	if err == nil {
+		if event.Progress != nil {
+			p.progress.observe(event.Progress.Position, event.Progress.Revision)
+		} else if event.Delivery != nil && event.Delivery.Delivery.Kind == q.DeliveryCommit {
+			p.progress.observe(event.Delivery.Delivery.Checkpoint, event.Delivery.Delivery.Revision)
 		}
 	}
 	return affected, err
 }
-func (p *policyAccess) requestProgress() {
-	select {
-	case p.progress <- struct{}{}:
-	default:
-	}
+
+// refresh runs only on the serialized publication consumer. Local evidence
+// changes wake evaluation independently of source progress and never advance it.
+func (p *policyAccess) refresh() {
+	p.session.Refresh()
+	p.progress.require(p.session.ProgressTargets()...)
+}
+
+func (p *policyAccess) requestProgress(targets ...*q.Position) {
+	p.progress.require(targets...)
 }
 
 // policyAccess is a connection-owned adapter for the existing publication
@@ -84,12 +76,11 @@ func (p *policyAccess) requestProgress() {
 // an unresolved decision withholds output and keeps its dependency ownership.
 // No historical datastore read is fabricated to satisfy an older snapshot.
 type policyAccess struct {
-	mu               sync.Mutex
-	session          *authorization.Session
-	id               accesscontrol.PreparedID
-	prepared         bool
-	progress         chan struct{}
-	progressConsumed chan struct{}
+	mu       sync.Mutex
+	session  *authorization.Session
+	id       accesscontrol.PreparedID
+	prepared bool
+	progress *policyProgress
 }
 
 func newPolicyAccess(ctx context.Context, feed q.Feed, evaluator *policy.Evaluator, claims accesscontrol.Claims, options authorization.Options) (*policyAccess, error) {
@@ -97,7 +88,7 @@ func newPolicyAccess(ctx context.Context, feed q.Feed, evaluator *policy.Evaluat
 	if err != nil {
 		return nil, err
 	}
-	return &policyAccess{session: session, progress: make(chan struct{}, 1), progressConsumed: make(chan struct{}, 1)}, nil
+	return &policyAccess{session: session, progress: newPolicyProgress()}, nil
 }
 func (p *policyAccess) Prepare(_ context.Context, request accesscontrol.PrepareRequest) (accesscontrol.Prepared, error) {
 	p.mu.Lock()

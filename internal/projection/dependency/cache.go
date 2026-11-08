@@ -60,6 +60,7 @@ type generation struct {
 	revision    uint64
 	checkpoint  *q.Position
 	positions   sourceposition.Tracker
+	progress    sharedProgress
 }
 
 type entry struct {
@@ -150,6 +151,13 @@ func (c *Cache) open(ctx context.Context, options q.FeedOptions, facts bool) (q.
 		return nil, q.ErrClosed
 	}
 	f := newConsumer(g, options.BufferLimit, facts)
+	// Join at the already-consumed cut before dispatch can offer a later frame.
+	// This is source proof, not a checkpoint inferred from a snapshot.
+	if g.checkpoint != nil {
+		if err := f.events.Offer(q.Event{Progress: &q.Progress{Position: copyPosition(g.checkpoint), Revision: g.revision}}); err != nil {
+			return nil, err
+		}
+	}
 	g.feeds[f] = struct{}{}
 	// Context cancellation must release dependencies even when Next isn't
 	// called (for example a browser that has already disconnected).
@@ -325,6 +333,7 @@ func (g *generation) retireLocked(e *entry) {
 
 func (g *generation) load(e *entry, ctx context.Context) {
 	defer g.workers.Done()
+	var checkpoint *q.Position
 	install := func(native q.Subscription, snapshot q.QuerySnapshot) error {
 		g.owner.mu.Lock()
 		defer g.owner.mu.Unlock()
@@ -332,6 +341,7 @@ func (g *generation) load(e *entry, ctx context.Context) {
 			return q.ErrClosed
 		}
 		e.native = native
+		checkpoint = copyPosition(snapshot.Checkpoint)
 		return g.install(e, snapshot)
 	}
 	var err error
@@ -350,6 +360,9 @@ func (g *generation) load(e *entry, ctx context.Context) {
 	defer g.owner.mu.Unlock()
 	if err == nil && e.native == nil {
 		err = errors.New("query client did not install a dependency snapshot")
+	}
+	if err == nil {
+		err = g.progress.complete(checkpoint)
 	}
 	if !e.finished {
 		e.finished = true
@@ -426,6 +439,13 @@ func (g *generation) dispatch(event q.Event) error {
 	if g.revision != 0 && envelope.Delivery.PreviousRevision != g.revision {
 		return errors.New("dependency upstream delivery has a revision gap")
 	}
+	// Hydration and window deliveries can carry newer read checkpoints without
+	// advancing source proof. Include those completed reads in report demand.
+	if envelope.Delivery.Kind != q.DeliveryCommit {
+		if err := g.progress.complete(envelope.Delivery.Checkpoint); err != nil {
+			return err
+		}
+	}
 	g.revision = envelope.Delivery.Revision
 	if envelope.Delivery.Kind == q.DeliveryCommit {
 		if err := g.positions.Observe(envelope.Delivery.Checkpoint); err != nil {
@@ -445,6 +465,11 @@ func (g *generation) dispatch(event q.Event) error {
 		if err := g.apply(e, envelope.Delivery, effect.Batch); err != nil {
 			g.failEntryLocked(e, fmt.Errorf("materialize dependency: %w", err))
 			continue
+		}
+		if effect.Batch.Window != nil {
+			if err := g.progress.complete(effect.Batch.Window.Checkpoint); err != nil {
+				return err
+			}
 		}
 		for watcher := range e.watchers {
 			value := byFeed[watcher.feed]

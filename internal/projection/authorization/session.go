@@ -62,6 +62,7 @@ func (s *Session) OpenView(at *q.Position) (*View, error)    { return s.facts.Op
 func (s *Session) FactChanges() <-chan struct{}              { return s.facts.Changed() }
 func (s *Session) PolicyChanges() <-chan struct{}            { return s.policyWatch.Changed() }
 func (s *Session) RequestProgress(ctx context.Context) error { return s.facts.RequestProgress(ctx) }
+func (s *Session) ProgressTargets() []*q.Position            { return s.facts.ProgressTargets() }
 
 // Observe runs in the projection's ordered consumer before the corresponding
 // public effects. It does not read ahead, acknowledge CDC, or block on loads.

@@ -68,19 +68,21 @@ type Facts struct {
 }
 
 type factEntry struct {
-	id, key   string
-	query     storage.QuerySpec
-	refs      int
-	ctx       context.Context
-	cancel    context.CancelFunc
-	handle    q.QuerySubscription
-	installed bool
-	err       error
-	baseline  *q.Position
-	revision  uint64
-	rows      map[storage.EntityKey]q.Row
-	order     []storage.EntityKey
-	job       *list.Element
+	id, key    string
+	query      storage.QuerySpec
+	refs       int
+	ctx        context.Context
+	cancel     context.CancelFunc
+	handle     q.QuerySubscription
+	installed  bool
+	completed  bool
+	err        error
+	baseline   *q.Position
+	checkpoint *q.Position
+	revision   uint64
+	rows       map[storage.EntityKey]q.Row
+	order      []storage.EntityKey
+	job        *list.Element
 }
 
 type Lease struct {
@@ -127,6 +129,28 @@ func NewObservedFacts(ctx context.Context, feed q.Feed, options Options) (*Facts
 // from its query feeds, but must not fabricate an ordered transaction from it.
 func (f *Facts) Changed() <-chan struct{}                  { return f.wake }
 func (f *Facts) RequestProgress(ctx context.Context) error { return f.feed.RequestProgress(ctx) }
+
+// ProgressTargets contains report checkpoints for uncovered completed loads.
+// Installation callbacks precede SubscribeQuery completion, so they cannot by
+// themselves justify the feed's completed-snapshot progress guarantee.
+func (f *Facts) ProgressTargets() []*q.Position {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var target *q.Position // One fact feed has one source.
+	for _, e := range f.awaiting {
+		report := e.checkpoint
+		if report == nil {
+			report = e.baseline
+		}
+		if e.completed && e.err == nil && (target == nil || target.Value < report.Value) {
+			target = report
+		}
+	}
+	if target == nil {
+		return nil
+	}
+	return []*q.Position{copyPosition(target)}
+}
 func (f *Facts) notify() {
 	select {
 	case f.wake <- struct{}{}:
@@ -330,6 +354,7 @@ func (f *Facts) loadWorker() {
 				}
 				e.handle = handle
 				e.baseline = copyPosition(baseline)
+				e.checkpoint = copyPosition(snapshot.Checkpoint)
 				e.revision = snapshot.Revision
 				e.rows = rows
 				e.order = order
@@ -343,6 +368,7 @@ func (f *Facts) loadWorker() {
 			if err == nil && !e.installed {
 				err = errors.New("query feed completed without installing an authorization fact snapshot")
 			}
+			e.completed = err == nil && e.installed
 			var closeHandle q.QuerySubscription
 			if err != nil || e.err != nil || f.closed || e.refs == 0 {
 				if err != nil {

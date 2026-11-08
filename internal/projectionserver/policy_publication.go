@@ -161,7 +161,7 @@ func (p *policyPublications) retry() error {
 			continue
 		}
 		if baseline := s.visibility.checkpoint; baseline != nil && (baseline.SourceID != p.position.SourceID || baseline.Value > p.position.Value) {
-			p.service.policyAccess.requestProgress()
+			p.service.policyAccess.requestProgress(baseline)
 			continue
 		}
 		view, err := acquireVisibilityAt(p.ctx, p.service.access, p.prepared, p.position, nil)
@@ -231,9 +231,7 @@ func (p *policyPublications) retry() error {
 			continue
 		}
 		if !wait.Accepted {
-			if wait.Progress {
-				p.service.policyAccess.requestProgress()
-			}
+			p.service.policyAccess.requestProgress(wait.Progress...)
 			p.wait(&s.publication, wait.Wait)
 			continue
 		}

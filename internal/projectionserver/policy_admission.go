@@ -44,7 +44,7 @@ func (a *policyAdmissions) post(ctx context.Context, run func() error, abandon f
 
 func (a *policyAdmissions) retry() error {
 	for id, loading := range a.pending {
-		if loading.admit == nil || !loading.retry {
+		if loading.admit == nil || !loading.loaded || !loading.retry {
 			continue
 		}
 		loading.retry = false
@@ -68,9 +68,7 @@ func (a *policyAdmissions) retry() error {
 		if wait.Accepted {
 			continue
 		}
-		if wait.Progress {
-			a.service.policyAccess.requestProgress()
-		}
+		a.service.policyAccess.requestProgress(wait.Progress...)
 		if wait.Wait != nil && loading.wait != wait.Wait {
 			loading.wait = wait.Wait
 			signal := wait.Wait
@@ -103,6 +101,10 @@ func (a *policyAdmissions) query(external, request, internal, queryID string, sp
 	go func() {
 		defer a.loaders.Done()
 		err := a.queries.SubscribeQuery(ctx, q.QuerySubscribeRequest{ID: internal, Query: spec, Window: window}, func(handle q.QuerySubscription, snapshot q.QuerySnapshot) error {
+			target, err := q.SnapshotPosition(snapshot.Checkpoint, snapshot.Fence)
+			if err != nil {
+				return err
+			}
 			image, err := newInitialQueryImage(internal, snapshot)
 			if err != nil {
 				return err
@@ -113,6 +115,8 @@ func (a *policyAdmissions) query(external, request, internal, queryID string, sp
 					return nil
 				}
 				loading.direct = image
+				position, revision := a.service.policyAccess.progress.position(target.SourceID)
+				image.observe(position, revision)
 				visibilityID = image.visibility.id
 				loading.cancel = func() {
 					cancel()
@@ -128,7 +132,11 @@ func (a *policyAdmissions) query(external, request, internal, queryID string, sp
 						return proj.AdmissionWait{}, err
 					}
 					if !covered {
-						return proj.AdmissionWait{Progress: true}, nil
+						target, err := q.SnapshotPosition(image.snapshot.Checkpoint, image.snapshot.Fence)
+						if image.snapshot.Checkpoint != nil {
+							target = image.snapshot.Checkpoint
+						}
+						return proj.AdmissionWait{Progress: []*q.Position{target}}, err
 					}
 					resolved, err := image.authorize(ctx, a.service.policyAccess.session, a.prepared)
 					if err != nil {
@@ -152,11 +160,21 @@ func (a *policyAdmissions) query(external, request, internal, queryID string, sp
 					state.sequence++
 					return proj.AdmissionWait{Accepted: true}, a.stream.Send(&reactivev1.ServerMessage{SubscriptionId: external, RequestId: request, Sequence: state.sequence, Event: &reactivev1.ServerMessage_Ready{Ready: &reactivev1.Ready{}}})
 				}
-				loading.retry = true
 				return nil
 			}, func() { _ = handle.Close(context.WithoutCancel(ctx)); cancel() })
 			return ctx.Err()
 		})
+		if err == nil {
+			// The installer may run before the feed's progress guarantee applies.
+			// Request coverage only after SubscribeQuery itself has completed.
+			a.post(ctx, func() error {
+				if a.pending[external] == loading {
+					loading.loaded = true
+					loading.retry = true
+				}
+				return nil
+			}, nil)
+		}
 		if err != nil {
 			a.post(a.ctx, func() error {
 				if a.pending[external] != loading {
@@ -177,7 +195,8 @@ func (a *policyAdmissions) projection(external, request, prefix string, root *pr
 	owns := func(id string) bool { return strings.HasPrefix(id, generation+":") }
 	loading := &pendingSharedSubscription{context: ctx, cancel: cancel, generation: generation, owns: owns, policyOwns: owns, requestID: request}
 	a.pending[external] = loading
-	p, err := proj.BeginProjection(ctx, a.queries, root, proj.StartOptions{Prefix: generation, QueueLimit: a.service.options.SubscriptionQueueLimit, Limits: proj.Limits(a.service.options.ProjectionLimits), ExpansionLimiter: a.service.expansionLimiter, WaitForSync: waitForSync, CurrentImageAdmission: true})
+	position, revision := a.service.policyAccess.progress.current()
+	p, err := proj.BeginProjection(ctx, a.queries, root, proj.StartOptions{Prefix: generation, QueueLimit: a.service.options.SubscriptionQueueLimit, Limits: proj.Limits(a.service.options.ProjectionLimits), ExpansionLimiter: a.service.expansionLimiter, WaitForSync: waitForSync, CurrentImageAdmission: true, ConsumedCheckpoint: position, ConsumedRevision: revision})
 	if err != nil {
 		delete(a.pending, external)
 		cancel()
@@ -204,6 +223,7 @@ func (a *policyAdmissions) projection(external, request, prefix string, root *pr
 				loading.cancel()
 				return sendSharedError(a.stream, external, request, "SUBSCRIBE_FAILED", err.Error())
 			}
+			loading.loaded = true
 			loading.admit = func() (proj.AdmissionWait, error) {
 				if err := ctx.Err(); err != nil {
 					return proj.AdmissionWait{}, err

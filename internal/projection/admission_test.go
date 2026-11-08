@@ -233,7 +233,7 @@ func TestAdmissionRequiresSourceProgressPastNewestSnapshotBound(t *testing.T) {
 			t.Fatal(err)
 		}
 		wait, err := p.TryAdmitInitial(accept)
-		if err != nil || wait.Accepted || !wait.Progress || called {
+		if err != nil || wait.Accepted || len(wait.Progress) == 0 || called {
 			t.Fatalf("local delivery bypassed freshness fence: %+v %v", wait, err)
 		}
 	}

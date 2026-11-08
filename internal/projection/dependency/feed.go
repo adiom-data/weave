@@ -29,17 +29,6 @@ func newConsumer(g *generation, limit int, facts bool) *consumer {
 }
 
 func (f *consumer) Next(ctx context.Context) (q.Event, error) { return f.events.Next(ctx) }
-func (f *consumer) RequestProgress(ctx context.Context) error {
-	c := f.generation.owner
-	c.mu.Lock()
-	if f.closed || f.generation.stopping {
-		c.mu.Unlock()
-		return q.ErrClosed
-	}
-	upstream := f.generation.upstream
-	c.mu.Unlock()
-	return upstream.RequestProgress(ctx)
-}
 func (f *consumer) Close(context.Context) error {
 	f.generation.owner.mu.Lock()
 	defer f.generation.owner.mu.Unlock()

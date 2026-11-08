@@ -23,7 +23,7 @@ func (s *server) policySnapshot(ctx context.Context, feed q.Feed, p *proj.Projec
 	go func() { defer workers.Done(); forwardQueryFeed(run, feed, outbound) }()
 	go func() {
 		defer workers.Done()
-		if err := s.policyAccess.watch(run); err != nil && run.Err() == nil {
+		if err := s.policyAccess.runProgress(run); err != nil && run.Err() == nil {
 			select {
 			case outbound <- queryEventMessage{err: err}:
 			case <-run.Done():
@@ -45,6 +45,12 @@ func (s *server) policySnapshot(ctx context.Context, feed q.Feed, p *proj.Projec
 		select {
 		case <-run.Done():
 			return nil, nil, run.Err()
+		case <-s.policyAccess.session.FactChanges():
+			s.policyAccess.refresh()
+			retry = true
+		case <-s.policyAccess.session.PolicyChanges():
+			s.policyAccess.refresh()
+			retry = true
 		case message := <-outbound:
 			switch item := message.(type) {
 			case queryEventMessage:
@@ -99,9 +105,7 @@ func (s *server) policySnapshot(ctx context.Context, feed q.Feed, p *proj.Projec
 			}
 			return filtered, positions, nil
 		}
-		if wait.Progress {
-			s.policyAccess.requestProgress()
-		}
+		s.policyAccess.requestProgress(wait.Progress...)
 		if wait.Wait != nil && waiting != wait.Wait {
 			waiting = wait.Wait
 			signal := wait.Wait

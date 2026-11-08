@@ -596,8 +596,9 @@ type Feed interface {
 	// advance the source. The reported position is at least the checkpoint of
 	// every snapshot whose subscription completed before this call began.
 	// Completion only means the request was accepted; consumers synchronize by
-	// continuing to call Next. If no progress is known, it succeeds without
-	// emitting an event. Consumers may request progress again later.
+	// continuing to call Next. Existing queued coverage may satisfy a redundant
+	// request without another event. If no progress is known, it also succeeds
+	// without emitting an event. Consumers may request progress again later.
 	RequestProgress(context.Context) error
 	// Next returns complete feed deliveries, entity installations, progress,
 	// and isolated subscription failures in feed order. It has one consumer.

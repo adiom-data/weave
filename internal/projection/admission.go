@@ -8,11 +8,11 @@ import (
 
 // AdmissionWait describes why an initial image cannot yet be published. Wait
 // is an activity notification, never a source-position proof. When Progress
-// is true the owner should ask its query feed to report existing progress.
+// is nonempty the owner should request coverage for those explicit targets.
 type AdmissionWait struct {
 	Accepted bool
 	Wait     <-chan struct{}
-	Progress bool
+	Progress []*q.Position
 }
 
 // TryAdmitInitial requires CurrentImageAdmission and the same serialized
@@ -78,7 +78,7 @@ func (p *Projection) tryCurrentImage(initial bool, accept func(string) (bool, er
 		return AdmissionWait{}, errors.New("projection requires current-image admission")
 	}
 	root := p.rootID
-	var needsProgress bool
+	var progress []*q.Position
 	for _, instance := range p.instances {
 		target, err := q.SnapshotPosition(instance.checkpoint, instance.fence)
 		if err != nil {
@@ -87,7 +87,13 @@ func (p *Projection) tryCurrentImage(initial bool, accept func(string) (bool, er
 		}
 		current := p.latestCheckpoints[target.Source()]
 		if current == nil || current.Order() < target.Order() {
-			needsProgress = true
+			// The completed checkpoint bounds what a report can promise. A
+			// newer fence remains a readiness requirement, not invented progress.
+			report := instance.checkpoint
+			if report == nil {
+				report = target // Best effort for fence-only query clients.
+			}
+			progress = append(progress, clonePosition(report))
 		}
 	}
 	changed := p.progressChanged
@@ -100,8 +106,8 @@ func (p *Projection) tryCurrentImage(initial bool, accept func(string) (bool, er
 	default:
 		return AdmissionWait{Wait: idle}, nil
 	}
-	if needsProgress {
-		return AdmissionWait{Wait: changed, Progress: true}, nil
+	if len(progress) > 0 {
+		return AdmissionWait{Wait: changed, Progress: progress}, nil
 	}
 	accepted, err := accept(root)
 	if err != nil || !accepted {
