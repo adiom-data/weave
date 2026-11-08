@@ -3,6 +3,7 @@ package policy
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"testing"
 
@@ -46,27 +47,34 @@ func (f resolveFunc) Resolve(ctx context.Context, r FactRequest) (FactResult, er
 	return f(ctx, r)
 }
 
-func TestLazyCELAllowDenyAndUnknown(t *testing.T) {
+func TestLazyCELRequirementsAllowsAndUnknown(t *testing.T) {
 	for _, test := range []struct {
-		name        string
-		allow, deny []Rule
-		result      FactResult
-		want        Decision
-		calls       int
+		name           string
+		allow, require []Rule
+		result         FactResult
+		want           Decision
+		calls          int
 	}{
 		{"local allow skips facts", []Rule{{"local", "true"}, {"remote", `facts.grant.exists(g, true)`}}, nil, FactResult{}, Decision{true, true}, 0},
-		{"no grant skips denies", nil, []Rule{{"deny", `facts.grant.exists(g, true)`}}, FactResult{}, Decision{false, true}, 0},
+		{"failed requirement skips allow facts", []Rule{{"remote", `facts.grant.exists(g, true)`}}, []Rule{{"required", "false"}}, FactResult{}, Decision{false, true}, 0},
+		{"failed requirement skips later requirements", []Rule{{"local", "true"}}, []Rule{{"first", "false"}, {"remote", `facts.grant.exists(g, true)`}}, FactResult{}, Decision{false, true}, 0},
+		{"requirements alone cannot grant", nil, []Rule{{"required", "true"}}, FactResult{}, Decision{false, true}, 0},
+		{"all requirements pass", []Rule{{"local", "true"}}, []Rule{{"first", "true"}, {"second", "true"}}, FactResult{}, Decision{true, true}, 0},
+		{"requirements are conjunctive", []Rule{{"local", "true"}}, []Rule{{"first", "true"}, {"second", "false"}}, FactResult{}, Decision{false, true}, 0},
 		{"unknown grant", []Rule{{"grant", `facts.grant.exists(g, true)`}}, nil, FactResult{}, Decision{}, 1},
 		{"known absent grant", []Rule{{"grant", `facts.grant.exists(g, true)`}}, nil, FactResult{Value: list(), Complete: true}, Decision{false, true}, 1},
 		{"known present grant", []Rule{{"grant", `facts.grant.exists(g, true)`}}, nil, FactResult{Value: list(object(storage.Record{})), Complete: true}, Decision{true, true}, 1},
-		{"unknown deny withholds", []Rule{{"local", "true"}}, []Rule{{"deny", `facts.grant.exists(g, true)`}}, FactResult{}, Decision{}, 1},
-		{"deny overrides allow", []Rule{{"local", "true"}}, []Rule{{"deny", `facts.grant.exists(g, true)`}}, FactResult{Value: list(object(storage.Record{})), Complete: true}, Decision{false, true}, 1},
-		{"memoize one fact", []Rule{{"grant", `facts.grant.exists(g, true)`}}, []Rule{{"deny", `facts.grant.exists(g, true)`}}, FactResult{Value: list(object(storage.Record{})), Complete: true}, Decision{false, true}, 1},
+		{"unknown requirement withholds", []Rule{{"local", "true"}}, []Rule{{"required", `facts.grant.exists(g, true)`}}, FactResult{}, Decision{}, 1},
+		{"known failed requirement overrides allow", []Rule{{"local", "true"}}, []Rule{{"required", `facts.grant.exists(g, true)`}}, FactResult{Value: list(), Complete: true}, Decision{false, true}, 1},
+		{"known satisfied requirement permits allow", []Rule{{"local", "true"}}, []Rule{{"required", `facts.grant.exists(g, true)`}}, FactResult{Value: list(object(storage.Record{})), Complete: true}, Decision{true, true}, 1},
+		{"failure after unknown resolves rejection", []Rule{{"local", "true"}}, []Rule{{"remote", `facts.grant.exists(g, true)`}, {"required", "false"}}, FactResult{}, Decision{false, true}, 1},
+		{"no grant resolves rejection despite unknown requirement", nil, []Rule{{"required", `facts.grant.exists(g, true)`}}, FactResult{}, Decision{false, true}, 1},
+		{"memoize requirement and allow fact", []Rule{{"grant", `facts.grant.exists(g, true)`}}, []Rule{{"required", `facts.grant.exists(g, true)`}}, FactResult{Value: list(object(storage.Record{})), Complete: true}, Decision{true, true}, 1},
 		{"CEL skips unused branch", []Rule{{"grant", `false && facts.grant.exists(g, true)`}}, nil, FactResult{}, Decision{false, true}, 0},
 		{"unknown negation cannot grant", []Rule{{"grant", `!facts.grant.exists(g, true)`}}, nil, FactResult{}, Decision{}, 1},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			e := compile(t, Map{projects: {Facts: []Fact{grantFact()}, Allow: test.allow, Deny: test.deny}})
+			e := compile(t, Map{projects: {Facts: []Fact{grantFact()}, Require: test.require, Allow: test.allow}})
 			calls := 0
 			got, err := e.Evaluate(context.Background(), Input{Candidate: candidate(projects, "p1", storage.Record{"id": text("p1")})}, resolveFunc(func(_ context.Context, r FactRequest) (FactResult, error) {
 				calls++
@@ -82,11 +90,113 @@ func TestLazyCELAllowDenyAndUnknown(t *testing.T) {
 	}
 }
 
+func TestPendingRequirementStillDiscoversAllowFacts(t *testing.T) {
+	explicit := grantFact()
+	explicit.ID = "required"
+	e := compile(t, Map{projects: {
+		Facts:   []Fact{explicit, grantFact()},
+		Require: []Rule{{"required", `facts.required.exists(g, true)`}},
+		Allow:   []Rule{{"grant", `facts.grant.exists(g, true)`}},
+	}})
+	var calls []string
+	got, err := e.Evaluate(t.Context(), Input{Candidate: candidate(projects, "p1", storage.Record{})}, resolveFunc(func(_ context.Context, r FactRequest) (FactResult, error) {
+		calls = append(calls, r.ID)
+		if r.ID == "required" {
+			return FactResult{}, nil
+		}
+		return FactResult{Value: list(object(storage.Record{})), Complete: true}, nil
+	}))
+	if err != nil || got != (Decision{}) || strings.Join(calls, ",") != "required,grant" {
+		t.Fatalf("pending requirement did not preserve ordered, concurrent discovery: %+v, %v, %v", got, err, calls)
+	}
+}
+
+func TestConditionalRequirementLazilyChecksPropagatedAccess(t *testing.T) {
+	explicit := grantFact()
+	explicit.ID = "explicit"
+	e := compile(t, Map{
+		projects: {Propagate: []Edge{{"task", tasks, `parent.id == item.project_id`}}},
+		tasks: {
+			Facts:   []Fact{explicit, grantFact()},
+			Require: []Rule{{"restricted", `item.restricted != true || facts.explicit.exists(g, true)`}},
+			Allow:   []Rule{{"direct", `facts.grant.exists(g, true)`}},
+		},
+	})
+	for _, test := range []struct {
+		name       string
+		restricted storage.Value
+		result     FactResult
+		want       Decision
+		calls      int
+	}{
+		{"unrestricted", storage.Value{Type: storage.TypeBool, State: storage.ValuePresent, Data: []byte("false")}, FactResult{}, Decision{true, true}, 0},
+		{"optional restricted absent", storage.Value{State: storage.ValueNull}, FactResult{}, Decision{true, true}, 0},
+		{"restricted pending", storage.Value{Type: storage.TypeBool, State: storage.ValuePresent, Data: []byte("true")}, FactResult{}, Decision{}, 1},
+		{"restricted without explicit grant", storage.Value{Type: storage.TypeBool, State: storage.ValuePresent, Data: []byte("true")}, FactResult{Value: list(), Complete: true}, Decision{false, true}, 1},
+		{"restricted with explicit grant", storage.Value{Type: storage.TypeBool, State: storage.ValuePresent, Data: []byte("true")}, FactResult{Value: list(object(storage.Record{})), Complete: true}, Decision{true, true}, 1},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			calls := 0
+			record := storage.Record{"project_id": text("p1")}
+			if test.restricted.State != storage.ValueNull {
+				record["restricted"] = test.restricted
+			}
+			got, err := e.Evaluate(t.Context(), Input{
+				Candidate: candidate(tasks, "t1", record),
+				Parent:    &ParentState{Candidate: candidate(projects, "p1", storage.Record{"id": text("p1")}), Visible: true},
+			}, resolveFunc(func(_ context.Context, r FactRequest) (FactResult, error) {
+				if r.ID != "explicit" {
+					t.Fatalf("propagated access evaluated individual allow: %s", r.ID)
+				}
+				calls++
+				return test.result, nil
+			}))
+			if err != nil || got != test.want || calls != test.calls {
+				t.Fatalf("got %+v, %v, calls=%d; want %+v calls=%d", got, err, calls, test.want, test.calls)
+			}
+		})
+	}
+}
+
+func TestRequirementsPrecedePropagation(t *testing.T) {
+	e := compile(t, Map{
+		projects: {Propagate: []Edge{{"task", tasks, `parent.id < 0`}}},
+		tasks:    {Require: []Rule{{"enabled", `item.enabled == true`}}},
+	})
+	input := Input{
+		Candidate: candidate(tasks, "t1", storage.Record{}),
+		Parent:    &ParentState{Candidate: candidate(projects, "p1", storage.Record{"id": text("p1")}), Visible: true},
+	}
+	got, err := e.Evaluate(t.Context(), input, nil)
+	if err != nil || got != (Decision{Resolved: true}) {
+		t.Fatalf("failed requirement evaluated propagation: %+v, %v", got, err)
+	}
+	input.Candidate.Record["enabled"] = storage.Value{Type: storage.TypeBool, State: storage.ValuePresent, Data: []byte("true")}
+	if _, err := e.Evaluate(t.Context(), input, nil); err == nil || !strings.Contains(err.Error(), "propagation task:") {
+		t.Fatalf("test propagation should fail once requirements pass: %v", err)
+	}
+}
+
+func TestRequirementErrorsRetainRuleIdentity(t *testing.T) {
+	e := compile(t, Map{projects: {
+		Facts:   []Fact{grantFact()},
+		Require: []Rule{{"explicit-access", `facts.grant.exists(g, true)`}},
+		Allow:   []Rule{{"local", "true"}},
+	}})
+	failure := errors.New("fact unavailable")
+	got, err := e.Evaluate(t.Context(), Input{Candidate: candidate(projects, "p1", storage.Record{})}, resolveFunc(func(context.Context, FactRequest) (FactResult, error) {
+		return FactResult{}, failure
+	}))
+	if !errors.Is(err, failure) || !strings.Contains(err.Error(), "require explicit-access:") || got.Visible {
+		t.Fatalf("requirement failure lost identity or became authorization: %+v, %v", got, err)
+	}
+}
+
 func TestCELPropagationRequiresDeclaringRelationAndImmediateLink(t *testing.T) {
 	definitions := Map{
 		projects: {Allow: []Rule{{"root", "true"}}, Propagate: []Edge{{"links", links, `parent.id == item.project_id`}}},
 		links:    {Receive: []EdgeReference{{From: projects, ID: "links"}}, Propagate: []Edge{{"task", tasks, `parent.task_id == item.id`}}},
-		tasks:    {Receive: []EdgeReference{{From: links, ID: "task"}}, Deny: []Rule{{"blocked", `item.blocked == "yes"`}}},
+		tasks:    {Receive: []EdgeReference{{From: links, ID: "task"}}, Require: []Rule{{"not-blocked", `item.blocked != "yes"`}}},
 	}
 	e := compile(t, definitions)
 	project := candidate(projects, "p1", storage.Record{"id": text("p1")})
@@ -120,7 +230,10 @@ func TestCELPropagationRequiresDeclaringRelationAndImmediateLink(t *testing.T) {
 }
 
 func TestCELMissingOptionalFieldsPendingRowsAndStrictScalarTypes(t *testing.T) {
-	e := compile(t, Map{projects: {Allow: []Rule{{"visible", `item.deleted_at == null && item.organization_id == claims.organization_id`}}}})
+	e := compile(t, Map{projects: {
+		Require: []Rule{{"active", `item.deleted_at == null`}},
+		Allow:   []Rule{{"visible", `item.organization_id == claims.organization_id`}},
+	}})
 	input := Input{Candidate: candidate(projects, "p1", storage.Record{"organization_id": text("org")}), Claims: accesscontrol.Claims{"organization_id": text("org")}}
 	got, err := e.Evaluate(context.Background(), input, nil)
 	if err != nil || !got.Visible {
@@ -149,7 +262,8 @@ func TestCELCompileRejectsInvalidDefinitions(t *testing.T) {
 		"fact presence":       {projects: {Facts: []Fact{grantFact()}, Allow: []Rule{{"x", `has(facts.grant)`}}}},
 		"parent outside edge": {projects: {Allow: []Rule{{"x", `parent.id == item.id`}}}},
 		"non boolean":         {projects: {Allow: []Rule{{"x", `item.id`}}}},
-		"duplicate rule":      {projects: {Allow: []Rule{{"x", "true"}}, Deny: []Rule{{"x", "false"}}}},
+		"duplicate rule":      {projects: {Allow: []Rule{{"x", "true"}}, Require: []Rule{{"x", "false"}}}},
+		"invalid requirement": {projects: {Require: []Rule{{"x", "42"}}}},
 		"duplicate fact":      {projects: {Facts: []Fact{grantFact(), grantFact()}}},
 		"unknown target":      {projects: {Propagate: []Edge{{"edge", tasks, "true"}}}},
 		"unknown receiver":    {projects: {Receive: []EdgeReference{{From: tasks, ID: "missing"}}}},
@@ -167,9 +281,11 @@ func TestCELCompileRejectsInvalidDefinitions(t *testing.T) {
 
 func TestCELPolicyCopiesAndConcurrentEvaluation(t *testing.T) {
 	rules := []Rule{{"local", `item.enabled == "yes"`}}
-	definitions := Map{projects: {Allow: rules}}
+	requirements := []Rule{{"active", `item.deleted_at == null`}}
+	definitions := Map{projects: {Require: requirements, Allow: rules}}
 	e := compile(t, definitions)
 	rules[0].When = "false"
+	requirements[0].When = "false"
 	delete(definitions, projects)
 	input := Input{Candidate: candidate(projects, "p1", storage.Record{"enabled": text("yes")})}
 	var wg sync.WaitGroup

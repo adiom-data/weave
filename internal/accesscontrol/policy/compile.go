@@ -48,9 +48,9 @@ type compiledEdge struct {
 	program compiledExpression
 }
 type compiledRelation struct {
-	definition  Relation
-	allow, deny []compiledRule
-	propagate   []compiledEdge
+	definition     Relation
+	require, allow []compiledRule
+	propagate      []compiledEdge
 }
 
 func Compile(definitions Map, limits Limits) (*Evaluator, error) {
@@ -92,7 +92,11 @@ func compileRelation(key storage.RelationName, definition Relation, limits Limit
 	if key.Name == "" {
 		return nil, errors.New("policy relation name is required")
 	}
-	copy := Relation{Propagate: append([]Edge(nil), definition.Propagate...), Allow: append([]Rule(nil), definition.Allow...), Deny: append([]Rule(nil), definition.Deny...)}
+	copy := Relation{
+		Propagate: append([]Edge(nil), definition.Propagate...),
+		Require:   append([]Rule(nil), definition.Require...),
+		Allow:     append([]Rule(nil), definition.Allow...),
+	}
 	if definition.Receive != nil {
 		copy.Receive = append([]EdgeReference{}, definition.Receive...)
 	}
@@ -125,7 +129,7 @@ func compileRelation(key storage.RelationName, definition Relation, limits Limit
 	for _, group := range []struct {
 		rules  []Rule
 		target *[]compiledRule
-	}{{copy.Allow, &out.allow}, {copy.Deny, &out.deny}} {
+	}{{copy.Require, &out.require}, {copy.Allow, &out.allow}} {
 		for _, rule := range group.rules {
 			if rule.ID == "" || seen[rule.ID] {
 				return nil, fmt.Errorf("invalid or duplicate rule %q", rule.ID)

@@ -1,11 +1,12 @@
 package policyfile
 
 import (
-	"github.com/adiom-data/weave/pkg/accesscontrol/policy"
-	"github.com/adiom-data/weave/pkg/storage"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/adiom-data/weave/pkg/accesscontrol/policy"
+	"github.com/adiom-data/weave/pkg/storage"
 )
 
 func writeTestFile(t *testing.T, name, contents string) string {
@@ -22,6 +23,9 @@ relations:
   - schema: app
     table: projects
     receive: []
+    require:
+      - id: active
+        when: item.deleted_at == null
     allow:
       - id: organization
         when: item.organization_id == claims.organization_id
@@ -63,6 +67,9 @@ relations:
 	if s.Policy.Receive == nil || len(s.Policy.Receive) != 0 || len(s.Policy.Facts) != 1 || len(s.Policy.Propagate) != 1 {
 		t.Fatalf("lost policy structure: %+v", s.Policy)
 	}
+	if len(s.Policy.Require) != 1 || s.Policy.Require[0] != (policy.Rule{ID: "active", When: "item.deleted_at == null"}) {
+		t.Fatalf("lost requirement: %+v", s.Policy.Require)
+	}
 	if s.Policy.Facts[0].Projection.Bindings[0].Parameter != storage.MustFieldPath("item", "id") {
 		t.Fatal("lost parameter path")
 	}
@@ -80,6 +87,8 @@ func TestRejectBrokenPolicies(t *testing.T) {
 		"relations: [{schema: app, table: projects, allow: [{id: broken, when: 'item.('}]}]",
 		"relations: [{schema: app, table: projects}, {schema: app, table: projects}]",
 		"relations: [{schema: app, table: projects, typo: true}]",
+		"relations: [{schema: app, table: projects, deny: [{id: removed, when: 'true'}]}]",
+		"relations: [{schema: app, table: projects, require: [{id: broken, when: '42'}]}]",
 		"relations: [{schema: app, table: projects, facts: [{id: f, projection: {name: f, kind: list, relation: {schema: app, table: grants}, bindings: [{field: [id], operator: eq, parent: [id], parameter: [item, id]}]}}]}]",
 	} {
 		if _, err := Load(writeTestFile(t, "bad.yaml", raw), policy.DefaultLimits()); err == nil {

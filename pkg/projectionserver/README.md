@@ -110,7 +110,9 @@ fixed Go declarations (`Definitions`) or an application-owned `Provider` from
 `pkg/accesscontrol/policy`, plus compilation/evaluation bounds and fact
 query/row/load-concurrency limits. Rules are CEL strings; facts are private
 parameterized projection plans with ordinary query leaves. Incoming and outgoing propagation
-edges are explicit; direct allow checks discover facts lazily, and denies win.
+edges are explicit. All `Require` rules must pass before access is granted;
+a failed requirement skips propagation and direct allow checks. Propagation
+skips individual `Allow` rules, and fact discovery stays lazy within expressions.
 The library manages fact subscriptions, sharing, pruning, and invalidation.
 Fact selectors require complete coverage: `MaxFactRows + 1` must fit the query
 backend's window limit. Exceeding it fails the affected consumer, not CDC.

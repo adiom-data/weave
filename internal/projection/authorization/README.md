@@ -64,7 +64,7 @@ keep their original images. `ProjectionPath.Steps()` iterates root first without
 building a flat path; records exposed to policy implementations are read-only.
 The built-in evaluator uses a view-local authorization DAG. A missing parent is
 established top down once; each child then checks only its immediate edge and
-own allow/deny policy. Siblings reuse the same concrete parent's result, while
+own requirements and grants. Siblings reuse the same concrete parent's result, while
 diamond occurrences remain distinct. Denied or unresolved parents prune child
 policy execution. Decisions are never reused across subjects, independent
 views, or replacement leaf images supplied by explicit invalidation candidates.

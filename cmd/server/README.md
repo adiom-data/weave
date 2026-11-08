@@ -207,16 +207,25 @@ with environment-only configuration). Invalid files fail startup, never fall
 back to allow-all. Undefined relations deny visibility.
 
 [policy.example.yaml](policy.example.yaml) shows propagation, receiving edges,
-explicit deny, and lazy private fact projections. It is an application example,
-not an installed schema. The file translates to the existing Go policy model;
-CEL evaluation, lazy fact subscriptions, transaction synchronization, and deny
-semantics are identical to the library. No additional query evaluator is added.
+mandatory requirements, and lazy private fact projections. It is an application
+example, not an installed schema. The file translates to the existing Go policy
+model; CEL evaluation, lazy fact subscriptions, transaction synchronization, and
+requirement semantics are identical to the library. No additional query evaluator
+is added.
 
 Relation entries use separate `schema` and `table` fields. Rules have `id` and
 `when` (CEL). `propagate` entries also have `to`; `receive` entries name `from`
 and its edge `id`. Omitted/null `receive` accepts any configured incoming edge;
 `receive: []` accepts none. Propagation only follows matching projection edges,
 not unrelated objects elsewhere on a connection.
+
+Every `require` rule must pass; a false requirement stops evaluation before
+propagation and `allow` rules can expand facts. Requirements run in declaration
+order, so place cheap local checks first. Pending requirements withhold visibility
+while other evidence loads. With requirements satisfied, either propagation or
+any `allow` rule can grant access. Omitting `require` adds no constraints, but
+does not grant access by itself. The former `deny` key is no longer accepted;
+convert a deny condition `D` to a requirement `!(D)`.
 
 Facts have `id` and a `projection` with:
 

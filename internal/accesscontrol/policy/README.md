@@ -18,14 +18,36 @@ discovery, invalidation, and publication scheduling are library-owned.
 - Check explicitly configured, directional parent-to-child propagation edges.
 - Interpret a nil receive list as unrestricted, an empty non-nil list as none,
   and other lists as explicit incoming edge allowlists.
+- Evaluate mandatory requirements before propagation or direct allow rules.
+  All requirements must pass; a false requirement stops grant discovery.
 - Discover direct allow facts only when propagation has not granted access.
-- Apply explicit denies after a grant; an unresolved deny withholds visibility.
+- Withhold visibility while any requirement or the grant remains unresolved.
 - Return resolved/visible separately, rather than treating loading as denial.
 - Bind fact selectors to the existing canonical query/value representation.
 
 Rules are CEL boolean expressions over `item`, `claims`, and named `facts`.
 Propagation expressions additionally receive the immediate `parent`, but cannot
 discover facts. Incoming edges are scoped by declaring relation and edge ID.
+
+Visibility requires `ALL(Require) AND (propagated OR ANY(Allow))`. An empty
+requirement list adds no constraints, but never grants access on its own. Rules
+run in definition order and a false requirement skips the remaining requirements,
+propagation, and allow rules. An unknown requirement is not a failure: other
+requirements and grants can discover their evidence while it loads, but a grant
+cannot publish until every requirement passes. A definitive missing grant or
+failed requirement resolves rejection even when other evidence is pending.
+
+Requirements can short-circuit expensive fact discovery. For example:
+
+```cel
+item.restricted != true || facts.grants.exists(g, g.item.user_id == claims.user_id)
+```
+
+Unrestricted items do not load these facts. Restricted items must satisfy the
+explicit grant check even when they receive propagated access. This replaces
+negative deny rules: an old `Deny` condition `D` becomes a `Require` condition
+`!(D)`; there is no parallel deny-rule API.
+
 Missing optional fields are null-like; pending entity images are unknown.
 An ordinary record field/index read defaults to null when the field is absent.
 Structural equality and membership keep absent object keys distinct from

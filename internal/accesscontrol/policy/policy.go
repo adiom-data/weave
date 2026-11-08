@@ -36,9 +36,13 @@ type EdgeReference struct {
 type Relation struct {
 	Propagate []Edge
 	// nil accepts any configured incoming edge; non-nil empty accepts none.
-	Receive     []EdgeReference
-	Facts       []Fact
-	Allow, Deny []Rule
+	Receive []EdgeReference
+	Facts   []Fact
+	// Require rules are mandatory constraints, evaluated before any grants.
+	// All must pass; an empty list adds no constraints and does not grant access.
+	Require []Rule
+	// Allow rules are alternative grants, skipped when propagation grants access.
+	Allow []Rule
 }
 type Map map[storage.RelationName]Relation
 
@@ -146,6 +150,19 @@ func (p *Evaluation) Evaluate(ctx context.Context, input Input, resolver Resolve
 	}
 	remaining := p.owner.maxSteps
 	s := evaluation{ctx: ctx, input: input, resolver: resolver, policy: definition, remaining: &remaining, facts: map[string]factValue{}}
+	requirementsPending := false
+	for _, rule := range definition.require {
+		value, err := s.eval(rule.program)
+		if err != nil {
+			return Decision{}, fmt.Errorf("require %s: %w", rule.id, err)
+		}
+		if value == no {
+			return Decision{Resolved: true}, nil
+		}
+		// Unknown is not failure. Discover other evidence while this requirement
+		// loads, but never publish a grant until all requirements are satisfied.
+		requirementsPending = requirementsPending || value == unknown
+	}
 	grant := no
 	if input.Parent != nil && input.Parent.Visible && input.Parent.Candidate.Key.Relation.Source == input.Candidate.Key.Relation.Source {
 		parentKey := relationName(input.Parent.Candidate.Key.Relation)
@@ -184,18 +201,7 @@ func (p *Evaluation) Evaluate(ctx context.Context, input Input, resolver Resolve
 	if grant == no {
 		return Decision{Resolved: true}, nil
 	}
-	deny := no
-	for _, rule := range definition.deny {
-		value, err := s.eval(rule.program)
-		if err != nil {
-			return Decision{}, fmt.Errorf("deny %s: %w", rule.id, err)
-		}
-		deny = or(deny, value)
-		if deny == yes {
-			return Decision{Resolved: true}, nil
-		}
-	}
-	if grant == unknown || deny == unknown {
+	if grant == unknown || requirementsPending {
 		return Decision{}, nil
 	}
 	return Decision{Visible: true, Resolved: true}, nil

@@ -22,7 +22,7 @@ func TestAuthorizationGraphSharesOnlyConcreteParentsInOneView(t *testing.T) {
 	projects := storage.RelationName{Namespace: "demo", Name: "projects"}
 	evaluator, err := policy.Compile(policy.Map{
 		projects: {Allow: []policy.Rule{{ID: "owner", When: `item.owner == claims.user_id`}}, Propagate: []policy.Edge{{ID: "task", To: tasks, When: `parent.id == item.project_id`}}},
-		tasks:    {Deny: []policy.Rule{{ID: "blocked", When: `item.blocked == "yes"`}}},
+		tasks:    {Require: []policy.Rule{{ID: "not-blocked", When: `item.blocked != "yes"`}}},
 	}, policy.DefaultLimits())
 	if err != nil {
 		t.Fatal(err)
@@ -171,5 +171,70 @@ func TestAuthorizationGraphRetainsInheritedFactsAndRevokesDescendants(t *testing
 	}
 	if feed.closed.Load() != 1 {
 		t.Fatal("last graph/occurrence owner did not release selector")
+	}
+}
+
+func TestRestrictedPropagationRetainsPrunesAndRestoresRequiredFacts(t *testing.T) {
+	ctx := t.Context()
+	facts, feed := newFacts(t, Options{MaxQueries: 10, MaxRows: 10, LoadConcurrency: 1})
+	s := scope(t, facts)
+	projects := storage.RelationName{Namespace: "demo", Name: "projects"}
+	evaluator, err := policy.Compile(policy.Map{
+		projects: {Allow: []policy.Rule{{ID: "root", When: "true"}}, Propagate: []policy.Edge{{ID: "task", To: tasks, When: `parent.id == item.project_id`}}},
+		tasks: {
+			Facts:   []policy.Fact{{ID: "grant", Projection: &plan.Node{Name: "grants", Query: storage.QuerySpec{Relation: relation}}}},
+			Require: []policy.Rule{{ID: "restricted", When: `item.restricted != true || facts.grant.exists(g, true)`}},
+		},
+	}, policy.DefaultLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := accesscontrol.NewProjectionPath(nil, accesscontrol.ProjectionStep{Node: "project", Key: storage.EntityKey{Relation: storage.RelationKey{Source: "db", Namespace: "demo", Name: "projects"}, Value: "p1"}, Record: storage.Record{"id": value("p1")}, Complete: true})
+	check := func(restricted bool, position uint64, want policy.Decision) {
+		t.Helper()
+		v := "false"
+		if restricted {
+			v = "true"
+		}
+		candidate := input("u1").Candidate
+		candidate.Record["restricted"] = storage.Value{Type: storage.TypeBool, State: storage.ValuePresent, Data: []byte(v)}
+		candidate.Context.Projection = accesscontrol.NewProjectionPath(root, accesscontrol.ProjectionStep{Node: "task", Key: candidate.Key, Record: candidate.Record, Complete: true})
+		view, err := facts.OpenView(at(position))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer view.Close()
+		got, err := s.EvaluatePath(ctx, evaluator, input("u1").Claims, candidate, view)
+		if err != nil || got != want {
+			t.Fatalf("restricted=%t at %d: got %+v, %v; want %+v", restricted, position, got, err, want)
+		}
+	}
+	check(false, 10, policy.Decision{Visible: true, Resolved: true})
+	if len(s.DependencyIDs()) != 0 {
+		t.Fatal("unrestricted propagation expanded private facts")
+	}
+	check(true, 10, policy.Decision{})
+	i := receive(t, feed)
+	grant := row("g1", "grant")
+	install(t, feed, i, snapshot(10, 1, grant))
+	consume(t, facts, feed, progress(10, 1, 0))
+	check(true, 10, policy.Decision{Visible: true, Resolved: true})
+	consume(t, facts, feed, commit(11, 2, 1, q.SubscriptionEffect{SubscriptionID: i.request.ID, Batch: q.Batch{
+		Changes:    []q.Change{{Kind: q.Removed, Row: q.Row{Key: grant.Key}}},
+		Membership: q.MembershipDelta{Removed: []storage.EntityKey{grant.Key}},
+	}}))
+	check(true, 11, policy.Decision{Resolved: true})
+	consume(t, facts, feed, commit(12, 3, 2, q.SubscriptionEffect{SubscriptionID: i.request.ID, Batch: q.Batch{
+		Changes:    []q.Change{{Kind: q.Added, Row: grant}},
+		Membership: q.MembershipDelta{Insertions: []q.Insertion{{Key: grant.Key, FinalIndex: 0}}},
+	}}))
+	check(true, 12, policy.Decision{Visible: true, Resolved: true})
+	check(false, 12, policy.Decision{Visible: true, Resolved: true})
+	if len(s.DependencyIDs()) != 0 || feed.closed.Load() != 1 {
+		t.Fatal("unrestricted item retained obsolete explicit-grant facts")
+	}
+	check(true, 12, policy.Decision{})
+	if next := receive(t, feed); next.request.ID == i.request.ID {
+		t.Fatal("restricted item reused a closed fact subscription")
 	}
 }

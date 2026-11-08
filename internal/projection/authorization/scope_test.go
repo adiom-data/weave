@@ -163,6 +163,50 @@ func TestScopesShareFactsButPruneTheirOwnDependencies(t *testing.T) {
 	}
 }
 
+func TestFailedRequirementSkipsPrunesAndRestoresAllowFacts(t *testing.T) {
+	f, feed := newFacts(t, Options{10, 10, 1})
+	s := scope(t, f)
+	e, err := policy.Compile(policy.Map{tasks: {
+		Require: []policy.Rule{{ID: "enabled", When: `item.enabled == "yes"`}},
+		Facts:   []policy.Fact{{ID: "grant", Projection: &plan.Node{Name: "grants", Query: storage.QuerySpec{Relation: relation}}}},
+		Allow:   []policy.Rule{{ID: "grant", When: `facts.grant.exists(g, true)`}},
+	}}, policy.DefaultLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := input("u1")
+	check := func(enabled bool, want policy.Decision) {
+		t.Helper()
+		in.Candidate.Record["enabled"] = value(map[bool]string{true: "yes", false: "no"}[enabled])
+		got, err := s.Evaluate(t.Context(), e, in, at(10))
+		if err != nil || got != want {
+			t.Fatalf("enabled=%t: got %+v, %v; want %+v", enabled, got, err, want)
+		}
+	}
+	check(false, policy.Decision{Resolved: true})
+	if len(s.DependencyIDs()) != 0 {
+		t.Fatal("failed requirement discovered allow dependencies")
+	}
+	select {
+	case request := <-feed.requests:
+		t.Fatalf("failed requirement started allow expansion: %s", request.request.ID)
+	default:
+	}
+	check(true, policy.Decision{})
+	i := receive(t, feed)
+	install(t, feed, i, snapshot(10, 1, row("g1", "grant")))
+	consume(t, f, feed, progress(10, 1, 0))
+	check(true, policy.Decision{Visible: true, Resolved: true})
+	check(false, policy.Decision{Resolved: true})
+	if len(s.DependencyIDs()) != 0 || feed.closed.Load() != 1 {
+		t.Fatal("failed requirement retained obsolete allow dependencies")
+	}
+	check(true, policy.Decision{})
+	if next := receive(t, feed); next.request.ID == i.request.ID {
+		t.Fatal("re-enabled item reused a closed allow subscription")
+	}
+}
+
 func TestDifferentSubjectsBindDifferentSelectors(t *testing.T) {
 	f, feed := newFacts(t, Options{10, 10, 2})
 	e := evaluator(t)

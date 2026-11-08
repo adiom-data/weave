@@ -32,8 +32,8 @@ type ruleConfig struct {
 type policyFile struct {
 	Relations []struct {
 		relationConfig `yaml:",inline"`
+		Require        []ruleConfig `yaml:"require"`
 		Allow          []ruleConfig `yaml:"allow"`
-		Deny           []ruleConfig `yaml:"deny"`
 		Propagate      []struct {
 			ID   string         `yaml:"id"`
 			To   relationConfig `yaml:"to"`
@@ -100,11 +100,11 @@ func Load(path string, limits policy.Limits) (policy.Provider, error) {
 			return nil, fmt.Errorf("duplicate policy relation %s.%s", name.Namespace, name.Name)
 		}
 		p := policy.Relation{}
+		for _, rule := range r.Require {
+			p.Require = append(p.Require, policy.Rule{ID: rule.ID, When: rule.When})
+		}
 		for _, rule := range r.Allow {
 			p.Allow = append(p.Allow, policy.Rule{ID: rule.ID, When: rule.When})
-		}
-		for _, rule := range r.Deny {
-			p.Deny = append(p.Deny, policy.Rule{ID: rule.ID, When: rule.When})
 		}
 		for _, edge := range r.Propagate {
 			to, err := edge.To.name()

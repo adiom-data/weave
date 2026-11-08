@@ -29,9 +29,12 @@ relations:
     receive:
       - from: {schema: app, table: project_tasks}
         id: membership-to-task
-    deny:
-      - id: explicitly-hidden
-        when: item.hidden == true
+    require:
+      - id: not-hidden
+        when: item.hidden != true
+      # Ordinary propagated access needs no grant lookup. Restricted tasks do.
+      - id: restricted-grant
+        when: item.restricted != true || facts.direct_grants.exists(grant, true)
     # Independent access (when propagation did not grant it) can lazily load
     # private facts. These are ordinary reactive projection dependencies.
     facts:
