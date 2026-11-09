@@ -521,11 +521,11 @@ func (authorizationCommitView) Close() error { return nil }
 type authorizationCommitPrepared struct{ id accesscontrol.PreparedID }
 
 func (p *authorizationCommitPrepared) ID() accesscontrol.PreparedID { return p.id }
-func (*authorizationCommitPrepared) Evaluate(_ context.Context, view accesscontrol.View, candidates []accesscontrol.Candidate) ([]bool, error) {
+func (*authorizationCommitPrepared) Evaluate(_ context.Context, view accesscontrol.View, candidates []accesscontrol.Candidate) ([]accesscontrol.Decision, error) {
 	allowed := view.(authorizationCommitView).allowed
-	result := make([]bool, len(candidates))
+	result := make([]accesscontrol.Decision, len(candidates))
 	for index := range result {
-		result[index] = allowed
+		result[index].Visible = allowed
 	}
 	return result, nil
 }

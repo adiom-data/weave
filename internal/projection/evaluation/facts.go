@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/adiom-data/weave/internal/projection/retry"
 	q "github.com/adiom-data/weave/internal/querysubscription/model"
 	"github.com/adiom-data/weave/internal/querysubscription/position"
 	relationdef "github.com/adiom-data/weave/internal/relation"
@@ -36,6 +37,7 @@ type Options struct {
 	MaxQueries      int
 	MaxRows         int
 	LoadConcurrency int
+	Recovery        retry.Policy // Zero disables recovery in standalone internal stores.
 }
 
 // Facts materializes one ordered consumer's private authorization state. Feed
@@ -44,46 +46,51 @@ type Options struct {
 // The caller owns the single Next loop and joins returned frames with ordinary
 // projection frames before evaluating a view. Facts never pumps ahead itself.
 type Facts struct {
-	allowAll  bool
-	mu        sync.Mutex
-	ctx       context.Context
-	cancel    context.CancelFunc
-	feed      q.Feed
-	options   Options
-	entries   map[string]*factEntry
-	byID      map[string]*factEntry
-	awaiting  map[string]*factEntry // installed snapshots awaiting source coverage
-	sequence  uint64
-	position  *q.Position
-	revision  uint64
-	positions position.Tracker
-	jobs      chan struct{}
-	pending   list.List
-	wake      chan struct{}
-	dirty     map[string]struct{}
-	workers   sync.WaitGroup
-	closed    bool
-	failure   error
-	closeOnce sync.Once
-	closeErr  error
+	allowAll     bool
+	mu           sync.Mutex
+	ctx          context.Context
+	cancel       context.CancelFunc
+	feed         q.Feed
+	options      Options
+	entries      map[string]*factEntry
+	byID         map[string]*factEntry
+	awaiting     map[string]*factEntry // installed snapshots awaiting source coverage
+	sequence     uint64
+	position     *q.Position
+	revision     uint64
+	positions    position.Tracker
+	jobs         chan struct{}
+	pending      list.List
+	wake         chan struct{}
+	dirty        map[string]struct{}
+	failed       map[*factEntry]struct{}
+	recoveryWake chan struct{}
+	workers      sync.WaitGroup
+	closed       bool
+	failure      error
+	closeOnce    sync.Once
+	closeErr     error
 }
 
 type factEntry struct {
-	id, key    string
-	query      storage.QuerySpec
-	refs       int
-	ctx        context.Context
-	cancel     context.CancelFunc
-	handle     q.QuerySubscription
-	installed  bool
-	completed  bool
-	err        error
-	baseline   *q.Position
-	checkpoint *q.Position
-	revision   uint64
-	rows       map[storage.EntityKey]q.Row
-	order      []storage.EntityKey
-	job        *list.Element
+	id, key        string
+	subscriptionID string
+	loading        bool
+	query          storage.QuerySpec
+	refs           int
+	ctx            context.Context
+	cancel         context.CancelFunc
+	handle         q.QuerySubscription
+	installed      bool
+	completed      bool
+	err            error
+	recovery       retry.State
+	baseline       *q.Position
+	checkpoint     *q.Position
+	revision       uint64
+	rows           map[storage.EntityKey]q.Row
+	order          []storage.EntityKey
+	job            *list.Element
 }
 
 type Lease struct {
@@ -116,11 +123,20 @@ func NewObservedFacts(ctx context.Context, feed q.Feed, options Options) (*Facts
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	if options.Recovery != (retry.Policy{}) {
+		if err := options.Recovery.Validate(); err != nil {
+			return nil, err
+		}
+	}
 	run, cancel := context.WithCancel(ctx)
-	f := &Facts{ctx: run, cancel: cancel, feed: feed, options: options, entries: make(map[string]*factEntry), byID: make(map[string]*factEntry), awaiting: make(map[string]*factEntry), jobs: make(chan struct{}, 1), wake: make(chan struct{}, 1), dirty: make(map[string]struct{})}
+	f := &Facts{ctx: run, cancel: cancel, feed: feed, options: options, entries: make(map[string]*factEntry), byID: make(map[string]*factEntry), awaiting: make(map[string]*factEntry), jobs: make(chan struct{}, 1), wake: make(chan struct{}, 1), dirty: make(map[string]struct{}), failed: map[*factEntry]struct{}{}, recoveryWake: make(chan struct{}, 1)}
 	for range options.LoadConcurrency {
 		f.workers.Add(1)
 		go f.loadWorker()
+	}
+	if options.Recovery != (retry.Policy{}) {
+		f.workers.Add(1)
+		go f.recoverQueries()
 	}
 	return f, nil
 }
@@ -204,6 +220,7 @@ func (f *Facts) Acquire(request QueryRequest) (*Lease, error) {
 		f.sequence++
 		ctx, cancel := context.WithCancel(f.ctx)
 		e = &factEntry{id: fmt.Sprintf("authorization-%d", f.sequence), key: key, query: query, ctx: ctx, cancel: cancel, rows: make(map[storage.EntityKey]q.Row)}
+		e.subscriptionID = e.id
 		f.entries[key] = e
 		f.byID[e.id] = e
 		e.job = f.pending.PushBack(e)
@@ -230,7 +247,8 @@ func (l *Lease) Close(ctx context.Context) error {
 	var handle q.QuerySubscription
 	if e.refs == 0 {
 		delete(f.entries, e.key)
-		delete(f.byID, e.id)
+		delete(f.byID, e.subscriptionID)
+		delete(f.failed, e)
 		delete(f.awaiting, e.id)
 		delete(f.dirty, e.id)
 		e.cancel()
@@ -304,6 +322,7 @@ func (f *Facts) loadWorker() {
 				continue
 			}
 			e := next.Value.(*factEntry)
+			e.loading = true
 			f.pending.Remove(next)
 			e.job = nil
 			if f.pending.Len() > 0 {
@@ -319,7 +338,7 @@ func (f *Facts) loadWorker() {
 			}); ok {
 				subscribe = fixed.SubscribeFixedQuery
 			}
-			err := subscribe(e.ctx, q.QuerySubscribeRequest{ID: e.id, Query: e.query, Window: q.InitialWindow{Count: f.options.MaxRows + 1}}, func(handle q.QuerySubscription, snapshot q.QuerySnapshot) error {
+			err := subscribe(e.ctx, q.QuerySubscribeRequest{ID: e.subscriptionID, Query: e.query, Window: q.InitialWindow{Count: f.options.MaxRows + 1}}, func(handle q.QuerySubscription, snapshot q.QuerySnapshot) error {
 				f.mu.Lock()
 				defer f.mu.Unlock()
 				if f.closed || e.refs == 0 || e.ctx.Err() != nil {
@@ -366,6 +385,7 @@ func (f *Facts) loadWorker() {
 				return nil
 			})
 			f.mu.Lock()
+			e.loading = false
 			if err == nil && !e.installed {
 				err = errors.New("query feed completed without installing an authorization fact snapshot")
 			}
@@ -377,6 +397,11 @@ func (f *Facts) loadWorker() {
 				}
 				closeHandle = e.handle
 				e.handle = nil
+			}
+			if e.err != nil && e.refs > 0 && !f.closed {
+				f.failQueryLocked(e)
+			} else if e.err == nil {
+				e.recovery = retry.State{}
 			}
 			f.mark(e)
 			f.notify()
@@ -419,6 +444,7 @@ func (f *Facts) apply(event q.Event) error {
 	if event.Failure != nil {
 		if e := f.byID[event.Failure.SubscriptionID]; e != nil {
 			e.err = event.Failure.Cause
+			f.failQueryLocked(e)
 			f.mark(e)
 		}
 		return nil
@@ -472,6 +498,7 @@ func (f *Facts) apply(event q.Event) error {
 			}
 			if err := f.applyEffect(e, effect.Batch); err != nil {
 				e.err = err
+				f.failQueryLocked(e)
 			}
 			e.revision = revision
 			f.mark(e)
@@ -541,6 +568,7 @@ func (f *Facts) Close() error {
 		f.pending.Init()
 		clear(f.dirty)
 		clear(f.awaiting)
+		clear(f.failed)
 		f.mu.Unlock()
 		for _, handle := range handles {
 			f.closeErr = errors.Join(f.closeErr, handle.Close(context.WithoutCancel(f.ctx)))

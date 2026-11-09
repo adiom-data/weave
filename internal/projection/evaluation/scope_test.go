@@ -44,7 +44,7 @@ func TestLinkedAuthorizationPathDoesNotBypassDeniedParent(t *testing.T) {
 }
 
 func TestLazyFactsExpandPrivateProjectionAndBindImmediateParent(t *testing.T) {
-	f, feed := newFacts(t, Options{10, 10, 2})
+	f, feed := newFacts(t, Options{MaxQueries: 10, MaxRows: 10, LoadConcurrency: 2})
 	s := scope(t, f)
 	projects := storage.RelationName{Namespace: "demo", Name: "projects"}
 	e, err := relationdef.Compile(relationdef.Definitions{tasks: {Facts: []relationdef.Fact{{ID: "access", Projection: &plan.Node{
@@ -119,7 +119,7 @@ func scope(t *testing.T, facts *Facts) *Scope {
 }
 
 func TestScopesShareFactsButPruneTheirOwnDependencies(t *testing.T) {
-	f, feed := newFacts(t, Options{10, 10, 2})
+	f, feed := newFacts(t, Options{MaxQueries: 10, MaxRows: 10, LoadConcurrency: 2})
 	first, second := scope(t, f), scope(t, f)
 	e := evaluator(t)
 	for _, s := range []*Scope{first, second} {
@@ -162,7 +162,7 @@ func TestScopesShareFactsButPruneTheirOwnDependencies(t *testing.T) {
 }
 
 func TestFailedRequirementSkipsPrunesAndRestoresAllowFacts(t *testing.T) {
-	f, feed := newFacts(t, Options{10, 10, 1})
+	f, feed := newFacts(t, Options{MaxQueries: 10, MaxRows: 10, LoadConcurrency: 1})
 	s := scope(t, f)
 	e, err := relationdef.Compile(relationdef.Definitions{tasks: {
 
@@ -205,7 +205,7 @@ func TestFailedRequirementSkipsPrunesAndRestoresAllowFacts(t *testing.T) {
 }
 
 func TestDifferentSubjectsBindDifferentSelectors(t *testing.T) {
-	f, feed := newFacts(t, Options{10, 10, 2})
+	f, feed := newFacts(t, Options{MaxQueries: 10, MaxRows: 10, LoadConcurrency: 2})
 	e := evaluator(t)
 	for _, user := range []string{"u1", "u2"} {
 		s := scope(t, f)
@@ -226,7 +226,7 @@ func TestDifferentSubjectsBindDifferentSelectors(t *testing.T) {
 }
 
 func TestAtomicGrantReplacementDoesNotFlicker(t *testing.T) {
-	f, feed := newFacts(t, Options{10, 10, 1})
+	f, feed := newFacts(t, Options{MaxQueries: 10, MaxRows: 10, LoadConcurrency: 1})
 	s := scope(t, f)
 	e := evaluator(t)
 	if _, err := s.Evaluate(context.Background(), e, input("u1"), at(10)); err != nil {
@@ -271,12 +271,12 @@ func TestSeparateFactConsumersShareProjectionDependencyCache(t *testing.T) {
 	}
 	defer aFeed.Close(context.Background())
 	defer bFeed.Close(context.Background())
-	a, err := NewObservedFacts(context.Background(), aFeed, Options{10, 10, 1})
+	a, err := NewObservedFacts(context.Background(), aFeed, Options{MaxQueries: 10, MaxRows: 10, LoadConcurrency: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer a.Close()
-	b, err := NewObservedFacts(context.Background(), bFeed, Options{10, 10, 1})
+	b, err := NewObservedFacts(context.Background(), bFeed, Options{MaxQueries: 10, MaxRows: 10, LoadConcurrency: 1})
 	if err != nil {
 		t.Fatal(err)
 	}

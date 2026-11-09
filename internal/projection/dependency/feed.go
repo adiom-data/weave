@@ -19,13 +19,12 @@ type consumer struct {
 	events        *feedbuffer.Buffer
 	facts         bool
 	closed        bool
-	used          map[string]struct{}
 	subscriptions map[string]*subscription
 	stop          func() bool
 }
 
 func newConsumer(g *generation, limit int, facts bool) *consumer {
-	return &consumer{generation: g, events: feedbuffer.New(limit), facts: facts, used: make(map[string]struct{}), subscriptions: make(map[string]*subscription)}
+	return &consumer{generation: g, events: feedbuffer.New(limit), facts: facts, subscriptions: make(map[string]*subscription)}
 }
 
 func (f *consumer) Next(ctx context.Context) (q.Event, error) { return f.events.Next(ctx) }
@@ -72,6 +71,7 @@ func (s *subscription) detachLocked() {
 	}
 	s.closed = true
 	delete(s.feed.subscriptions, s.id)
+	s.feed.events.RetireSubscription(s.id)
 	if s.entry != nil {
 		e := s.entry
 		delete(e.watchers, s)
@@ -171,6 +171,9 @@ type loadHints struct {
 }
 
 func (f *consumer) subscribe(ctx context.Context, id string, query storage.QuerySpec, window q.InitialWindow, entity, fixed bool, hints loadHints, install func(*subscription, q.QuerySnapshot) error) error {
+	if window.Bounds != nil {
+		window.Bounds = window.Bounds.Clone()
+	}
 	if err := ctx.Err(); err != nil {
 		return err
 	}
@@ -181,15 +184,25 @@ func (f *consumer) subscribe(ctx context.Context, id string, query storage.Query
 		c.mu.Unlock()
 		return q.ErrClosed
 	}
-	if _, used := f.used[id]; used {
+	if _, active := f.subscriptions[id]; active {
 		c.mu.Unlock()
-		return errors.New("subscription ID was already used in feed")
+		return errors.New("subscription ID already active in feed")
 	}
-	f.used[id] = struct{}{}
 	if err != nil {
 		c.mu.Unlock()
 		return err
 	}
+	if err := f.events.RegisterSubscription(id); err != nil {
+		c.mu.Unlock()
+		return err
+	}
+	defer func() {
+		c.mu.Lock()
+		if f.subscriptions[id] == nil {
+			f.events.RetireSubscription(id)
+		}
+		c.mu.Unlock()
+	}()
 	s := &subscription{id: id, feed: f, fixed: fixed}
 	f.subscriptions[id] = s
 	e := g.shared[fingerprint]

@@ -245,8 +245,8 @@ func (s *serverFeed) handle(ctx context.Context, message *querysubscriptionv1.Cl
 }
 
 func (s *serverFeed) subscribe(ctx context.Context, requestID string, request *querysubscriptionv1.SubscribeQuery) error {
-	if request == nil || request.SubscriptionId == "" || request.Window == nil || request.Window.Count == 0 {
-		return errors.New("subscription_id and a positive initial window are required")
+	if request == nil || request.SubscriptionId == "" || request.Window == nil {
+		return errors.New("subscription_id and an initial window are required")
 	}
 	query, err := queryFromProto(request.Query)
 	if err != nil {
@@ -256,9 +256,19 @@ func (s *serverFeed) subscribe(ctx context.Context, requestID string, request *q
 	if err != nil {
 		return err
 	}
-	err = s.feed.SubscribeQuery(ctx, querysubscription.QuerySubscribeRequest{
-		ID: request.SubscriptionId, Query: query, Window: querysubscription.InitialWindow{FromEnd: request.Window.FromEnd, Count: int(request.Window.Count)}, Reference: reference,
-	}, func(subscription querysubscription.QuerySubscription, snapshot querysubscription.QuerySnapshot) error {
+	window := querysubscription.InitialWindow{FromEnd: request.Window.FromEnd, Count: int(request.Window.Count)}
+	if request.Window.Bounds != nil {
+		bounds, err := boundsFromProto(request.Window.Bounds)
+		if err != nil {
+			return err
+		}
+		window.Bounds = &bounds
+	}
+	convertedRequest := querysubscription.QuerySubscribeRequest{ID: request.SubscriptionId, Query: query, Window: window, Reference: reference}
+	if err := querysubscription.ValidateQuerySubscribeRequest(convertedRequest); err != nil {
+		return err
+	}
+	err = s.feed.SubscribeQuery(ctx, convertedRequest, func(subscription querysubscription.QuerySubscription, snapshot querysubscription.QuerySnapshot) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}

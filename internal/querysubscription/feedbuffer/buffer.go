@@ -16,8 +16,9 @@ import (
 // Buffer stages complete envelopes while snapshots install. Publishing a
 // staged prefix and starting another installation are serialized with Offer;
 // no event can slip between checking installation state and entering the queue.
-// Failure is terminal for its subscription ID for the buffer's lifetime. Later
-// data is filtered at enqueue time; already accepted data keeps its prior order.
+// Only active/installing attempts can publish data. Retirement removes the
+// registration, so late data is ignored without retaining lifetime tombstones.
+// Already accepted data keeps its prior order. Callers never reuse attempt IDs.
 // All work under mu is bounded in-memory work, never IO or a callback.
 type Buffer struct {
 	mu         sync.Mutex
@@ -26,12 +27,34 @@ type Buffer struct {
 	staged     []querysubscription.Event
 	queue      *streamqueue.Queue[querysubscription.Event]
 	positions  position.Tracker
-	terminal   map[string]struct{} // guarded by mu; never cleared by installation completion
+	active     map[string]struct{}
 	err        error
 }
 
 func New(limit int) *Buffer {
-	return &Buffer{limit: limit, queue: streamqueue.New[querysubscription.Event](limit, querysubscription.ErrBackpressure, querysubscription.ErrClosed)}
+	return &Buffer{limit: limit, active: make(map[string]struct{}), queue: streamqueue.New[querysubscription.Event](limit, querysubscription.ErrBackpressure, querysubscription.ErrClosed)}
+}
+
+// RegisterSubscription precedes starting any asynchronous producer. Lifetime
+// uniqueness is the caller's contract; only concurrent duplicates need state.
+func (b *Buffer) RegisterSubscription(id string) error {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.err != nil {
+		return b.err
+	}
+	if _, exists := b.active[id]; exists {
+		return errors.New("subscription ID already active in feed")
+	}
+	b.active[id] = struct{}{}
+	return nil
+}
+
+// RetireSubscription stops future publication, preserving already queued data.
+func (b *Buffer) RetireSubscription(id string) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	delete(b.active, id)
 }
 
 func (b *Buffer) BeginInstallation() {
@@ -72,13 +95,13 @@ func (b *Buffer) Offer(event querysubscription.Event) error {
 		return b.closeLocked(err)
 	}
 	if event.Failure != nil {
-		if _, terminal := b.terminal[event.Failure.SubscriptionID]; terminal {
+		if _, active := b.active[event.Failure.SubscriptionID]; !active {
 			return nil
 		}
-		b.markTerminalLocked(event.Failure.SubscriptionID)
+		delete(b.active, event.Failure.SubscriptionID)
 	} else {
 		var keep bool
-		event, keep = withoutSubscriptions(event, b.terminal)
+		event, keep = filterSubscriptions(event, func(id string) bool { _, active := b.active[id]; return active }, true)
 		if !keep {
 			return nil
 		}
@@ -114,7 +137,7 @@ func (b *Buffer) DiscardSubscription(id string) {
 	if b.err != nil {
 		return
 	}
-	b.markTerminalLocked(id)
+	delete(b.active, id)
 	excluded := map[string]struct{}{id: {}}
 	retained := b.staged[:0]
 	for _, event := range b.staged {
@@ -142,7 +165,7 @@ func (b *Buffer) closeLocked(reason error) error {
 		}
 		b.err = reason
 		b.staged = nil
-		b.terminal = nil
+		b.active = nil
 		b.queue.Close(reason)
 	}
 	return b.err

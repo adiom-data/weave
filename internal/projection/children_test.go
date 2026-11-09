@@ -158,7 +158,7 @@ func TestChildBindingsBorrowOwnedImageAndBindOnceConcurrently(t *testing.T) {
 	}
 }
 
-func TestOpenMissingChildrenIgnoresRetiredLoadFailure(t *testing.T) {
+func TestInlineExpansionIgnoresRetiredLoadFailure(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	feed := &failingChildBindingFeed{childBindingFeed: &childBindingFeed{started: make(chan struct{}, 1), release: make(chan struct{})}, failure: errors.New("obsolete load failed")}
@@ -170,7 +170,10 @@ func TestOpenMissingChildrenIgnoresRetiredLoadFailure(t *testing.T) {
 	parent := &projectionInstance{id: "parent", node: &ProjectionNode{Children: []*ProjectionNode{child}}, members: map[storage.EntityKey]*projectionMember{key: member}}
 	p := &Projection{ctx: ctx, queries: feed, limits: DefaultLimits(), instances: map[string]*projectionInstance{parent.id: parent}}
 	done := make(chan error, 1)
-	go func() { done <- p.openMissingChildren(projectionExpansion{parent: parent, key: key, member: member}) }()
+	go func() {
+		_, err := p.loadChildren(projectionExpansion{parent: parent, key: key, member: member})
+		done <- err
+	}()
 	select {
 	case <-feed.started:
 	case <-ctx.Done():

@@ -13,6 +13,23 @@ import (
 var errMissingVisibilityFence = errors.New("visibility evaluation requires a snapshot fence")
 var errVisibilityResyncRequired = errors.New("access control requires subscription resynchronization")
 
+// Direct query subscriptions have no partial-branch contract. Preserve their
+// fail-fast behavior while projection publications can isolate Decision.Err.
+func evaluateVisible(ctx context.Context, prepared accesscontrol.Prepared, view accesscontrol.View, candidates []accesscontrol.Candidate) ([]bool, error) {
+	decisions, err := prepared.Evaluate(ctx, view, candidates)
+	if err != nil {
+		return nil, err
+	}
+	visible := make([]bool, len(decisions))
+	for i, decision := range decisions {
+		if decision.Err != nil {
+			return nil, decision.Err
+		}
+		visible[i] = decision.Visible && !decision.Pending
+	}
+	return visible, nil
+}
+
 type visibilityFailure struct {
 	externalID string
 	projection bool

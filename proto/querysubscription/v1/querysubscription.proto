@@ -215,6 +215,8 @@ message Value {
 message InitialWindow {
   bool from_end = 1;
   uint32 count = 2;
+  // Explicit stable interval, mutually exclusive with count/from_end.
+  Bounds bounds = 3;
 }
 
 message Position {

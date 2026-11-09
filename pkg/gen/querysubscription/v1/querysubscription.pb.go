@@ -2146,9 +2146,11 @@ func (x *Value) GetObject() map[string]*Value {
 }
 
 type InitialWindow struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	FromEnd       bool                   `protobuf:"varint,1,opt,name=from_end,json=fromEnd,proto3" json:"from_end,omitempty"`
-	Count         uint32                 `protobuf:"varint,2,opt,name=count,proto3" json:"count,omitempty"`
+	state   protoimpl.MessageState `protogen:"open.v1"`
+	FromEnd bool                   `protobuf:"varint,1,opt,name=from_end,json=fromEnd,proto3" json:"from_end,omitempty"`
+	Count   uint32                 `protobuf:"varint,2,opt,name=count,proto3" json:"count,omitempty"`
+	// Explicit stable interval, mutually exclusive with count/from_end.
+	Bounds        *Bounds `protobuf:"bytes,3,opt,name=bounds,proto3" json:"bounds,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2195,6 +2197,13 @@ func (x *InitialWindow) GetCount() uint32 {
 		return x.Count
 	}
 	return 0
+}
+
+func (x *InitialWindow) GetBounds() *Bounds {
+	if x != nil {
+		return x.Bounds
+	}
+	return nil
 }
 
 type Position struct {
@@ -3849,10 +3858,11 @@ const file_querysubscription_v1_querysubscription_proto_rawDesc = "" +
 	"\n" +
 	"STATE_NULL\x10\x01\x12\x11\n" +
 	"\rSTATE_PRESENT\x10\x02\x12\x15\n" +
-	"\x11STATE_UNAVAILABLE\x10\x03\"@\n" +
+	"\x11STATE_UNAVAILABLE\x10\x03\"v\n" +
 	"\rInitialWindow\x12\x19\n" +
 	"\bfrom_end\x18\x01 \x01(\bR\afromEnd\x12\x14\n" +
-	"\x05count\x18\x02 \x01(\rR\x05count\"=\n" +
+	"\x05count\x18\x02 \x01(\rR\x05count\x124\n" +
+	"\x06bounds\x18\x03 \x01(\v2\x1c.querysubscription.v1.BoundsR\x06bounds\"=\n" +
 	"\bPosition\x12\x1b\n" +
 	"\tsource_id\x18\x01 \x01(\tR\bsourceId\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x04R\x05value\"\x8f\x01\n" +
@@ -4118,60 +4128,61 @@ var file_querysubscription_v1_querysubscription_proto_depIdxs = []int32{
 	4,  // 37: querysubscription.v1.Value.state:type_name -> querysubscription.v1.Value.State
 	33, // 38: querysubscription.v1.Value.list:type_name -> querysubscription.v1.Value
 	60, // 39: querysubscription.v1.Value.object:type_name -> querysubscription.v1.Value.ObjectEntry
-	35, // 40: querysubscription.v1.Progress.position:type_name -> querysubscription.v1.Position
-	38, // 41: querysubscription.v1.EntityKey.relation:type_name -> querysubscription.v1.RelationKey
-	37, // 42: querysubscription.v1.Row.key:type_name -> querysubscription.v1.EntityKey
-	40, // 43: querysubscription.v1.Row.record:type_name -> querysubscription.v1.Record
-	61, // 44: querysubscription.v1.Record.fields:type_name -> querysubscription.v1.Record.FieldsEntry
-	5,  // 45: querysubscription.v1.Boundary.kind:type_name -> querysubscription.v1.Boundary.Kind
-	41, // 46: querysubscription.v1.Bounds.left:type_name -> querysubscription.v1.Boundary
-	41, // 47: querysubscription.v1.Bounds.right:type_name -> querysubscription.v1.Boundary
-	39, // 48: querysubscription.v1.QueryRow.row:type_name -> querysubscription.v1.Row
-	50, // 49: querysubscription.v1.QueryRow.expanded:type_name -> querysubscription.v1.EntitySnapshot
-	42, // 50: querysubscription.v1.QuerySnapshot.bounds:type_name -> querysubscription.v1.Bounds
-	43, // 51: querysubscription.v1.QuerySnapshot.rows:type_name -> querysubscription.v1.QueryRow
-	35, // 52: querysubscription.v1.QuerySnapshot.checkpoint:type_name -> querysubscription.v1.Position
-	35, // 53: querysubscription.v1.QuerySnapshot.fence:type_name -> querysubscription.v1.Position
-	37, // 54: querysubscription.v1.ReferenceRoute.parents:type_name -> querysubscription.v1.EntityKey
-	45, // 55: querysubscription.v1.EntityTarget.reference:type_name -> querysubscription.v1.ReferenceRoute
-	46, // 56: querysubscription.v1.EntityInstallation.target:type_name -> querysubscription.v1.EntityTarget
-	50, // 57: querysubscription.v1.EntityInstallation.snapshot:type_name -> querysubscription.v1.EntitySnapshot
-	53, // 58: querysubscription.v1.EntityDelta.changes:type_name -> querysubscription.v1.Change
-	46, // 59: querysubscription.v1.EntityEffect.target:type_name -> querysubscription.v1.EntityTarget
-	48, // 60: querysubscription.v1.EntityEffect.delta:type_name -> querysubscription.v1.EntityDelta
-	39, // 61: querysubscription.v1.EntitySnapshot.row:type_name -> querysubscription.v1.Row
-	35, // 62: querysubscription.v1.EntitySnapshot.checkpoint:type_name -> querysubscription.v1.Position
-	35, // 63: querysubscription.v1.EntitySnapshot.fence:type_name -> querysubscription.v1.Position
-	6,  // 64: querysubscription.v1.BoundaryChange.side:type_name -> querysubscription.v1.BoundaryChange.Side
-	7,  // 65: querysubscription.v1.BoundaryChange.operation:type_name -> querysubscription.v1.BoundaryChange.Operation
-	8,  // 66: querysubscription.v1.DeliveryMetadata.kind:type_name -> querysubscription.v1.DeliveryMetadata.Kind
-	35, // 67: querysubscription.v1.DeliveryMetadata.checkpoint:type_name -> querysubscription.v1.Position
-	35, // 68: querysubscription.v1.DeliveryMetadata.fence:type_name -> querysubscription.v1.Position
-	9,  // 69: querysubscription.v1.Change.kind:type_name -> querysubscription.v1.Change.Kind
-	39, // 70: querysubscription.v1.Change.row:type_name -> querysubscription.v1.Row
-	37, // 71: querysubscription.v1.Insertion.key:type_name -> querysubscription.v1.EntityKey
-	37, // 72: querysubscription.v1.MembershipDelta.removed:type_name -> querysubscription.v1.EntityKey
-	54, // 73: querysubscription.v1.MembershipDelta.insertions:type_name -> querysubscription.v1.Insertion
-	42, // 74: querysubscription.v1.WindowTransition.bounds:type_name -> querysubscription.v1.Bounds
-	35, // 75: querysubscription.v1.WindowTransition.fence:type_name -> querysubscription.v1.Position
-	35, // 76: querysubscription.v1.WindowTransition.checkpoint:type_name -> querysubscription.v1.Position
-	53, // 77: querysubscription.v1.Batch.changes:type_name -> querysubscription.v1.Change
-	55, // 78: querysubscription.v1.Batch.membership:type_name -> querysubscription.v1.MembershipDelta
-	56, // 79: querysubscription.v1.Batch.window:type_name -> querysubscription.v1.WindowTransition
-	37, // 80: querysubscription.v1.Batch.binding_resets:type_name -> querysubscription.v1.EntityKey
-	57, // 81: querysubscription.v1.SubscriptionEffect.batch:type_name -> querysubscription.v1.Batch
-	52, // 82: querysubscription.v1.DeliveryEnvelope.delivery:type_name -> querysubscription.v1.DeliveryMetadata
-	58, // 83: querysubscription.v1.DeliveryEnvelope.effects:type_name -> querysubscription.v1.SubscriptionEffect
-	49, // 84: querysubscription.v1.DeliveryEnvelope.entities:type_name -> querysubscription.v1.EntityEffect
-	33, // 85: querysubscription.v1.Value.ObjectEntry.value:type_name -> querysubscription.v1.Value
-	33, // 86: querysubscription.v1.Record.FieldsEntry.value:type_name -> querysubscription.v1.Value
-	10, // 87: querysubscription.v1.QuerySubscriptions.Open:input_type -> querysubscription.v1.ClientMessage
-	22, // 88: querysubscription.v1.QuerySubscriptions.Open:output_type -> querysubscription.v1.ServerMessage
-	88, // [88:89] is the sub-list for method output_type
-	87, // [87:88] is the sub-list for method input_type
-	87, // [87:87] is the sub-list for extension type_name
-	87, // [87:87] is the sub-list for extension extendee
-	0,  // [0:87] is the sub-list for field type_name
+	42, // 40: querysubscription.v1.InitialWindow.bounds:type_name -> querysubscription.v1.Bounds
+	35, // 41: querysubscription.v1.Progress.position:type_name -> querysubscription.v1.Position
+	38, // 42: querysubscription.v1.EntityKey.relation:type_name -> querysubscription.v1.RelationKey
+	37, // 43: querysubscription.v1.Row.key:type_name -> querysubscription.v1.EntityKey
+	40, // 44: querysubscription.v1.Row.record:type_name -> querysubscription.v1.Record
+	61, // 45: querysubscription.v1.Record.fields:type_name -> querysubscription.v1.Record.FieldsEntry
+	5,  // 46: querysubscription.v1.Boundary.kind:type_name -> querysubscription.v1.Boundary.Kind
+	41, // 47: querysubscription.v1.Bounds.left:type_name -> querysubscription.v1.Boundary
+	41, // 48: querysubscription.v1.Bounds.right:type_name -> querysubscription.v1.Boundary
+	39, // 49: querysubscription.v1.QueryRow.row:type_name -> querysubscription.v1.Row
+	50, // 50: querysubscription.v1.QueryRow.expanded:type_name -> querysubscription.v1.EntitySnapshot
+	42, // 51: querysubscription.v1.QuerySnapshot.bounds:type_name -> querysubscription.v1.Bounds
+	43, // 52: querysubscription.v1.QuerySnapshot.rows:type_name -> querysubscription.v1.QueryRow
+	35, // 53: querysubscription.v1.QuerySnapshot.checkpoint:type_name -> querysubscription.v1.Position
+	35, // 54: querysubscription.v1.QuerySnapshot.fence:type_name -> querysubscription.v1.Position
+	37, // 55: querysubscription.v1.ReferenceRoute.parents:type_name -> querysubscription.v1.EntityKey
+	45, // 56: querysubscription.v1.EntityTarget.reference:type_name -> querysubscription.v1.ReferenceRoute
+	46, // 57: querysubscription.v1.EntityInstallation.target:type_name -> querysubscription.v1.EntityTarget
+	50, // 58: querysubscription.v1.EntityInstallation.snapshot:type_name -> querysubscription.v1.EntitySnapshot
+	53, // 59: querysubscription.v1.EntityDelta.changes:type_name -> querysubscription.v1.Change
+	46, // 60: querysubscription.v1.EntityEffect.target:type_name -> querysubscription.v1.EntityTarget
+	48, // 61: querysubscription.v1.EntityEffect.delta:type_name -> querysubscription.v1.EntityDelta
+	39, // 62: querysubscription.v1.EntitySnapshot.row:type_name -> querysubscription.v1.Row
+	35, // 63: querysubscription.v1.EntitySnapshot.checkpoint:type_name -> querysubscription.v1.Position
+	35, // 64: querysubscription.v1.EntitySnapshot.fence:type_name -> querysubscription.v1.Position
+	6,  // 65: querysubscription.v1.BoundaryChange.side:type_name -> querysubscription.v1.BoundaryChange.Side
+	7,  // 66: querysubscription.v1.BoundaryChange.operation:type_name -> querysubscription.v1.BoundaryChange.Operation
+	8,  // 67: querysubscription.v1.DeliveryMetadata.kind:type_name -> querysubscription.v1.DeliveryMetadata.Kind
+	35, // 68: querysubscription.v1.DeliveryMetadata.checkpoint:type_name -> querysubscription.v1.Position
+	35, // 69: querysubscription.v1.DeliveryMetadata.fence:type_name -> querysubscription.v1.Position
+	9,  // 70: querysubscription.v1.Change.kind:type_name -> querysubscription.v1.Change.Kind
+	39, // 71: querysubscription.v1.Change.row:type_name -> querysubscription.v1.Row
+	37, // 72: querysubscription.v1.Insertion.key:type_name -> querysubscription.v1.EntityKey
+	37, // 73: querysubscription.v1.MembershipDelta.removed:type_name -> querysubscription.v1.EntityKey
+	54, // 74: querysubscription.v1.MembershipDelta.insertions:type_name -> querysubscription.v1.Insertion
+	42, // 75: querysubscription.v1.WindowTransition.bounds:type_name -> querysubscription.v1.Bounds
+	35, // 76: querysubscription.v1.WindowTransition.fence:type_name -> querysubscription.v1.Position
+	35, // 77: querysubscription.v1.WindowTransition.checkpoint:type_name -> querysubscription.v1.Position
+	53, // 78: querysubscription.v1.Batch.changes:type_name -> querysubscription.v1.Change
+	55, // 79: querysubscription.v1.Batch.membership:type_name -> querysubscription.v1.MembershipDelta
+	56, // 80: querysubscription.v1.Batch.window:type_name -> querysubscription.v1.WindowTransition
+	37, // 81: querysubscription.v1.Batch.binding_resets:type_name -> querysubscription.v1.EntityKey
+	57, // 82: querysubscription.v1.SubscriptionEffect.batch:type_name -> querysubscription.v1.Batch
+	52, // 83: querysubscription.v1.DeliveryEnvelope.delivery:type_name -> querysubscription.v1.DeliveryMetadata
+	58, // 84: querysubscription.v1.DeliveryEnvelope.effects:type_name -> querysubscription.v1.SubscriptionEffect
+	49, // 85: querysubscription.v1.DeliveryEnvelope.entities:type_name -> querysubscription.v1.EntityEffect
+	33, // 86: querysubscription.v1.Value.ObjectEntry.value:type_name -> querysubscription.v1.Value
+	33, // 87: querysubscription.v1.Record.FieldsEntry.value:type_name -> querysubscription.v1.Value
+	10, // 88: querysubscription.v1.QuerySubscriptions.Open:input_type -> querysubscription.v1.ClientMessage
+	22, // 89: querysubscription.v1.QuerySubscriptions.Open:output_type -> querysubscription.v1.ServerMessage
+	89, // [89:90] is the sub-list for method output_type
+	88, // [88:89] is the sub-list for method input_type
+	88, // [88:88] is the sub-list for extension type_name
+	88, // [88:88] is the sub-list for extension extendee
+	0,  // [0:88] is the sub-list for field type_name
 }
 
 func init() { file_querysubscription_v1_querysubscription_proto_init() }

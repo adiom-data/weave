@@ -63,6 +63,7 @@ type CoordinatorOptions struct {
 type InitialWindow struct {
 	FromEnd bool
 	Count   int
+	Bounds  *storage.CursorBounds
 }
 
 type OpenSubscription struct {
@@ -244,7 +245,7 @@ func (c *Coordinator) OpenGroup(ctx context.Context, group string, limit int) (*
 }
 
 func (c *Coordinator) SubscribeGroupedWithFetch(ctx context.Context, id, group string, spec storage.QuerySpec, initial InitialWindow, fetch FetchOptions) (*OpenSubscription, error) {
-	if initial.Count < 1 || initial.Count > c.options.MaxWindowRows {
+	if initial.Bounds == nil && (initial.Count < 1 || initial.Count > c.options.MaxWindowRows) {
 		return nil, fmt.Errorf("initial count must be between 1 and %d", c.options.MaxWindowRows)
 	}
 	plan, err := c.prepareFromReference(ctx, spec, fetch.From)
@@ -269,6 +270,16 @@ func (c *Coordinator) SubscribeGroupedWithFetch(ctx context.Context, id, group s
 		}
 	}
 	operation := initialWindowOperation{subscriptionID: id, group: group, plan: plan}
+	if initial.Bounds != nil {
+		if initial.Count != 0 || initial.FromEnd {
+			return nil, errors.New("initial bounds cannot be combined with a count")
+		}
+		bounds, err := decodeInitialBounds(plan, *initial.Bounds)
+		if err != nil {
+			return nil, err
+		}
+		operation.bounds = &bounds
+	}
 	if hint := fetch.Reference; hint != nil {
 		if err := hint.Validate(); err != nil {
 			return nil, err
@@ -413,6 +424,7 @@ type initialWindowOperation struct {
 	group          string
 	plan           datastore.PreparedQuery
 	reference      datastore.PreparedReference
+	bounds         *datastore.Bounds
 }
 
 // resolveInitialWindow finds stable final bounds. A partial cache hit is

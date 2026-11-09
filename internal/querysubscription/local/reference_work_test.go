@@ -59,6 +59,9 @@ func referenceFixture(t *testing.T, ctx context.Context, coordinator Coordinator
 	key := storage.EntityKey{Relation: storage.RelationKey{Source: "test", Name: "links"}, Value: "old"}
 	record := storage.Record{"task_id": {Type: storage.TypeInteger, State: storage.ValuePresent, Data: []byte("1")}}
 	parent := &localSubscription{id: "parent", nativeID: feed.nativeID("parent"), owner: feed, coordinator: coordinator}
+	if err := feed.events.RegisterSubscription(parent.id); err != nil {
+		t.Fatal(err)
+	}
 	shape := storage.ReferenceFetch{Query: storage.QuerySpec{Relation: storage.RelationName{Name: "tasks"}}, Bindings: []storage.ReferenceBinding{{Source: "task_id", Target: "id"}}}
 	r, err := newOwnedReferences(parent, shape, []q.Row{{Key: key, Record: record}})
 	if err != nil {

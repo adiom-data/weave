@@ -18,6 +18,7 @@ import (
 // projection. Keeping decisions per occurrence (rather than per entity) makes
 // diamonds correct: one path may be pruned while another remains visible.
 type projectionVisibility struct {
+	partial   bool
 	selected  map[string]*fieldSelection
 	instances map[string]*projectionVisibilityInstance
 	// Indexed against consumer state, which can intentionally lag the raw
@@ -26,17 +27,22 @@ type projectionVisibility struct {
 }
 
 type projectionVisibilityInstance struct {
-	open      projection.ProjectionEvent
-	effective bool
-	rows      map[storage.EntityKey]*projectionVisibilityRow
-	order     *visibilityindex.Index
-	children  map[storage.EntityKey]map[string]struct{}
+	open           projection.ProjectionEvent
+	effective      bool
+	rows           map[storage.EntityKey]*projectionVisibilityRow
+	order          *visibilityindex.Index
+	children       map[storage.EntityKey]map[string]struct{}
+	failure        error
+	errorPublished bool
 }
 
 type projectionVisibilityRow struct {
-	event     projection.ProjectionEvent
-	allowed   bool
-	effective bool
+	event          projection.ProjectionEvent
+	allowed        bool
+	effective      bool
+	failure        error
+	errorPublished bool
+	pending        bool
 }
 
 // visibilityChanges records only occurrences whose raw position or effective
@@ -94,8 +100,9 @@ func (v *projectionVisibility) filterBatch(ctx context.Context, prepared accessc
 // filterTransaction is the single publication boundary for raw effects and
 // authorization effects, including scoped initialization catch-up. Membership
 // deltas are computed only after both have reached their final state.
-// A policy or structural error is terminal for v: no output has been published,
-// but some raw state may have advanced, so the caller must discard this scope.
+// An unhandled error is terminal for v: no output has been published, but some
+// raw state may have advanced, so the caller must discard this scope. Opted-in
+// candidate-local failures are instead published as branch status transitions.
 func (v *projectionVisibility) filterTransaction(ctx context.Context, prepared accesscontrol.Prepared, view accesscontrol.View, batch projection.ProjectionBatch, invalidation accesscontrol.Invalidation) (projection.ProjectionBatch, error) {
 	if invalidation.All {
 		return projection.ProjectionBatch{}, errVisibilityResyncRequired
@@ -105,7 +112,7 @@ func (v *projectionVisibility) filterTransaction(ctx context.Context, prepared a
 	}
 	capture := newPolicyCapture(v, overlay(batch.Events))
 	work := v.authorizationWork(batch, invalidation, capture)
-	if err := work.evaluate(ctx, prepared, view); err != nil {
+	if err := work.evaluate(ctx, prepared, view, v.partial); err != nil {
 		return projection.ProjectionBatch{}, err
 	}
 	transition, err := v.stageVisibility(batch.Events, work.decisions, batch.Membership, work.targets)
@@ -169,6 +176,9 @@ func (v *projectionVisibility) filterInitial(ctx context.Context, controller acc
 		if event.Type != projection.ProjectionInstanceOpened {
 			continue
 		}
+		if v.partial && event.Checkpoint == nil && event.Fence == nil {
+			continue
+		}
 		point, err := visibilityPointAt(event.Checkpoint, event.Fence)
 		if err != nil {
 			return nil, err
@@ -189,6 +199,7 @@ func (v *projectionVisibility) filterInitial(ctx context.Context, controller acc
 		}
 	}
 	decisions := make(map[int]projectionRowAction)
+	var targets []*projectionAuthorizationTarget
 	capture := newPolicyCapture(v, overlay(events))
 	for instanceID, indexes := range rowsByInstance {
 		view := views[instanceID]
@@ -202,17 +213,36 @@ func (v *projectionVisibility) filterInitial(ctx context.Context, controller acc
 		}
 		visible, err := prepared.Evaluate(ctx, view, candidates)
 		if err != nil {
-			return nil, err
+			if !v.partial || ctx.Err() != nil {
+				return nil, err
+			}
+			visible = make([]accesscontrol.Decision, len(candidates))
+			for i := range visible {
+				visible[i].Err = err
+			}
 		}
 		if len(visible) != len(indexes) {
 			return nil, errors.New("access controller returned the wrong number of decisions")
 		}
 		for decision, eventIndex := range indexes {
-			decisions[eventIndex] = projectionRowAuthorization(visible[decision])
+			if visible[decision].Err != nil && !v.partial {
+				return nil, visible[decision].Err
+			}
+			decisions[eventIndex] = projectionRowAuthorization(visible[decision].Visible)
 			events[eventIndex].Computed = computedValues(prepared, events[eventIndex].InstanceID, events[eventIndex].Key)
+			if visible[decision].Err != nil {
+				decisions[eventIndex] = projectionRowFailed
+			}
+			if visible[decision].Pending && visible[decision].Err == nil {
+				decisions[eventIndex] = projectionRowPending
+			}
+		}
+		for i, eventIndex := range indexes {
+			event := events[eventIndex]
+			targets = append(targets, &projectionAuthorizationTarget{key: occurrenceRow{event.InstanceID, event.Key}, event: event, visible: visible[i].Visible, failure: visible[i].Err, pending: visible[i].Pending && visible[i].Err == nil})
 		}
 	}
-	transition, err := v.stageVisibility(events, decisions, nil, nil)
+	transition, err := v.stageVisibility(events, decisions, nil, targets)
 	if err != nil {
 		return nil, err
 	}

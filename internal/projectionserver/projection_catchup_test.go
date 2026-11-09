@@ -113,7 +113,7 @@ type catchupPrepared struct {
 	owner *catchupVisibility
 }
 
-func (p *catchupPrepared) Evaluate(ctx context.Context, view accesscontrol.View, candidates []accesscontrol.Candidate) ([]bool, error) {
+func (p *catchupPrepared) Evaluate(ctx context.Context, view accesscontrol.View, candidates []accesscontrol.Candidate) ([]accesscontrol.Decision, error) {
 	for _, candidate := range candidates {
 		if string(candidate.Record["title"].Data) == "Slow" {
 			p.owner.once.Do(func() {
@@ -128,9 +128,9 @@ func (p *catchupPrepared) Evaluate(ctx context.Context, view accesscontrol.View,
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	allowed := make([]bool, len(candidates))
+	allowed := make([]accesscontrol.Decision, len(candidates))
 	for i := range allowed {
-		allowed[i] = view.(authorizationCommitView).allowed
+		allowed[i].Visible = view.(authorizationCommitView).allowed
 	}
 	return allowed, nil
 }

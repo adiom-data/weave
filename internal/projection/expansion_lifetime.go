@@ -1,5 +1,16 @@
 package projection
 
+import q "github.com/adiom-data/weave/internal/querysubscription/model"
+
+// takeSubscriptionLocked transfers the sole Close responsibility and disables
+// future window requests atomically. The caller holds Projection.mu and must
+// close the returned handle outside that lock.
+func (instance *projectionInstance) takeSubscriptionLocked() q.Subscription {
+	handle := instance.subscription
+	instance.subscription, instance.query = nil, nil
+	return handle
+}
+
 // currentInstance is the common delivery/failure routing boundary. The caller
 // holds processMu so parent replacement and ownership reconciliation are one
 // transition. Obsolete registered loads are retired before payload evaluation;
@@ -49,14 +60,40 @@ func (p *Projection) instanceCurrentLocked(instance *projectionInstance) bool {
 	return false
 }
 
-// attachExpansionLocked transfers installed interests from the load generation
-// to the current parent's ordinary topology. Unchanged parent images share the
-// same generation, so they can adopt the same in-flight work safely.
-func (p *Projection) attachExpansionLocked(expansion projectionExpansion, ids []string) {
-	expansion.parent.members[expansion.key].completeExpansion(ids)
+// attachExpansionLocked transfers a complete set of interests into the current
+// row image. A sibling retry can remove coverage while a pass is loading; that
+// pass must fill the new gap before it can declare the generation expanded.
+// Requires processMu and p.mu.
+func (p *Projection) attachExpansionLocked(expansion projectionExpansion, ids []string) bool {
+	member := expansion.parent.members[expansion.key]
+	covered := p.coveredChildrenLocked(member, ids)
+	for _, child := range expansion.parent.node.Children {
+		if !covered[child] {
+			return false
+		}
+	}
 	for _, id := range ids {
 		if instance := p.instances[id]; instance != nil {
+			member.children = append(member.children, id)
 			instance.opening = nil
 		}
 	}
+	member.expanded = true
+	return true
+}
+
+// coveredChildrenLocked includes private interests still owned by a load as
+// well as attached children. Neither list contains entity records. Requires p.mu.
+func (p *Projection) coveredChildrenLocked(member *projectionMember, opened []string) map[*ProjectionNode]bool {
+	covered := make(map[*ProjectionNode]bool, len(member.children)+len(opened))
+	add := func(ids []string) {
+		for _, id := range ids {
+			if instance := p.instances[id]; instance != nil {
+				covered[instance.node] = true
+			}
+		}
+	}
+	add(member.children)
+	add(opened)
+	return covered
 }

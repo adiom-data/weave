@@ -15,7 +15,7 @@ type recordedAuthorization struct {
 	candidates []accesscontrol.Candidate
 }
 
-func (p *recordedAuthorization) Evaluate(ctx context.Context, view accesscontrol.View, candidates []accesscontrol.Candidate) ([]bool, error) {
+func (p *recordedAuthorization) Evaluate(ctx context.Context, view accesscontrol.View, candidates []accesscontrol.Candidate) ([]accesscontrol.Decision, error) {
 	p.calls++
 	p.candidates = append(p.candidates, candidates...)
 	return p.visibilityTestPrepared.Evaluate(ctx, view, candidates)
@@ -85,6 +85,23 @@ func TestProjectionAuthorizationUsesFinalImageForRepeatedRawChanges(t *testing.T
 		if event.Type == proj.ProjectionRowChanged && event.Kind != q.Removed && string(event.Record["title"].Data) != "final" {
 			t.Fatal("final authorization was incorrectly applied to an earlier unauthorized image")
 		}
+	}
+}
+
+func TestProjectionAuthorizationInvalidatedParentReevaluatesPropagation(t *testing.T) {
+	gate := newProjectionVisibility()
+	prepared := &recordedAuthorization{visibilityTestPrepared: visibilityTestPrepared{decide: func(accesscontrol.Candidate) bool { return true }}}
+	initial := policyContextFixture()
+	if _, err := gate.filterBatch(context.Background(), prepared, visibilityTestView{}, proj.ProjectionBatch{Events: initial}); err != nil {
+		t.Fatal(err)
+	}
+	prepared.calls, prepared.candidates = 0, nil
+	inv := accesscontrol.Invalidation{Targets: []accesscontrol.InvalidationTarget{{InstanceID: initial[1].InstanceID, Key: initial[1].Key}}}
+	if _, err := gate.filterTransaction(context.Background(), prepared, visibilityTestView{}, proj.ProjectionBatch{Delivery: testDelivery(2)}, inv); err != nil {
+		t.Fatal(err)
+	}
+	if prepared.calls != 1 || len(prepared.candidates) != 5 {
+		t.Fatalf("policy-only parent invalidation lost descendants: calls=%d candidates=%d", prepared.calls, len(prepared.candidates))
 	}
 }
 

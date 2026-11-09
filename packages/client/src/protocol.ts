@@ -47,6 +47,7 @@ export type OccurrenceChange = { readonly id: string; readonly type: 'detached' 
 /** Opaque application payload encoded as base64, matching protobuf JSON bytes. */
 export interface TransactionMessage { readonly kind: string; readonly payload: string }
 export interface ModelBatch {
+  readonly branches: readonly BranchChange[]
   readonly computed: readonly ComputedChange[]
   readonly messages: readonly TransactionMessage[]
   readonly entities: readonly EntityChange[]
@@ -56,6 +57,22 @@ export interface ModelBatch {
   readonly atomic: boolean
   readonly checkpoint: string
 }
+/** Projection-relative failure; never an error on the shared entity itself. */
+export interface BranchAddress {
+  readonly subscriptionId: string
+  readonly occurrenceId: string
+  readonly nodeId: string
+  readonly parentOccurrenceId: string
+  readonly parentEntityId: string
+  /** Empty for an entire expansion, otherwise one row and its descendants. */
+  readonly entityId: string
+}
+export interface BranchFailure extends BranchAddress { readonly code: string; readonly message: string }
+export type BranchChange = BranchAddress & (
+  | Readonly<{ type: 'error'; code: string; message: string }>
+  | Readonly<{ type: 'recovered' }>
+)
+export const branchKey = (branch: BranchAddress): string => JSON.stringify([branch.subscriptionId, branch.occurrenceId, branch.entityId])
 export type ComputedChange = Readonly<{ occurrenceId: string; entityId: string }> & (
   | Readonly<{ type: 'upsert'; values: RecordData }>
   | Readonly<{ type: 'released' }>
@@ -212,7 +229,16 @@ export function normalizeServerMessage(message: pb.ServerMessage, limits: Decode
           default: throw new ProtocolError('Missing computed event')
         }
       })
-      event = { type: 'batch', batch: { entities, queries, occurrences, computed, messages, kind, atomic: batch.atomic, checkpoint: batch.checkpoint } }
+      const branches = batch.branches.map((change): BranchChange => {
+        const base: BranchAddress = { subscriptionId: id(change.subscriptionId), occurrenceId: id(change.occurrenceId), nodeId: id(change.nodeId), parentOccurrenceId: change.parentOccurrenceId, parentEntityId: change.parentEntityId, entityId: change.entityId }
+        if (!!base.parentOccurrenceId !== !!base.parentEntityId) throw new ProtocolError('Incomplete branch parent address')
+        switch (change.state.case) {
+          case 'error': return { ...base, type: 'error', code: id(change.state.value.code), message: change.state.value.message }
+          case 'recovered': return { ...base, type: 'recovered' }
+          default: throw new ProtocolError('Missing branch state')
+        }
+      })
+      event = { type: 'batch', batch: { entities, queries, occurrences, computed, messages, branches, kind, atomic: batch.atomic, checkpoint: batch.checkpoint } }
       break
     }
     default: throw new ProtocolError('Missing server event')

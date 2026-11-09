@@ -55,10 +55,10 @@ type visibilityTestPrepared struct {
 }
 
 func (visibilityTestPrepared) ID() accesscontrol.PreparedID { return "test" }
-func (p visibilityTestPrepared) Evaluate(_ context.Context, _ accesscontrol.View, candidates []accesscontrol.Candidate) ([]bool, error) {
-	result := make([]bool, len(candidates))
+func (p visibilityTestPrepared) Evaluate(_ context.Context, _ accesscontrol.View, candidates []accesscontrol.Candidate) ([]accesscontrol.Decision, error) {
+	result := make([]accesscontrol.Decision, len(candidates))
 	for index, candidate := range candidates {
-		result[index] = p.decide(candidate)
+		result[index].Visible = p.decide(candidate)
 	}
 	return result, nil
 }
@@ -68,15 +68,15 @@ func (visibilityTestPrepared) Release(context.Context, string, []storage.EntityK
 type selectiveVisibilityErrorPrepared struct{}
 
 func (selectiveVisibilityErrorPrepared) ID() accesscontrol.PreparedID { return "selective-error" }
-func (selectiveVisibilityErrorPrepared) Evaluate(_ context.Context, _ accesscontrol.View, candidates []accesscontrol.Candidate) ([]bool, error) {
+func (selectiveVisibilityErrorPrepared) Evaluate(_ context.Context, _ accesscontrol.View, candidates []accesscontrol.Candidate) ([]accesscontrol.Decision, error) {
 	for _, candidate := range candidates {
 		if candidate.Key.Value == "bad" {
 			return nil, errors.New("policy lookup failed")
 		}
 	}
-	visible := make([]bool, len(candidates))
+	visible := make([]accesscontrol.Decision, len(candidates))
 	for index := range visible {
-		visible[index] = true
+		visible[index].Visible = true
 	}
 	return visible, nil
 }
@@ -180,11 +180,11 @@ func (visibilityPointController) AcquireSnapshot(_ context.Context, fence storag
 type visibilityPointPrepared struct{}
 
 func (visibilityPointPrepared) ID() accesscontrol.PreparedID { return "point" }
-func (visibilityPointPrepared) Evaluate(_ context.Context, view accesscontrol.View, candidates []accesscontrol.Candidate) ([]bool, error) {
+func (visibilityPointPrepared) Evaluate(_ context.Context, view accesscontrol.View, candidates []accesscontrol.Candidate) ([]accesscontrol.Decision, error) {
 	point, ok := view.(visibilityPointView)
-	result := make([]bool, len(candidates))
+	result := make([]accesscontrol.Decision, len(candidates))
 	for index := range result {
-		result[index] = ok && point.checkpoint
+		result[index].Visible = ok && point.checkpoint
 	}
 	return result, nil
 }

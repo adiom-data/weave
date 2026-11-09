@@ -3,13 +3,15 @@
 // maintains a second authoritative cache.
 import type { ReactiveClient, ProjectionHandle } from './client.js'
 import type { ProjectionDataNode, ProjectionDataRow } from './publication.js'
-import type { ProjectionSnapshot, NodeView } from './projection.js'
+import type { ProjectionSnapshot } from './projection.js'
 import type { ProjectionRequest, BoundaryUpdate, Bounds, RecordData, Value } from './protocol.js'
+import type { BranchFailure } from './protocol.js'
 import { prepareProjectionRequest, immutable } from './protocol.js'
 import type { Selection } from './store.js'
 import type { OptimisticTarget } from './optimistic.js'
 import { bindList, entityBrand } from './projection_metadata.js'
 import { encodeValue, ProjectionDecodeError } from './value_input.js'
+import { findLiveWindow } from './windows.js'
 export { ProjectionDecodeError } from './value_input.js'
 
 // Only runtime-owned wrappers retain their availability contract. Stored
@@ -18,14 +20,14 @@ export type ProvisionalValue<T> = T extends ProjectedList<unknown> | { readonly 
   T extends readonly (infer E)[] ? readonly ProvisionalValue<E>[] :
   T extends object ? { readonly [K in keyof T]?: ProvisionalValue<T[K]> } : T
 
-export type ProjectedEntity<T> = Readonly<{ entityId: string; [entityBrand]: true }> & (
+export type ProjectedEntity<T> = Readonly<{ entityId: string; [entityBrand]: true; error?: BranchFailure; stale?: boolean }> & (
   | Readonly<{ status: 'available'; value: T }>
   | Readonly<{ status: 'pending' | 'unavailable' }>
   | Readonly<{ status: 'optimistic'; value: ProvisionalValue<T> }>
 )
 declare const listBrand: unique symbol
 /** An immutable ordered list with a private, occurrence-relative window locator. */
-export interface ProjectedList<T> extends ReadonlyArray<ProjectedEntity<T>> { readonly [listBrand]: true }
+export interface ProjectedList<T> extends ReadonlyArray<ProjectedEntity<T>> { readonly [listBrand]: true; readonly error?: BranchFailure; readonly stale?: boolean }
 export type ScalarKind = 'bool' | 'text' | 'uuid' | 'datetime' | 'bytes' | 'decimal' | 'integer' | 'int32' | 'float' | 'finiteFloat' | 'structured'
 export type ValueShape = Readonly<{ nullable?: boolean }> & (
   | Readonly<{ kind: ScalarKind }>
@@ -40,15 +42,16 @@ export interface ProjectionShape {
   readonly children: Readonly<Record<string, ProjectionShape>>
 }
 export interface ParameterShape { readonly name: string; readonly type: ValueShape }
-export interface ProjectionOptions { readonly waitForSync?: boolean }
+export interface ProjectionOptions { readonly waitForSync?: boolean; readonly allowPartialErrors?: boolean }
 export interface TypedProjectionSnapshot<T> {
+  readonly errors?: readonly BranchFailure[]
   readonly status: ProjectionSnapshot['status']
   readonly error?: string
   readonly stale?: boolean
   readonly data?: T
 }
 export interface WindowControl {
-  /** Current ready-generation bounds; undefined while rebuilding or detached. */
+  /** Current ready-generation bounds; undefined while rebuilding, errored, or detached. */
   readonly bounds: Selection<Bounds | undefined>
   update(updates: readonly BoundaryUpdate[]): Promise<void>
   extend(side: 'SIDE_LEFT' | 'SIDE_RIGHT', count: number): Promise<void>
@@ -190,6 +193,12 @@ class Materializer {
         const shared = reuseObject(oldFields, fields)
         output = (before?.status === 'available' || before?.status === 'optimistic') && before.status === status && before.value === shared ? before : Object.freeze({ [entityBrand]: true as const, entityId: value.entityId, status, value: shared })
       }
+      // Presentation state belongs to this occurrence, not its entity image.
+      // Reconcile it even when recovery restores an identical payload.
+      if (value.error || output.error || output.stale) {
+        const { error: _error, stale: _stale, ...image } = output
+        output = reuseObject(before, value.error ? { ...image, error: value.error, stale: value.stale } : image) as ProjectedEntity<unknown>
+      }
       this.rows.set(value, output)
       return output
     }
@@ -198,7 +207,9 @@ class Materializer {
     else {
       const before = Array.isArray(previous) ? previous as readonly ProjectedEntity<unknown>[] : undefined
       const byID = new Map(before?.map(item => [item.entityId, item]))
-      output = reuseArray(before, node.rows.map(item => row(item, byID.get(item.entityId))))
+      const next = node.rows.map(item => row(item, byID.get(item.entityId)))
+      if (node.error) Object.assign(next, { error: node.error, stale: node.stale })
+      output = (before as ProjectedList<unknown> | undefined)?.error === node.error && (before as ProjectedList<unknown> | undefined)?.stale === node.stale ? reuseArray(before, next) : Object.freeze(next)
     }
     if (node.type === 'list') {
       const locator = { nodeId: shape.nodeId, ancestors }
@@ -208,19 +219,6 @@ class Materializer {
     this.nodes.set(node, output)
     return output
   }
-}
-
-function findWindow(node: NodeView | undefined, locator: Locator, ancestors: readonly string[] = []): Extract<NodeView, { type: 'list' }> | undefined {
-  if (!node) return undefined
-  if (node.nodeId === locator.nodeId && node.type === 'list' && ancestors.length === locator.ancestors.length && ancestors.every((key, i) => key === locator.ancestors[i])) return node
-  for (const row of node.type === 'entity' ? [node.row] : node.rows) {
-    if (row.entityId !== locator.ancestors[ancestors.length]) continue
-    for (const child of Object.values(row.children)) {
-      const result = findWindow(child, locator, [...ancestors, row.entityId])
-      if (result) return result
-    }
-  }
-  return undefined
 }
 
 /** Used by generated modules; no GraphQL parser or schema ships to browsers. */
@@ -234,13 +232,13 @@ export function defineProjection<P, T>(root: ProjectionRequest['root'], shape: P
     for (const parameter of parameters) values[parameter.name] = encodeValue((input as Record<string, unknown>)[parameter.name], parameter.type, `Parameter ${parameter.name}`)
     return immutable(structuredClone(values))
   }
-  const request = (input: P, options?: ProjectionOptions): ProjectionRequest => Object.freeze({ root, parameters: encodeParameters(input), waitForSync: options?.waitForSync ?? false })
+  const request = (input: P, options?: ProjectionOptions): ProjectionRequest => Object.freeze({ root, parameters: encodeParameters(input), waitForSync: options?.waitForSync ?? false, allowPartialErrors: options?.allowPartialErrors ?? false })
   const attach = (client: ReactiveClient, request: ProjectionRequest): TypedProjectionHandle<T> => {
     const raw: ProjectionHandle = client.subscribeProjection(request)
     const materializer = new Materializer((list, shape, locator) => bindList(list, { owner: client, shape, ancestors: locator.ancestors, target: raw.target }))
     const data = mapSelection<ProjectionDataNode | undefined, T | undefined>(raw.data, (node, previous) => materializer.node(node, shape, [], previous) as T | undefined)
     const view = mapSelection<ProjectionSnapshot, TypedProjectionSnapshot<T>>(raw.view, (snapshot, previous) => reuseObject(previous,
-      { status: snapshot.status, error: snapshot.error, stale: snapshot.stale, data: data.getSnapshot() }))
+      { status: snapshot.status, error: snapshot.error, errors: snapshot.errors, stale: snapshot.stale, data: data.getSnapshot() }))
     return Object.freeze({
       id: raw.id, data, view, dispose: raw.dispose,
       target: (listOrNode?: ProjectedList<unknown> | string, ancestors?: readonly string[]): OptimisticTarget => {
@@ -252,11 +250,11 @@ export function defineProjection<P, T>(root: ProjectionRequest['root'], shape: P
       window: (list: ProjectedList<unknown>): WindowControl => {
         const locator = materializer.lists.get(list)
         if (!locator) throw new Error('List does not belong to this projection')
-        const bounds = mapSelection(raw.view, snapshot => snapshot.status === 'ready' ? findWindow(snapshot.root, locator)?.query?.bounds : undefined)
+        const currentWindow = (snapshot: ProjectionSnapshot) => snapshot.status === 'ready' ? findLiveWindow(snapshot.root, locator) : undefined
+        const bounds = mapSelection(raw.view, snapshot => currentWindow(snapshot)?.query?.bounds)
         const update = (updates: readonly BoundaryUpdate[]): Promise<void> => {
-          const window = findWindow(raw.view.getSnapshot().root, locator)
-          if (!window) return Promise.reject(new Error('List occurrence is no longer present'))
-          return window.occurrenceId ? raw.updateWindow(window.occurrenceId, updates) : Promise.reject(new Error('List has no active server window'))
+          const window = currentWindow(raw.view.getSnapshot())
+          return window?.occurrenceId ? raw.updateWindow(window.occurrenceId, updates) : Promise.reject(new Error('List has no active server window'))
         }
         return Object.freeze({ bounds, update,
           extend: (side: 'SIDE_LEFT' | 'SIDE_RIGHT', count: number) => update([{ side, operation: 'OPERATION_EXTEND', count }]),
@@ -268,8 +266,11 @@ export function defineProjection<P, T>(root: ProjectionRequest['root'], shape: P
   }
   const prepare = (input: P, options?: ProjectionOptions): PreparedProjection<T> => {
     const owned = request(input, options)
+    // The definition owns the fixed root. Every request input/option belongs
+    // in its key so React cannot keep a subscription with obsolete behavior.
+    const { root: _root, ...configuration } = owned
     return Object.freeze({ request: owned,
-      key: JSON.stringify({ parameters: owned.parameters, waitForSync: owned.waitForSync }),
+      key: JSON.stringify(configuration),
       subscribe: (client: ReactiveClient) => attach(client, owned),
     })
   }

@@ -27,6 +27,7 @@ type pathDecision struct {
 	parent       *pathDecision
 	dependencies map[string]struct{}
 	stamps       map[relationdef.Key]relationdef.Stamp
+	err          error
 }
 
 // authorize runs under evaluationMu. The returned evidence is adopted by the
@@ -55,7 +56,7 @@ func (v *View) authorize(ctx context.Context, evaluator *relationdef.Evaluator, 
 	}
 	parent, err := evaluation.ancestor(ctx, candidate.Context.Projection.Parent(), v)
 	if err != nil {
-		return nil, nil, err
+		return parent, evaluation.resolverScope, err
 	}
 	path := candidate.Context.Projection
 	// Explicit invalidation candidates may override the captured leaf image.
@@ -63,11 +64,11 @@ func (v *View) authorize(ctx context.Context, evaluator *relationdef.Evaluator, 
 	cacheable := path != nil && path.Step().Complete == candidate.Complete && reflect.DeepEqual(path.Step().Record, candidate.Record)
 	if cacheable {
 		if cached := evaluation.nodes[path]; cached != nil {
-			return cached, evaluation.resolverScope, nil
+			return cached, evaluation.resolverScope, cached.err
 		}
 	}
 	result, err := evaluation.check(ctx, candidate, parent, v)
-	if err == nil && cacheable {
+	if cacheable {
 		evaluation.nodes[path] = result
 	}
 	return result, evaluation.resolverScope, err
@@ -78,15 +79,15 @@ func (p *pathEvaluation) ancestor(ctx context.Context, path *relationdef.Project
 		return nil, nil
 	}
 	if result := p.nodes[path]; result != nil {
-		return result, nil
+		return result, result.err
 	}
 	parent, err := p.ancestor(ctx, path.Parent(), view)
 	if err != nil {
-		return nil, err
+		return parent, err
 	}
 	step := path.Step()
 	result, err := p.check(ctx, relationdef.Candidate{Key: step.Key, Record: step.Record, Complete: step.Complete, Context: relationdef.Scope{Projection: path}}, parent, view)
-	if err == nil {
+	if result != nil {
 		p.nodes[path] = result
 	}
 	return result, err
@@ -132,16 +133,15 @@ func evaluateNode(ctx context.Context, evaluator *relationdef.Evaluator, input r
 	result := &pathDecision{}
 	result.state = pass.NewContext(input, resolver, parent, view.owner.allowAll)
 	value, err := result.state.Visibility(ctx)
-	if err != nil {
-		return nil, err
-	}
+	result.err = err
 	result.decision = relationdef.Decision{Visible: value.Complete && value.Value.Type == storage.TypeBool && string(value.Value.Data) == "true", Resolved: value.Complete}
 	var keys []relationdef.Key
-	for key := range value.Definitions {
+	dependencies, definitions := result.state.Evidence()
+	for key := range definitions {
 		keys = append(keys, key)
 	}
-	result.dependencies, result.stamps = value.Dependencies, pass.Stamps(keys)
-	return result, nil
+	result.dependencies, result.stamps = dependencies, pass.Stamps(keys)
+	return result, err
 }
 
 // adopt preserves the existing occurrence invalidation contract: ancestor fact

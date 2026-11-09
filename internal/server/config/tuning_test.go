@@ -70,6 +70,7 @@ func TestEveryNumericTuningRejectsInvalidValues(t *testing.T) {
 func TestTuningCrossFieldValidation(t *testing.T) {
 	for name, mutate := range map[string]func(*Config){
 		"replication retry": func(c *Config) { c.Storage.Postgres.Replication.RetryMinDelay = time.Hour },
+		"projection retry":  func(c *Config) { c.Projection.ProjectionLimits.RecoveryInitialDelay = time.Hour },
 		"message queue":     func(c *Config) { c.Query.Messages.MaxQueuedBytes = 1 },
 		"message framing":   func(c *Config) { c.Query.Messages.MaxBatchBytes = 1 },
 		"capture framing":   func(c *Config) { c.Storage.Postgres.MessageLimits.MaxTransactionBytes = 1 },

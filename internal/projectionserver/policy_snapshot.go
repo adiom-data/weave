@@ -40,6 +40,7 @@ func (s *server) policySnapshot(ctx context.Context, feed q.Feed, p *proj.Projec
 		}
 	}()
 	image := newInitialPolicyImage(selected)
+	image.visibility.partial = p.PartialErrors()
 	var waiting <-chan struct{}
 	for {
 		select {
@@ -64,7 +65,7 @@ func (s *server) policySnapshot(ctx context.Context, feed q.Feed, p *proj.Projec
 				if _, _, err = p.ApplyEvent(item.event); err != nil {
 					return nil, nil, err
 				}
-				if item.event.Progress != nil || len(affected) > 0 {
+				if item.event.Progress != nil || len(affected) > 0 || item.event.Failure != nil && p.OwnsSubscription(item.event.Failure.SubscriptionID) {
 					retry = true
 				}
 				if item.event.Delivery != nil {

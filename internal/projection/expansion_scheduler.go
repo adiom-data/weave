@@ -47,11 +47,25 @@ type expansionKey struct {
 	row      storage.EntityKey
 }
 
+type expansionFlight struct {
+	expansionKey
+	generation *expansionGeneration
+}
+
+func expansionFlightFor(expansion projectionExpansion) expansionFlight {
+	flight := expansionFlight{expansionKey: expansionKey{parentID: expansion.parent.id, row: expansion.key}}
+	if expansion.member != nil {
+		flight.generation = expansion.member.expansionToken
+	}
+	return flight
+}
+
 // expansionScheduler is a bounded, coalescing work queue. Enqueue never waits
 // for a snapshot read: query-feed processing can therefore continue while
 // child subscriptions are loading. For one parent occurrence, a queued newer
 // generation replaces an older one. A running generation may have at most one
-// successor queued behind it.
+// successor queued behind it. Work for the same selector generation is single
+// flight; an obsolete generation cannot block a newly rebound selector.
 type expansionScheduler struct {
 	ctx    context.Context
 	limit  int
@@ -62,14 +76,14 @@ type expansionScheduler struct {
 	stopped bool
 	order   []expansionKey
 	queued  map[expansionKey]projectionExpansion
-	running int
+	running map[expansionFlight]struct{}
 	idle    chan struct{}
 }
 
 func newExpansionScheduler(ctx context.Context, workers, pendingLimit int, handle func(projectionExpansion)) *expansionScheduler {
 	s := &expansionScheduler{
 		ctx: ctx, limit: pendingLimit, handle: handle,
-		queued: make(map[expansionKey]projectionExpansion), idle: closedSignal(),
+		queued: make(map[expansionKey]projectionExpansion), running: make(map[expansionFlight]struct{}), idle: closedSignal(),
 	}
 	s.ready = sync.NewCond(&s.mu)
 	for range workers {
@@ -102,7 +116,7 @@ func (s *expansionScheduler) enqueue(expansions []projectionExpansion) error {
 	if len(s.queued)+additional > s.limit {
 		return errExpansionBacklogFull
 	}
-	wasIdle := s.running == 0 && len(s.queued) == 0
+	wasIdle := len(s.running) == 0 && len(s.queued) == 0
 	for _, expansion := range expansions {
 		key := expansionKey{parentID: expansion.parent.id, row: expansion.key}
 		if _, exists := s.queued[key]; exists {
@@ -127,7 +141,7 @@ func (s *expansionScheduler) work() {
 			return
 		}
 		s.handle(expansion)
-		s.complete()
+		s.complete(expansion)
 	}
 }
 
@@ -135,15 +149,22 @@ func (s *expansionScheduler) take() (projectionExpansion, bool) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	for {
-		for len(s.order) > 0 {
-			key := s.order[0]
-			s.order = s.order[1:]
+		for index, key := range s.order {
 			expansion, exists := s.queued[key]
 			if !exists {
 				continue
 			}
+			flight := expansionFlightFor(expansion)
+			if _, running := s.running[flight]; running {
+				continue
+			}
+			if index == 0 {
+				s.order = s.order[1:]
+			} else {
+				s.order = append(s.order[:index], s.order[index+1:]...)
+			}
 			delete(s.queued, key)
-			s.running++
+			s.running[flight] = struct{}{}
 			return expansion, true
 		}
 		if s.stopped {
@@ -185,15 +206,16 @@ func (s *expansionScheduler) discardParent(parentID string) {
 	s.mu.Unlock()
 }
 
-func (s *expansionScheduler) complete() {
+func (s *expansionScheduler) complete(expansion projectionExpansion) {
 	s.mu.Lock()
-	s.running--
+	delete(s.running, expansionFlightFor(expansion))
+	s.ready.Broadcast()
 	s.closeIdleIfDoneLocked()
 	s.mu.Unlock()
 }
 
 func (s *expansionScheduler) closeIdleIfDoneLocked() {
-	if s.running != 0 || len(s.queued) != 0 {
+	if len(s.running) != 0 || len(s.queued) != 0 {
 		return
 	}
 	select {
@@ -207,7 +229,7 @@ func (s *expansionScheduler) waitIdle(ctx context.Context) error {
 	for {
 		s.mu.Lock()
 		idle := s.idle
-		done := s.running == 0 && len(s.queued) == 0
+		done := len(s.running) == 0 && len(s.queued) == 0
 		s.mu.Unlock()
 		if done {
 			return nil
@@ -223,7 +245,7 @@ func (s *expansionScheduler) waitIdle(ctx context.Context) error {
 func (s *expansionScheduler) isIdle() bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.running == 0 && len(s.queued) == 0
+	return len(s.running) == 0 && len(s.queued) == 0
 }
 
 func (s *expansionScheduler) stop() {
@@ -233,7 +255,7 @@ func (s *expansionScheduler) stop() {
 		s.order = nil
 		clear(s.queued)
 		s.ready.Broadcast()
-		if s.running == 0 {
+		if len(s.running) == 0 {
 			select {
 			case <-s.idle:
 			default:

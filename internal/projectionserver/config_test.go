@@ -50,3 +50,11 @@ func TestProjectionConstructorUsesConfiguredDependencyMaintenance(t *testing.T) 
 		t.Fatalf("constructor replaced dependency configuration: %+v", got)
 	}
 }
+
+func TestProjectionConstructorRejectsInvalidRecoverySchedule(t *testing.T) {
+	o := DefaultOptions()
+	o.ProjectionLimits.RecoveryInitialDelay = time.Minute
+	if _, err := New(t.Context(), constructorQueries{}, o); err == nil {
+		t.Fatal("accepted initial recovery delay greater than cap")
+	}
+}

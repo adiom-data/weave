@@ -3,6 +3,7 @@ package local
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -305,7 +306,7 @@ func TestEntitySubscriptionRetainsTiedInitialCandidates(t *testing.T) {
 		},
 		unsubscribe: func(context.Context, string) error { return nil },
 	}
-	feed, err := New(coordinator).OpenFeed(context.Background(), querysubscription.FeedOptions{BufferLimit: 4})
+	feed, err := New(coordinator).openFeed(context.Background(), querysubscription.FeedOptions{BufferLimit: 4})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -348,7 +349,7 @@ func TestEntitySubscriptionRetainsTiedInitialCandidates(t *testing.T) {
 func TestCloseCanRetryFailedUnsubscribe(t *testing.T) {
 	attempts := 0
 	subscription := &localSubscription{
-		id: "items", nativeID: "\x00items", owner: &localFeed{subscriptions: make(map[string]*localSubscription), registered: make(chan struct{}, 1)},
+		id: "items", nativeID: "\x00items", owner: &localFeed{subscriptions: make(map[string]*localSubscription), registered: make(chan struct{}, 1), events: feedbuffer.New(4)},
 		coordinator: coordinatorStub{unsubscribe: func(context.Context, string) error {
 			attempts++
 			if attempts == 1 {
@@ -509,6 +510,9 @@ func TestBatchConversionFailureIsIsolatedToSubscription(t *testing.T) {
 		plan:        failingConversionPlan{nonComparingPlan{relation: relation}},
 	}
 	owner.subscriptions[subscription.id] = subscription
+	if err := owner.events.RegisterSubscription(subscription.id); err != nil {
+		t.Fatal(err)
+	}
 	record := storage.Record{"id": {Type: storage.TypeText, State: storage.ValuePresent, Data: []byte("1")}}
 	if err := queue.Offer(delivery.GroupMessage{Batches: []delivery.SubscriptionBatch{{SubscriptionID: subscription.nativeID,
 		Delivery: delivery.DeliveryCommit, Checkpoint: &querysubscription.Position{SourceID: "test", Value: 1}, Revision: 1, Events: []delivery.SubscriptionEvent{{Kind: changeprocessor.QueryAdded, Key: storage.EntityKey{Relation: relation, Value: "1"}, Record: record}},
@@ -531,7 +535,7 @@ func TestBatchConversionFailureIsIsolatedToSubscription(t *testing.T) {
 	}
 }
 
-func TestSessionSubscriptionIDsAreUniqueForSessionLifetime(t *testing.T) {
+func TestSessionRejectsConcurrentDuplicateSubscriptionIDs(t *testing.T) {
 	relation := storage.RelationKey{Source: "test", Name: "items"}
 	plan := nonComparingPlan{relation: relation}
 	subscribeCalls := 0
@@ -554,21 +558,21 @@ func TestSessionSubscriptionIDsAreUniqueForSessionLifetime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := subscription.Close(context.Background()); err != nil {
-		t.Fatal(err)
-	}
 	if _, _, err := subscribeLocalTest(context.Background(), session, querysubscription.QuerySubscribeRequest{ID: "items", Window: querysubscription.InitialWindow{Count: 1}}); err == nil {
-		t.Fatal("session reused a retired subscription ID")
+		t.Fatal("session accepted a concurrent duplicate subscription ID")
 	}
 	if subscribeCalls != 1 {
 		t.Fatalf("SubscribeGrouped calls = %d, want 1", subscribeCalls)
+	}
+	if err := subscription.Close(context.Background()); err != nil {
+		t.Fatal(err)
 	}
 	if err := session.Close(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 }
 
-func TestFailedSubscribeConsumesID(t *testing.T) {
+func TestFailedSubscribeReleasesAttemptRegistration(t *testing.T) {
 	subscribeCalls := 0
 	coordinator := coordinatorStub{
 		subscribe: func(context.Context, string, string, storage.QuerySpec, engine.InitialWindow, int) (*engine.OpenSubscription, error) {
@@ -577,7 +581,7 @@ func TestFailedSubscribeConsumesID(t *testing.T) {
 		},
 		unsubscribe: func(context.Context, string) error { return nil },
 	}
-	session, err := New(coordinator).OpenFeed(context.Background(), querysubscription.FeedOptions{BufferLimit: 4})
+	session, err := New(coordinator).openFeed(context.Background(), querysubscription.FeedOptions{BufferLimit: 4})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -586,11 +590,14 @@ func TestFailedSubscribeConsumesID(t *testing.T) {
 	if _, _, err := subscribeLocalTest(context.Background(), session, request); err == nil {
 		t.Fatal("first Subscribe succeeded")
 	}
-	if _, _, err := subscribeLocalTest(context.Background(), session, request); err == nil {
-		t.Fatal("failed subscription ID was reused")
+	for i := 0; i < 100; i++ {
+		request.ID = fmt.Sprintf("retry-%d", i)
+		if _, _, err := subscribeLocalTest(context.Background(), session, request); err == nil {
+			t.Fatal("Subscribe succeeded")
+		}
 	}
-	if subscribeCalls != 1 {
-		t.Fatalf("SubscribeGrouped calls = %d, want 1", subscribeCalls)
+	if subscribeCalls != 101 || len(session.subscriptions) != 0 {
+		t.Fatalf("calls=%d active=%d", subscribeCalls, len(session.subscriptions))
 	}
 }
 

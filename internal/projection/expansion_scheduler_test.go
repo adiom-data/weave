@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/adiom-data/weave/internal/querysubscription/model"
 	"github.com/adiom-data/weave/internal/storage"
 )
 
@@ -155,5 +156,123 @@ func TestExpansionSchedulerRejectsExcessPendingWork(t *testing.T) {
 	close(block)
 	if err := scheduler.waitIdle(context.Background()); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestExpansionSchedulerSerializesAndCoalescesTheSameGeneration(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	release := make(chan struct{})
+	defer close(release)
+	started := make(chan uint64, 8)
+	scheduler := newExpansionScheduler(ctx, 2, 2, func(expansion projectionExpansion) {
+		started <- expansion.revision
+		if expansion.revision == 1 {
+			select {
+			case <-release:
+			case <-ctx.Done():
+			}
+		}
+	})
+	defer scheduler.stop()
+	parent := &projectionInstance{id: "parent"}
+	member := newProjectionMember(nil, querysubscription.RecordVersion{}, nil, false)
+	first := projectionExpansion{parent: parent, key: storage.EntityKey{Value: "one"}, member: member, revision: 1}
+	if err := scheduler.enqueue([]projectionExpansion{first}); err != nil {
+		t.Fatal(err)
+	}
+	receive := func(want uint64) {
+		t.Helper()
+		select {
+		case got := <-started:
+			if got != want {
+				t.Fatalf("started revision %d, want %d", got, want)
+			}
+		case <-ctx.Done():
+			t.Fatal("runnable work was blocked by another key")
+		}
+	}
+	receive(1)
+	second, third, other := first, first, first
+	second.revision, third.revision, other.revision = 2, 3, 4
+	other.key.Value = "two"
+	if err := scheduler.enqueue([]projectionExpansion{second, third, other}); err != nil {
+		t.Fatal(err)
+	}
+	receive(4) // The same generation must wait, but another row must not.
+	// Stop must discard the blocked successor without declaring an active
+	// generation idle or running the superseded revision on another worker.
+	scheduler.stop()
+	if scheduler.isIdle() {
+		t.Fatal("stopping discarded a still-running expansion")
+	}
+	cancel()
+	if err := scheduler.waitIdle(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if len(started) != 0 {
+		t.Fatal("stopped scheduler ran a blocked successor")
+	}
+}
+
+func TestExpansionSchedulerRunsLatestSuccessorAndDoesNotBlockRebinds(t *testing.T) {
+	for _, rebind := range []bool{false, true} {
+		name := "same-generation"
+		if rebind {
+			name = "new-selector"
+		}
+		t.Run(name, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+			defer cancel()
+			release := make(chan struct{})
+			var once sync.Once
+			defer once.Do(func() { close(release) })
+			started := make(chan uint64, 8)
+			scheduler := newExpansionScheduler(ctx, 2, 1, func(expansion projectionExpansion) {
+				started <- expansion.revision
+				if expansion.revision == 1 {
+					select {
+					case <-release:
+					case <-ctx.Done():
+					}
+				}
+			})
+			defer scheduler.stop()
+			first := projectionExpansion{parent: &projectionInstance{id: "parent"}, key: storage.EntityKey{Value: "row"}, member: newProjectionMember(nil, querysubscription.RecordVersion{}, nil, false), revision: 1}
+			if err := scheduler.enqueue([]projectionExpansion{first}); err != nil {
+				t.Fatal(err)
+			}
+			select {
+			case <-started:
+			case <-ctx.Done():
+				t.Fatal(ctx.Err())
+			}
+			second, latest := first, first
+			second.revision, latest.revision = 2, 3
+			if rebind {
+				latest.member = newProjectionMember(nil, querysubscription.RecordVersion{}, nil, false)
+			}
+			if err := scheduler.enqueue([]projectionExpansion{second, latest}); err != nil {
+				t.Fatal(err)
+			}
+			if !rebind {
+				once.Do(func() { close(release) })
+			}
+			select {
+			case revision := <-started:
+				if revision != 3 {
+					t.Fatalf("superseded successor ran: %d", revision)
+				}
+			case <-ctx.Done():
+				t.Fatal("new selector waited for an obsolete generation")
+			}
+			once.Do(func() { close(release) })
+			if err := scheduler.waitIdle(ctx); err != nil {
+				t.Fatal(err)
+			}
+			if len(started) != 0 {
+				t.Fatal("successor ran more than once")
+			}
+		})
 	}
 }

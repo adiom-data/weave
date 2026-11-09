@@ -47,6 +47,8 @@ func failureLifecycleFixture() (*localFeed, *localSubscription, *retirementFloor
 		plan: conditionalConversionPlan{nonComparingPlan{relation: relation}, calls}}
 	healthy := &localSubscription{id: "healthy", nativeID: feed.nativeID("healthy"), owner: feed, installed: true, plan: nonComparingPlan{relation: relation}}
 	feed.subscriptions[failed.id], feed.subscriptions[healthy.id] = failed, healthy
+	_ = feed.events.RegisterSubscription(failed.id)
+	_ = feed.events.RegisterSubscription(healthy.id)
 	return feed, failed, coordinator, calls
 }
 

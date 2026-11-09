@@ -822,6 +822,40 @@ func TestCoordinatorResolvesRepeatedInitialWindowFromSharedCache(t *testing.T) {
 	}
 }
 
+func TestCoordinatorExplicitInitialBoundsUseOneColdReadThenCache(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	relation := storage.RelationKey{Source: "test", Name: "tasks"}
+	plan := fakePlan{fingerprint: "all", relation: relation, routing: routing.RoutingPlan{Fallback: true}}
+	record := func(id string) storage.Record {
+		return storage.Record{"id": {Type: storage.TypeText, State: storage.ValuePresent, Data: []byte(id)}}
+	}
+	reads := make(chan datastore.WindowRequest, 4)
+	feed := newCoordinatorFeed()
+	feed.events <- datastore.CommittedChanges{Checkpoint: testPosition(1)}
+	source := &coordinatorSource{plan: plan, records: []storage.Record{record("1"), record("2"), record("3")}, feed: feed, fence: testPosition(1), windowReads: reads}
+	coordinator, err := StartCoordinator(ctx, source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	bounds := storage.CursorBounds{Left: storage.CursorBoundary{Kind: storage.CursorKey, Cursor: []byte("1")}, Right: storage.CursorBoundary{Kind: storage.CursorKey, Cursor: []byte("2")}}
+	first, err := coordinator.Subscribe(ctx, "cold", storage.QuerySpec{}, InitialWindow{Bounds: &bounds}, 4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first.Initial) != 1 || first.Initial[0].Key.Value != "2" {
+		t.Fatalf("explicit (left,right] bounds not respected: %+v", first.Initial)
+	}
+	if len(reads) != 1 {
+		t.Fatalf("expected one range materialization, no count discovery; got %d reads", len(reads))
+	}
+	source.snapshotErr = errors.New("unexpected datastore read for covered interval")
+	second, err := coordinator.Subscribe(ctx, "warm", storage.QuerySpec{}, InitialWindow{Bounds: &bounds}, 4)
+	if err != nil || len(second.Initial) != 1 || second.Initial[0].Key != first.Initial[0].Key {
+		t.Fatalf("warm explicit interval: %+v, %v", second, err)
+	}
+}
+
 func TestCoordinatorLoadsOnlyMissingInitialWindowExtension(t *testing.T) {
 	for _, test := range []struct {
 		name    string

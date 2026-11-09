@@ -154,7 +154,7 @@ func (s *server) handleSharedMessage(ctx context.Context, stream Stream, prefix 
 		}
 		externalID, requestID := message.SubscriptionId, message.RequestId
 		if s.relationAccess != nil {
-			return admissions.projection(externalID, requestID, prefix, root, selected, operation.SubscribeProjection.WaitForSync)
+			return admissions.projection(externalID, requestID, prefix, root, selected, operation.SubscribeProjection.WaitForSync, operation.SubscribeProjection.AllowPartialErrors)
 		}
 		generation := prefix + "projection:" + strconv.FormatUint(streamSequence.Add(1), 10)
 		loadCtx, loadCancel := context.WithCancel(ctx)
@@ -162,8 +162,9 @@ func (s *server) handleSharedMessage(ctx context.Context, stream Stream, prefix 
 		pending[externalID] = pendingState
 		projection, beginErr := proj.BeginProjection(loadCtx, queries, root, proj.StartOptions{
 			Prefix: generation, QueueLimit: s.options.SubscriptionQueueLimit, Limits: proj.Limits(s.options.ProjectionLimits),
-			ExpansionLimiter: s.expansionLimiter,
-			WaitForSync:      operation.SubscribeProjection.WaitForSync,
+			ExpansionLimiter:   s.expansionLimiter,
+			WaitForSync:        operation.SubscribeProjection.WaitForSync,
+			AllowPartialErrors: operation.SubscribeProjection.AllowPartialErrors,
 		})
 		if beginErr != nil {
 			delete(pending, externalID)
@@ -176,6 +177,7 @@ func (s *server) handleSharedMessage(ctx context.Context, stream Stream, prefix 
 		go func() {
 			defer loaders.Done()
 			visibility := newProjectionVisibility(selected)
+			visibility.partial = operation.SubscribeProjection.AllowPartialErrors
 			initial, _, subscribeErr := projection.TakeInitial(loadCtx)
 			if subscribeErr == nil {
 				initial, subscribeErr = visibility.filterInitial(loadCtx, s.access, prepared, initial)

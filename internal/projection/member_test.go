@@ -12,13 +12,16 @@ import (
 func TestMemberExpansionStateFollowsRowLifetime(t *testing.T) {
 	key := storage.EntityKey{Value: "parent"}
 	first := newProjectionMember(nil, q.RecordVersion{}, []byte("old"), false)
-	parent := &projectionInstance{id: "parent", node: &ProjectionNode{Entity: true, Children: []*ProjectionNode{{Name: "child"}}}, members: map[storage.EntityKey]*projectionMember{key: first}, published: true}
-	p := &Projection{ctx: context.Background(), instances: map[string]*projectionInstance{parent.id: parent}}
+	child := &projectionInstance{id: "empty-child", node: &ProjectionNode{Name: "child"}}
+	parent := &projectionInstance{id: "parent", node: &ProjectionNode{Entity: true, Children: []*ProjectionNode{child.node}}, members: map[storage.EntityKey]*projectionMember{key: first}, published: true}
+	p := &Projection{ctx: context.Background(), instances: map[string]*projectionInstance{parent.id: parent, child.id: child}}
 	oldWork := projectionExpansion{parent: parent, key: key, member: first}
 	if !p.expansionCurrentLocked(oldWork) {
 		t.Fatal("new member was not expandable")
 	}
-	first.completeExpansion(nil)
+	if !p.attachExpansionLocked(oldWork, []string{child.id}) {
+		t.Fatal("empty child query did not complete its parent expansion")
+	}
 	if !first.expanded || p.expansionCurrentLocked(oldWork) {
 		t.Fatal("empty completed expansion was treated as missing")
 	}

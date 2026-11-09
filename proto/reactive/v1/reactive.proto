@@ -21,6 +21,7 @@ message ProjectionSnapshotRequest {
   ProjectionNode root = 1;
   map<string, Value> parameters = 2;
   bool wait_for_sync = 3;
+  bool allow_partial_errors = 4;
 }
 
 message ProjectionSnapshotResponse {
@@ -28,11 +29,26 @@ message ProjectionSnapshotResponse {
   // object keys; field paths retain their stored names and object structure.
   // Recursive node.fields selections also trim embedded objects and arrays.
   // Lists are arrays; missing or invisible entities are null. No live model
-  // identifiers are included. Failures use RPC errors, never partial data.
+  // identifiers are included. Opted-in branch failures are null with errors;
+  // request/transport failures still use RPC errors.
   // Integers, decimals, bytes (base64), UUIDs, datetimes (RFC 3339), and
   // non-finite floats are strings; finite floats are JSON numbers.
   google.protobuf.Struct data = 1;
   ProjectionSnapshotExtensions extensions = 2;
+  repeated ProjectionSnapshotError errors = 3;
+}
+
+message ProjectionSnapshotError {
+  repeated ProjectionPathElement path = 1;
+  string code = 2;
+  string message = 3;
+}
+
+message ProjectionPathElement {
+  oneof element {
+    string field = 1;
+    uint32 index = 2;
+  }
 }
 
 message ProjectionSnapshotExtensions {
@@ -69,6 +85,8 @@ message SubscribeProjection {
   // Wait for ordered feed progress to cover every expanded snapshot before
   // publishing the initial image and Ready. CDC continues during this wait.
   bool wait_for_sync = 3;
+  // Keep failed branches tracked for recovery instead of failing the projection.
+  bool allow_partial_errors = 4;
 }
 
 message ProjectionNode {
@@ -311,6 +329,7 @@ message ModelBatch {
   // their source transaction. A message-only COMMIT may have no model effects.
   repeated TransactionMessage messages = 7;
   repeated ComputedEvent computed = 8;
+  repeated ProjectionBranch branches = 9;
 
   enum Kind {
     KIND_UNSPECIFIED = 0;
@@ -320,6 +339,31 @@ message ModelBatch {
     KIND_WINDOW = 4;
   }
 }
+
+// A failure is relative to a concrete projection occurrence, never to a shared
+// entity. Empty entity_id addresses an entire expansion; otherwise it addresses
+// one row and its descendants. Failed branches have no live model contents.
+// Clients may retain their previous immutable view separately as stale display.
+// A recovered event clears the error in the same batch as a complete replacement
+// of the branch (or its definitive removal). Recovery never requires old data.
+message ProjectionBranch {
+  string subscription_id = 1;
+  string occurrence_id = 2;
+  string node_id = 3;
+  string parent_occurrence_id = 4;
+  string parent_entity_id = 5;
+  string entity_id = 6;
+  oneof state {
+    ProjectionBranchError error = 7;
+    ProjectionBranchRecovered recovered = 8;
+  }
+}
+
+message ProjectionBranchError {
+  string code = 1;
+  string message = 2;
+}
+message ProjectionBranchRecovered {}
 
 message EntityEvent {
   string entity_id = 1;

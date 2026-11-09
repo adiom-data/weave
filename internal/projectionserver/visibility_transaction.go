@@ -16,13 +16,14 @@ import (
 // visibility. Old effective bits remain the publication baseline until publish.
 // Removed rows/instances survive privately until their final deltas are emitted.
 type visibilityTransaction struct {
-	v       *projectionVisibility
-	changes *visibilityChanges
-	updates map[string]*visibilityInstanceUpdate
-	queue   visibilityQueue
-	depths  map[string]int
-	removes []projection.ProjectionEvent
-	adds    []projection.ProjectionEvent
+	v        *projectionVisibility
+	changes  *visibilityChanges
+	updates  map[string]*visibilityInstanceUpdate
+	queue    visibilityQueue
+	depths   map[string]int
+	removes  []projection.ProjectionEvent
+	adds     []projection.ProjectionEvent
+	statuses []projection.ProjectionEvent
 }
 
 type visibilityInstanceUpdate struct {
@@ -72,6 +73,14 @@ func (t *visibilityTransaction) stageInstances(events []projection.ProjectionEve
 		t.touch(event.InstanceID)
 	}
 	for _, event := range events {
+		if event.Type == projection.ProjectionBranchChanged {
+			if event.Key == (storage.EntityKey{}) {
+				if update := t.touch(event.InstanceID); update != nil {
+					update.instance.failure = event.Failure
+				}
+			}
+			continue
+		}
 		if event.Type == projection.ProjectionInstanceClosed {
 			if update := t.touch(event.InstanceID); update != nil {
 				update.closed = true
@@ -116,7 +125,7 @@ func (t *visibilityTransaction) stageMembership(membership map[string]q.Membersh
 
 func (t *visibilityTransaction) stageRows(events []projection.ProjectionEvent, decisions map[int]projectionRowAction, membership map[string]q.MembershipDelta) error {
 	for index, event := range events {
-		if event.Type == projection.ProjectionInstanceOpened || event.Type == projection.ProjectionInstanceClosed {
+		if event.Type == projection.ProjectionInstanceOpened || event.Type == projection.ProjectionInstanceClosed || event.Type == projection.ProjectionBranchChanged {
 			continue
 		}
 		if event.Type != projection.ProjectionRowChanged {
@@ -175,7 +184,11 @@ func (t *visibilityTransaction) stageRows(events []projection.ProjectionEvent, d
 			}
 			t.v.occurrences[event.Key][event.InstanceID] = row
 		}
-		row.event, row.allowed = cloneProjectionEvent(event), action == projectionRowAllowed
+		row.event = cloneProjectionEvent(event)
+		row.pending = action == projectionRowPending
+		if !row.pending {
+			row.allowed, row.failure = action == projectionRowAllowed, nil
+		}
 		change := update.row(event.Key)
 		change.changed, change.removed = true, false
 	}
@@ -190,7 +203,11 @@ func (t *visibilityTransaction) stageAuthorization(targets []*projectionAuthoriz
 			continue
 		}
 		if row := update.instance.rows[target.key.key]; row != nil {
-			row.allowed = target.visible
+			row.pending = target.pending
+			if target.pending {
+				continue
+			} // An unresolved retry cannot clear a published failure.
+			row.allowed, row.failure = target.visible, target.failure
 			change := update.row(target.key.key)
 			if !reflect.DeepEqual(row.event.Computed, target.event.Computed) {
 				// Results belong to an immutable evaluation view. Borrow them until
@@ -296,7 +313,9 @@ func (t *visibilityTransaction) publish() ([]projection.ProjectionEvent, error) 
 		update := heap.Pop(&t.queue).(*visibilityInstanceUpdate)
 		instance := update.instance
 		before := instance.effective
-		effective := !update.closed && (instance.open.ParentInstanceID == "" || t.v.rowEffective(instance.open.ParentInstanceID, instance.open.ParentEntityKey))
+		parentEffective := instance.open.ParentInstanceID == "" || t.v.rowEffective(instance.open.ParentInstanceID, instance.open.ParentEntityKey)
+		t.publishError(instance.open, &instance.errorPublished, instance.failure, !update.closed && parentEffective)
+		effective := !update.closed && parentEffective && instance.failure == nil
 		instance.effective = effective
 		if before && !effective {
 			// Reversing removals below closes descendants before parents.
@@ -305,7 +324,7 @@ func (t *visibilityTransaction) publish() ([]projection.ProjectionEvent, error) 
 		if !before && effective {
 			t.adds = append(t.adds, cloneProjectionEvent(instance.open))
 		}
-		if before != effective {
+		if before != effective || update.closed {
 			for _, key := range instance.order.Keys() {
 				if err := t.publishRow(update, key); err != nil {
 					return nil, err
@@ -336,7 +355,7 @@ func (t *visibilityTransaction) publish() ([]projection.ProjectionEvent, error) 
 	for left, right := 0, len(t.removes)-1; left < right; left, right = left+1, right-1 {
 		t.removes[left], t.removes[right] = t.removes[right], t.removes[left]
 	}
-	return append(t.removes, t.adds...), nil
+	return append(append(t.removes, t.adds...), t.statuses...), nil
 }
 
 func (t *visibilityTransaction) publishRow(update *visibilityInstanceUpdate, key storage.EntityKey) error {
@@ -347,7 +366,17 @@ func (t *visibilityTransaction) publishRow(update *visibilityInstanceUpdate, key
 	}
 	change := update.rows[key]
 	before := row.effective
-	effective := instance.effective && row.allowed && (change == nil || !change.removed)
+	present := change == nil || !change.removed
+	if instance.effective && row.allowed && row.failure == nil && !row.pending && present {
+		if err := t.v.selected[row.event.Node].validateComputedOutput(row.event.Node, row.event.Record, row.event.Computed); err != nil {
+			if !t.v.partial {
+				return err
+			}
+			row.failure = err
+		}
+	}
+	t.publishError(row.event, &row.errorPublished, row.failure, instance.effective && present && !update.closed)
+	effective := instance.effective && row.allowed && row.failure == nil && !row.pending && present
 	if err := t.v.setRowEffective(update.id, instance, key, row, effective, t.changes); err != nil {
 		return err
 	}
@@ -355,9 +384,6 @@ func (t *visibilityTransaction) publishRow(update *visibilityInstanceUpdate, key
 		t.removes = append(t.removes, removedProjectionRow(row.event))
 	}
 	if effective && (!before || change != nil && change.changed) {
-		if err := t.v.selected[row.event.Node].validateComputedOutput(row.event.Node, row.event.Record, row.event.Computed); err != nil {
-			return err
-		}
 		event := cloneProjectionEvent(row.event)
 		event.Kind = q.Added
 		if before {
@@ -373,6 +399,20 @@ func (t *visibilityTransaction) publishRow(update *visibilityInstanceUpdate, key
 		}
 	}
 	return nil
+}
+
+func (t *visibilityTransaction) publishError(anchor projection.ProjectionEvent, published *bool, cause error, eligible bool) {
+	failed := eligible && cause != nil
+	if *published == failed {
+		return
+	}
+	*published = failed
+	anchor.Type, anchor.Record, anchor.Computed = projection.ProjectionBranchChanged, nil, nil
+	anchor.Failure = nil
+	if failed {
+		anchor.Failure = cause
+	}
+	t.statuses = append(t.statuses, anchor)
 }
 
 type visibilityQueue []*visibilityInstanceUpdate

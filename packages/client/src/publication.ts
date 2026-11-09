@@ -1,15 +1,20 @@
 import type { NodeView, ProjectionRow, ProjectionSnapshot } from './projection.js'
 import type { Listener, Selection } from './store.js'
 import { invokeSafely } from './callbacks.js'
+import { BranchPublications } from './partial.js'
+import { findLiveWindow } from './windows.js'
+import type { BranchChange, BranchFailure } from './protocol.js'
 
 // Display data deliberately excludes connection-owned window/occurrence IDs.
 export interface ProjectionDataRow {
+  readonly error?: BranchFailure
+  readonly stale?: boolean
   readonly computed?: ProjectionRow['computed']
   readonly entityId: string
   readonly entity: ProjectionRow['entity']
   readonly children: Readonly<Record<string, ProjectionDataNode | undefined>>
 }
-export type ProjectionDataNode = Readonly<{ nodeId: string }> & (
+export type ProjectionDataNode = Readonly<{ nodeId: string; error?: BranchFailure; stale?: boolean }> & (
   | Readonly<{ type: 'entity'; row: ProjectionDataRow }>
   | Readonly<{ type: 'list'; rows: readonly ProjectionDataRow[] }>
 )
@@ -35,16 +40,24 @@ class Cell<T> implements Selection<T> {
 
 // Frozen tree reconciliation. List rows match by entity identity, not index,
 // preserving unchanged row references when other rows move or disappear.
-function share<T>(before: T, after: T, memo = new WeakMap<object, unknown>()): T {
+function share<T>(before: T, after: T, memo = new WeakMap<object, WeakMap<object, unknown>>()): T {
   if (Object.is(before, after)) return before
   if (!before || !after || typeof before !== 'object' || typeof after !== 'object') return after
-  if (memo.has(after)) return memo.get(after) as T
+  // One incoming entity may meet both a stale branch and a current diamond
+  // branch. Reconciliation is a function of BOTH images, not just the incoming
+  // object; reusing the stale path's result would invalidate the healthy path.
+  if (memo.get(after)?.has(before)) return memo.get(after)!.get(before) as T
+  const remember = (result: unknown): void => {
+    let inputs = memo.get(after)
+    if (!inputs) memo.set(after, inputs = new WeakMap())
+    inputs.set(before, result)
+  }
   if (Array.isArray(after)) {
     if (!Array.isArray(before)) return after
     const rows = new Map(before.filter(isRow).map(row => [row.entityId, row]))
     const next = after.map((value, i) => share(isRow(value) ? rows.get(value.entityId) : before[i], value, memo))
     const result = next.length === before.length && next.every((value, i) => value === before[i]) ? before : Object.freeze(next)
-    memo.set(after, result)
+    remember(result)
     return result as T
   }
   if (Array.isArray(before)) return after
@@ -57,7 +70,7 @@ function share<T>(before: T, after: T, memo = new WeakMap<object, unknown>()): T
     same &&= Object.hasOwn(old, key) && result[key] === old[key]
   }
   const shared = same ? before : Object.freeze(result)
-  memo.set(after, shared)
+  remember(shared)
   return shared as T
 }
 function isRow(value: unknown): value is ProjectionDataRow {
@@ -67,14 +80,16 @@ function data(node: NodeView | undefined): ProjectionDataNode | undefined {
   if (!node) return undefined
   const row = (value: ProjectionRow): ProjectionDataRow => Object.freeze({
     entityId: value.entityId, entity: value.entity, computed: value.computed,
+    ...(value.error ? { error: value.error, stale: value.stale } : {}),
     children: Object.freeze(Object.fromEntries(Object.entries(value.children).map(([key, child]) => [key, data(child)]))),
   })
   return node.type === 'entity'
-    ? Object.freeze({ nodeId: node.nodeId, type: 'entity', row: row(node.row) })
-    : Object.freeze({ nodeId: node.nodeId, type: 'list', rows: Object.freeze(node.rows.map(row)) })
+    ? Object.freeze({ nodeId: node.nodeId, type: 'entity', row: row(node.error ? { ...node.row, error: node.error, stale: node.stale } : node.row), ...(node.error ? { error: node.error, stale: node.stale } : {}) })
+    : Object.freeze({ nodeId: node.nodeId, type: 'list', rows: Object.freeze(node.rows.map(row)), ...(node.error ? { error: node.error, stale: node.stale } : {}) })
 }
 
 export class ProjectionPublication {
+  private branches = new BranchPublications()
   readonly view: Cell<ProjectionSnapshot>
   readonly data: Cell<ProjectionDataNode | undefined>
   private current = false
@@ -86,7 +101,16 @@ export class ProjectionPublication {
   }
   // Preserve the last authoritative view during reconnect, not predictions
   // whose generation has ended. This preparation publishes nothing by itself.
-  prepareReset(root: NodeView | undefined): void { this.resetRoot = { root } }
+  prepareReset(root: NodeView | undefined): void {
+    this.resetRoot = { root: this.branches.reconcile(root, this.candidate?.errors) }
+    this.branches.reset()
+  }
+  prepareFailures(changes: readonly BranchChange[], authoritative: NodeView | undefined): void {
+    // Compose already-retained child failures into an authoritative parent
+    // capture without incorporating any currently pending predictions.
+    const baseline = this.branches.reconcile(authoritative, this.candidate?.errors)
+    this.branches.prepare(changes, baseline, this.view.getSnapshot().root)
+  }
   stage(candidate: ProjectionSnapshot): void {
     if (candidate === this.candidate) return
     this.candidate = candidate
@@ -96,19 +120,17 @@ export class ProjectionPublication {
     this.current = ready
     // Terminal failures clear previously visible data, including authorization
     // failures. A transient transport outage retains the last publication.
-    const root = ready ? candidate.root : terminal ? undefined : this.resetRoot ? this.resetRoot.root : previous.root
+    const root = ready ? this.branches.reconcile(candidate.root, candidate.errors) : terminal ? undefined : this.resetRoot ? this.resetRoot.root : previous.root
     this.resetRoot = undefined
-    this.view.stage(Object.freeze({ ...candidate, root, stale: !ready && !terminal && root !== undefined }))
+    this.view.stage(Object.freeze({ ...candidate, root, stale: !terminal && root !== undefined && (!ready || !!candidate.errors?.length) }))
     if (root !== previous.root) this.data.stage(data(root))
   }
   hasWindow(id: string): boolean {
-    const visit = (node: NodeView | undefined): boolean => !!node && (
-      (node.type === 'list' && node.occurrenceId === id) ||
-      (node.type === 'entity' ? [node.row] : node.rows).some(row => Object.values(row.children).some(visit)))
-    return this.current && visit(this.view.getSnapshot().root)
+    return this.current && !!findLiveWindow(this.view.getSnapshot().root, { occurrenceId: id })
   }
   clear(): void {
     this.resetRoot = undefined
+    this.branches.reset()
     this.current = false
     this.view.stage(Object.freeze({ status: 'closed', stale: false }))
     this.data.stage(undefined)

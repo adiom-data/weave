@@ -4,13 +4,14 @@ import (
 	"context"
 	"testing"
 
+	"github.com/adiom-data/weave/internal/querysubscription/feedbuffer"
 	"github.com/adiom-data/weave/internal/storage"
 )
 
 func TestLastAliasClosePrunesBucket(t *testing.T) {
 	key := testKey("link")
 	p := &parent{aliases: map[storage.EntityKey]map[string]*alias{}}
-	f := &feed{parents: map[string]*parent{"parent": p}, aliases: map[string]*alias{}}
+	f := &feed{parents: map[string]*parent{"parent": p}, aliases: map[string]*alias{}, events: feedbuffer.New(4)}
 	for _, id := range []string{"one", "two"} {
 		a := &alias{id: id, parent: "parent", key: key, feed: f}
 		f.aliases[id] = a

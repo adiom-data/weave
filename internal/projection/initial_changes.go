@@ -17,10 +17,11 @@ type initialChanges struct {
 	closed     map[string]ProjectionEvent
 	rows       map[string]map[storage.EntityKey]bool // membership before the first mutation
 	membership map[string]map[storage.EntityKey]bool
+	branches   map[string]ProjectionEvent
 }
 
 func newInitialChanges() *initialChanges {
-	return &initialChanges{opened: make(map[string]struct{}), closed: make(map[string]ProjectionEvent), rows: make(map[string]map[storage.EntityKey]bool), membership: make(map[string]map[storage.EntityKey]bool)}
+	return &initialChanges{opened: make(map[string]struct{}), closed: make(map[string]ProjectionEvent), rows: make(map[string]map[storage.EntityKey]bool), membership: make(map[string]map[storage.EntityKey]bool), branches: map[string]ProjectionEvent{}}
 }
 
 func (c *initialChanges) row(instance *projectionInstance, key storage.EntityKey) {
@@ -71,6 +72,7 @@ func (c *initialChanges) close(event ProjectionEvent) {
 	}
 	delete(c.rows, event.InstanceID)
 	delete(c.membership, event.InstanceID)
+	delete(c.branches, event.InstanceID)
 }
 
 // initialDelta is called only after all expansions and their source fences
@@ -80,7 +82,7 @@ func (p *Projection) initialDelta(root string) (ProjectionBatch, error) {
 	p.mu.Lock()
 	c := p.initialChanges
 	first := !c.started
-	if len(p.latestCheckpoints) != 1 {
+	if len(p.latestCheckpoints) > 1 {
 		p.mu.Unlock()
 		return ProjectionBatch{}, errors.New("initial admission requires one ordered source")
 	}
@@ -100,6 +102,9 @@ func (p *Projection) initialDelta(root string) (ProjectionBatch, error) {
 	} else {
 		p.mu.Lock()
 		for _, event := range c.closed {
+			batch.Events = append(batch.Events, event)
+		}
+		for _, event := range c.branches {
 			batch.Events = append(batch.Events, event)
 		}
 		sort.Slice(batch.Events, func(i, j int) bool { return len(batch.Events[i].Path) > len(batch.Events[j].Path) })

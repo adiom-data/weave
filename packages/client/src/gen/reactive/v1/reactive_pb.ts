@@ -12,7 +12,7 @@ import type { JsonObject, Message } from "@bufbuild/protobuf";
  * Describes the file reactive/v1/reactive.proto.
  */
 export const file_reactive_v1_reactive: GenFile = /*@__PURE__*/
-  fileDesc("ChpyZWFjdGl2ZS92MS9yZWFjdGl2ZS5wcm90bxILcmVhY3RpdmUudjEi8AEKGVByb2plY3Rpb25TbmFwc2hvdFJlcXVlc3QSKQoEcm9vdBgBIAEoCzIbLnJlYWN0aXZlLnYxLlByb2plY3Rpb25Ob2RlEkoKCnBhcmFtZXRlcnMYAiADKAsyNi5yZWFjdGl2ZS52MS5Qcm9qZWN0aW9uU25hcHNob3RSZXF1ZXN0LlBhcmFtZXRlcnNFbnRyeRIVCg13YWl0X2Zvcl9zeW5jGAMgASgIGkUKD1BhcmFtZXRlcnNFbnRyeRILCgNrZXkYASABKAkSIQoFdmFsdWUYAiABKAsyEi5yZWFjdGl2ZS52MS5WYWx1ZToCOAEiggEKGlByb2plY3Rpb25TbmFwc2hvdFJlc3BvbnNlEiUKBGRhdGEYASABKAsyFy5nb29nbGUucHJvdG9idWYuU3RydWN0Ej0KCmV4dGVuc2lvbnMYAiABKAsyKS5yZWFjdGl2ZS52MS5Qcm9qZWN0aW9uU25hcHNob3RFeHRlbnNpb25zIkgKHFByb2plY3Rpb25TbmFwc2hvdEV4dGVuc2lvbnMSFAoMc3luY2hyb25pemVkGAEgASgIEhIKCmNoZWNrcG9pbnQYAiABKAki5gIKDUNsaWVudE1lc3NhZ2USFwoPc3Vic2NyaXB0aW9uX2lkGAEgASgJEhIKCnJlcXVlc3RfaWQYAiABKAkSKwoJc3Vic2NyaWJlGAMgASgLMhYucmVhY3RpdmUudjEuU3Vic2NyaWJlSAASMgoNdXBkYXRlX3dpbmRvdxgEIAEoCzIZLnJlYWN0aXZlLnYxLlVwZGF0ZVdpbmRvd0gAEi8KC3Vuc3Vic2NyaWJlGAUgASgLMhgucmVhY3RpdmUudjEuVW5zdWJzY3JpYmVIABJAChRzdWJzY3JpYmVfcHJvamVjdGlvbhgGIAEoCzIgLnJlYWN0aXZlLnYxLlN1YnNjcmliZVByb2plY3Rpb25IABJHChh1cGRhdGVfcHJvamVjdGlvbl93aW5kb3cYByABKAsyIy5yZWFjdGl2ZS52MS5VcGRhdGVQcm9qZWN0aW9uV2luZG93SABCCwoJb3BlcmF0aW9uIloKCVN1YnNjcmliZRIhCgVxdWVyeRgBIAEoCzISLnJlYWN0aXZlLnYxLlF1ZXJ5EioKBndpbmRvdxgCIAEoCzIaLnJlYWN0aXZlLnYxLkluaXRpYWxXaW5kb3ci5AEKE1N1YnNjcmliZVByb2plY3Rpb24SKQoEcm9vdBgBIAEoCzIbLnJlYWN0aXZlLnYxLlByb2plY3Rpb25Ob2RlEkQKCnBhcmFtZXRlcnMYAiADKAsyMC5yZWFjdGl2ZS52MS5TdWJzY3JpYmVQcm9qZWN0aW9uLlBhcmFtZXRlcnNFbnRyeRIVCg13YWl0X2Zvcl9zeW5jGAMgASgIGkUKD1BhcmFtZXRlcnNFbnRyeRILCgNrZXkYASABKAkSIQoFdmFsdWUYAiABKAsyEi5yZWFjdGl2ZS52MS5WYWx1ZToCOAEijwIKDlByb2plY3Rpb25Ob2RlEg8KB25vZGVfaWQYASABKAkSLwoGZW50aXR5GAIgASgLMh0ucmVhY3RpdmUudjEuUHJvamVjdGlvbkVudGl0eUgAEisKBGxpc3QYAyABKAsyGy5yZWFjdGl2ZS52MS5Qcm9qZWN0aW9uTGlzdEgAEi0KCGNoaWxkcmVuGAQgAygLMhsucmVhY3RpdmUudjEuUHJvamVjdGlvbk5vZGUSLAoGZmllbGRzGAUgASgLMhwucmVhY3RpdmUudjEuT2JqZWN0U2VsZWN0aW9uEhIKCmFsbF9maWVsZHMYBiABKAgSEAoIY29tcHV0ZWQYByADKAlCCwoJc2VsZWN0aW9uIj0KD09iamVjdFNlbGVjdGlvbhIqCgZmaWVsZHMYASADKAsyGi5yZWFjdGl2ZS52MS5TZWxlY3RlZEZpZWxkImUKDVNlbGVjdGVkRmllbGQSJAoEcGF0aBgBIAEoCzIWLnJlYWN0aXZlLnYxLkZpZWxkUGF0aBIuCglzZWxlY3Rpb24YAiABKAsyGy5yZWFjdGl2ZS52MS5WYWx1ZVNlbGVjdGlvbiKKAQoOVmFsdWVTZWxlY3Rpb24SLgoGb2JqZWN0GAEgASgLMhwucmVhY3RpdmUudjEuT2JqZWN0U2VsZWN0aW9uSAASLwoIZWxlbWVudHMYAiABKAsyGy5yZWFjdGl2ZS52MS5WYWx1ZVNlbGVjdGlvbkgAEg8KBXdob2xlGAMgASgISABCBgoEa2luZCJnChBQcm9qZWN0aW9uRW50aXR5EiEKBXF1ZXJ5GAEgASgLMhIucmVhY3RpdmUudjEuUXVlcnkSMAoIYmluZGluZ3MYAiADKAsyHi5yZWFjdGl2ZS52MS5Qcm9qZWN0aW9uQmluZGluZyKqAQoOUHJvamVjdGlvbkxpc3QSIQoFcXVlcnkYASABKAsyEi5yZWFjdGl2ZS52MS5RdWVyeRIqCgZ3aW5kb3cYAiABKAsyGi5yZWFjdGl2ZS52MS5Jbml0aWFsV2luZG93EjAKCGJpbmRpbmdzGAMgAygLMh4ucmVhY3RpdmUudjEuUHJvamVjdGlvbkJpbmRpbmcSFwoPZmV0Y2hfcmVmZXJlbmNlGAQgASgJIuUBChFQcm9qZWN0aW9uQmluZGluZxImCgZjb2x1bW4YASABKAsyFi5yZWFjdGl2ZS52MS5GaWVsZFBhdGgSMgoIb3BlcmF0b3IYAiABKA4yIC5yZWFjdGl2ZS52MS5Db21wYXJpc29uLk9wZXJhdG9yEiUKB2xpdGVyYWwYAyABKAsyEi5yZWFjdGl2ZS52MS5WYWx1ZUgAEhMKCXBhcmFtZXRlchgEIAEoCUgAEi8KDXBhcmVudF9jb2x1bW4YBSABKAsyFi5yZWFjdGl2ZS52MS5GaWVsZFBhdGhIAEIHCgV2YWx1ZSJbChZVcGRhdGVQcm9qZWN0aW9uV2luZG93EhMKC2luc3RhbmNlX2lkGAEgASgJEiwKB3VwZGF0ZXMYAiADKAsyGy5yZWFjdGl2ZS52MS5Cb3VuZGFyeVVwZGF0ZSKeAQoFUXVlcnkSDgoGc2NoZW1hGAEgASgJEg0KBXRhYmxlGAIgASgJEicKB2NvbHVtbnMYAyADKAsyFi5yZWFjdGl2ZS52MS5GaWVsZFBhdGgSJgoGZmlsdGVyGAQgASgLMhYucmVhY3RpdmUudjEuUHJlZGljYXRlEiUKBW9yZGVyGAUgAygLMhYucmVhY3RpdmUudjEuT3JkZXJUZXJtIh0KCUZpZWxkUGF0aBIQCghzZWdtZW50cxgBIAMoCSLKAQoJUHJlZGljYXRlEi0KCmNvbXBhcmlzb24YASABKAsyFy5yZWFjdGl2ZS52MS5Db21wYXJpc29uSAASKQoIanVuY3Rpb24YAiABKAsyFS5yZWFjdGl2ZS52MS5KdW5jdGlvbkgAEioKCW51bGxfdGVzdBgDIAEoCzIVLnJlYWN0aXZlLnYxLk51bGxUZXN0SAASKQoIbmVnYXRpb24YBCABKAsyFS5yZWFjdGl2ZS52MS5OZWdhdGlvbkgAQgwKCmV4cHJlc3Npb24iMwoITmVnYXRpb24SJwoHb3BlcmFuZBgBIAEoCzIWLnJlYWN0aXZlLnYxLlByZWRpY2F0ZSLWAgoKQ29tcGFyaXNvbhImCgZjb2x1bW4YASABKAsyFi5yZWFjdGl2ZS52MS5GaWVsZFBhdGgSMgoIb3BlcmF0b3IYAiABKA4yIC5yZWFjdGl2ZS52MS5Db21wYXJpc29uLk9wZXJhdG9yEiEKBXZhbHVlGAMgASgLMhIucmVhY3RpdmUudjEuVmFsdWUiyAEKCE9wZXJhdG9yEhgKFE9QRVJBVE9SX1VOU1BFQ0lGSUVEEAASEgoOT1BFUkFUT1JfRVFVQUwQARIWChJPUEVSQVRPUl9OT1RfRVFVQUwQAhIWChJPUEVSQVRPUl9MRVNTX1RIQU4QAxIfChtPUEVSQVRPUl9MRVNTX1RIQU5fT1JfRVFVQUwQBBIZChVPUEVSQVRPUl9HUkVBVEVSX1RIQU4QBRIiCh5PUEVSQVRPUl9HUkVBVEVSX1RIQU5fT1JfRVFVQUwQBiKvAQoISnVuY3Rpb24SMAoIb3BlcmF0b3IYASABKA4yHi5yZWFjdGl2ZS52MS5KdW5jdGlvbi5PcGVyYXRvchIoCghvcGVyYW5kcxgCIAMoCzIWLnJlYWN0aXZlLnYxLlByZWRpY2F0ZSJHCghPcGVyYXRvchIYChRPUEVSQVRPUl9VTlNQRUNJRklFRBAAEhAKDE9QRVJBVE9SX0FORBABEg8KC09QRVJBVE9SX09SEAIiQwoITnVsbFRlc3QSJgoGY29sdW1uGAEgASgLMhYucmVhY3RpdmUudjEuRmllbGRQYXRoEg8KB2lzX251bGwYAiABKAgiXAoJT3JkZXJUZXJtEiYKBmNvbHVtbhgBIAEoCzIWLnJlYWN0aXZlLnYxLkZpZWxkUGF0aBISCgpkZXNjZW5kaW5nGAIgASgIEhMKC251bGxzX2ZpcnN0GAMgASgIIokBCg1Jbml0aWFsV2luZG93Ei0KBGZyb20YASABKA4yHy5yZWFjdGl2ZS52MS5Jbml0aWFsV2luZG93LkZyb20SDQoFY291bnQYAiABKA0iOgoERnJvbRIUChBGUk9NX1VOU1BFQ0lGSUVEEAASDgoKRlJPTV9TVEFSVBABEgwKCEZST01fRU5EEAIiPAoMVXBkYXRlV2luZG93EiwKB3VwZGF0ZXMYASADKAsyGy5yZWFjdGl2ZS52MS5Cb3VuZGFyeVVwZGF0ZSLAAgoOQm91bmRhcnlVcGRhdGUSLgoEc2lkZRgBIAEoDjIgLnJlYWN0aXZlLnYxLkJvdW5kYXJ5VXBkYXRlLlNpZGUSOAoJb3BlcmF0aW9uGAIgASgOMiUucmVhY3RpdmUudjEuQm91bmRhcnlVcGRhdGUuT3BlcmF0aW9uEg0KBWNvdW50GAMgASgNEg4KBmN1cnNvchgEIAEoDCI7CgRTaWRlEhQKEFNJREVfVU5TUEVDSUZJRUQQABINCglTSURFX0xFRlQQARIOCgpTSURFX1JJR0hUEAIiaAoJT3BlcmF0aW9uEhkKFU9QRVJBVElPTl9VTlNQRUNJRklFRBAAEhQKEE9QRVJBVElPTl9FWFRFTkQQARIWChJPUEVSQVRJT05fQ09OVFJBQ1QQAhISCg5PUEVSQVRJT05fTU9WRRADIg0KC1Vuc3Vic2NyaWJlIrYCCg1TZXJ2ZXJNZXNzYWdlEhcKD3N1YnNjcmlwdGlvbl9pZBgBIAEoCRISCgpyZXF1ZXN0X2lkGAIgASgJEhAKCHNlcXVlbmNlGAMgASgEEiMKBXJlYWR5GAQgASgLMhIucmVhY3RpdmUudjEuUmVhZHlIABIvCgVlcnJvchgFIAEoCzIeLnJlYWN0aXZlLnYxLlN1YnNjcmlwdGlvbkVycm9ySAASLgoLbW9kZWxfYmF0Y2gYBiABKAsyFy5yZWFjdGl2ZS52MS5Nb2RlbEJhdGNoSAASOgoRY29ubmVjdGlvbl9vcGVuZWQYCCABKAsyHS5yZWFjdGl2ZS52MS5Db25uZWN0aW9uT3BlbmVkSAASGwoTY29ubmVjdGlvbl9zZXF1ZW5jZRgHIAEoBEIHCgVldmVudCIuChBDb25uZWN0aW9uT3BlbmVkEhoKEmNvbm5lY3Rpb25fY29udGV4dBgBIAEoCSJVChhSb3V0ZWRUcmFuc2FjdGlvbk1lc3NhZ2USGgoSY29ubmVjdGlvbl9jb250ZXh0GAEgASgJEgwKBGtpbmQYAiABKAkSDwoHcGF5bG9hZBgDIAEoDCIzChJUcmFuc2FjdGlvbk1lc3NhZ2USDAoEa2luZBgBIAEoCRIPCgdwYXlsb2FkGAIgASgMIt0CCgVWYWx1ZRIUCgpudWxsX3ZhbHVlGAEgASgISAASFAoKYm9vbF92YWx1ZRgCIAEoCEgAEhcKDWludGVnZXJfdmFsdWUYAyABKAlIABIXCg1kZWNpbWFsX3ZhbHVlGAQgASgJSAASFQoLZmxvYXRfdmFsdWUYBSABKAlIABIUCgp0ZXh0X3ZhbHVlGAYgASgJSAASFQoLYnl0ZXNfdmFsdWUYByABKAxIABIUCgp1dWlkX3ZhbHVlGAggASgJSAASNAoOZGF0ZXRpbWVfdmFsdWUYCSABKAsyGi5nb29nbGUucHJvdG9idWYuVGltZXN0YW1wSAASLAoKbGlzdF92YWx1ZRgKIAEoCzIWLnJlYWN0aXZlLnYxLlZhbHVlTGlzdEgAEjAKDG9iamVjdF92YWx1ZRgLIAEoCzIYLnJlYWN0aXZlLnYxLlZhbHVlT2JqZWN0SABCBgoEa2luZCIvCglWYWx1ZUxpc3QSIgoGdmFsdWVzGAEgAygLMhIucmVhY3RpdmUudjEuVmFsdWUihgEKC1ZhbHVlT2JqZWN0EjQKBmZpZWxkcxgBIAMoCzIkLnJlYWN0aXZlLnYxLlZhbHVlT2JqZWN0LkZpZWxkc0VudHJ5GkEKC0ZpZWxkc0VudHJ5EgsKA2tleRgBIAEoCRIhCgV2YWx1ZRgCIAEoCzISLnJlYWN0aXZlLnYxLlZhbHVlOgI4ASKxAwoKTW9kZWxCYXRjaBISCgpjaGVja3BvaW50GAEgASgJEioKCGVudGl0aWVzGAIgAygLMhgucmVhY3RpdmUudjEuRW50aXR5RXZlbnQSKAoHcXVlcmllcxgDIAMoCzIXLnJlYWN0aXZlLnYxLlF1ZXJ5RXZlbnQSNQoLcHJvamVjdGlvbnMYBCADKAsyIC5yZWFjdGl2ZS52MS5Qcm9qZWN0aW9uUmVmZXJlbmNlEioKBGtpbmQYBSABKA4yHC5yZWFjdGl2ZS52MS5Nb2RlbEJhdGNoLktpbmQSDgoGYXRvbWljGAYgASgIEjEKCG1lc3NhZ2VzGAcgAygLMh8ucmVhY3RpdmUudjEuVHJhbnNhY3Rpb25NZXNzYWdlEiwKCGNvbXB1dGVkGAggAygLMhoucmVhY3RpdmUudjEuQ29tcHV0ZWRFdmVudCJlCgRLaW5kEhQKEEtJTkRfVU5TUEVDSUZJRUQQABIRCg1LSU5EX1NOQVBTSE9UEAESDwoLS0lORF9DT01NSVQQAhISCg5LSU5EX0hZRFJBVElPThADEg8KC0tJTkRfV0lORE9XEAQitgEKC0VudGl0eUV2ZW50EhEKCWVudGl0eV9pZBgBIAEoCRIrCgZ1cHNlcnQYAiABKAsyGS5yZWFjdGl2ZS52MS5FbnRpdHlVcHNlcnRIABIvCghyZWxlYXNlZBgDIAEoCzIbLnJlYWN0aXZlLnYxLkVudGl0eVJlbGVhc2VkSAASLQoHcGVuZGluZxgEIAEoCzIaLnJlYWN0aXZlLnYxLkVudGl0eVBlbmRpbmdIAEIHCgVldmVudCKhAQoNQ29tcHV0ZWRFdmVudBIVCg1vY2N1cnJlbmNlX2lkGAEgASgJEhEKCWVudGl0eV9pZBgCIAEoCRIqCgZ1cHNlcnQYAyABKAsyGC5yZWFjdGl2ZS52MS5WYWx1ZU9iamVjdEgAEjEKCHJlbGVhc2VkGAQgASgLMh0ucmVhY3RpdmUudjEuQ29tcHV0ZWRSZWxlYXNlZEgAQgcKBWV2ZW50IhIKEENvbXB1dGVkUmVsZWFzZWQiiAEKDEVudGl0eVVwc2VydBI1CgZ2YWx1ZXMYASADKAsyJS5yZWFjdGl2ZS52MS5FbnRpdHlVcHNlcnQuVmFsdWVzRW50cnkaQQoLVmFsdWVzRW50cnkSCwoDa2V5GAEgASgJEiEKBXZhbHVlGAIgASgLMhIucmVhY3RpdmUudjEuVmFsdWU6AjgBIhAKDkVudGl0eVJlbGVhc2VkIg8KDUVudGl0eVBlbmRpbmcigAIKClF1ZXJ5RXZlbnQSHQoVcXVlcnlfc3Vic2NyaXB0aW9uX2lkGAEgASgJEg8KB25vZGVfaWQYAiABKAkSKAoFcmVzZXQYAyABKAsyFy5yZWFjdGl2ZS52MS5RdWVyeVJlc2V0SAASKgoGY2xvc2VkGAQgASgLMhgucmVhY3RpdmUudjEuUXVlcnlDbG9zZWRIABIoCgVkZWx0YRgFIAEoCzIXLnJlYWN0aXZlLnYxLlF1ZXJ5RGVsdGFIABI5Cg53aW5kb3dfY2hhbmdlZBgGIAEoCzIfLnJlYWN0aXZlLnYxLlF1ZXJ5V2luZG93Q2hhbmdlZEgAQgcKBWV2ZW50InwKClF1ZXJ5UmVzZXQSIwoEbGVmdBgBIAEoCzIVLnJlYWN0aXZlLnYxLkJvdW5kYXJ5EiQKBXJpZ2h0GAIgASgLMhUucmVhY3RpdmUudjEuQm91bmRhcnkSEgoKZW50aXR5X2lkcxgDIAMoCRIPCgd2ZXJzaW9uGAQgASgEIocBCgpRdWVyeURlbHRhEhQKDGJhc2VfdmVyc2lvbhgBIAEoBBIWCg5yZXN1bHRfdmVyc2lvbhgCIAEoBBIaChJyZW1vdmVkX2VudGl0eV9pZHMYAyADKAkSLwoKaW5zZXJ0aW9ucxgEIAMoCzIbLnJlYWN0aXZlLnYxLlF1ZXJ5SW5zZXJ0aW9uIjgKDlF1ZXJ5SW5zZXJ0aW9uEhEKCWVudGl0eV9pZBgBIAEoCRITCgtmaW5hbF9pbmRleBgCIAEoDSJfChJRdWVyeVdpbmRvd0NoYW5nZWQSIwoEbGVmdBgBIAEoCzIVLnJlYWN0aXZlLnYxLkJvdW5kYXJ5EiQKBXJpZ2h0GAIgASgLMhUucmVhY3RpdmUudjEuQm91bmRhcnkiDQoLUXVlcnlDbG9zZWQi/wEKE1Byb2plY3Rpb25SZWZlcmVuY2USFQoNb2NjdXJyZW5jZV9pZBgBIAEoCRIPCgdub2RlX2lkGAIgASgJEhgKEHBhcmVudF9lbnRpdHlfaWQYAyABKAkSMQoIYXR0YWNoZWQYBCABKAsyHS5yZWFjdGl2ZS52MS5Qcm9qZWN0aW9uVGFyZ2V0SAASMwoIZGV0YWNoZWQYBSABKAsyHy5yZWFjdGl2ZS52MS5Qcm9qZWN0aW9uRGV0YWNoZWRIABIXCg9zdWJzY3JpcHRpb25faWQYBiABKAkSHAoUcGFyZW50X29jY3VycmVuY2VfaWQYByABKAlCBwoFZXZlbnQiUgoQUHJvamVjdGlvblRhcmdldBITCgllbnRpdHlfaWQYASABKAlIABIfChVxdWVyeV9zdWJzY3JpcHRpb25faWQYAiABKAlIAEIICgZ0YXJnZXQiFAoSUHJvamVjdGlvbkRldGFjaGVkIqUBCghCb3VuZGFyeRIyCghzZW50aW5lbBgBIAEoDjIeLnJlYWN0aXZlLnYxLkJvdW5kYXJ5LlNlbnRpbmVsSAASEAoGY3Vyc29yGAIgASgMSAAiSgoIU2VudGluZWwSGAoUU0VOVElORUxfVU5TUEVDSUZJRUQQABISCg5TRU5USU5FTF9TVEFSVBABEhAKDFNFTlRJTkVMX0VORBACQgcKBXZhbHVlIgcKBVJlYWR5IjIKEVN1YnNjcmlwdGlvbkVycm9yEgwKBGNvZGUYASABKAkSDwoHbWVzc2FnZRgCIAEoCTK/AQoPUmVhY3RpdmVRdWVyaWVzEkIKBE9wZW4SGi5yZWFjdGl2ZS52MS5DbGllbnRNZXNzYWdlGhoucmVhY3RpdmUudjEuU2VydmVyTWVzc2FnZSgBMAESaAoVR2V0UHJvamVjdGlvblNuYXBzaG90EiYucmVhY3RpdmUudjEuUHJvamVjdGlvblNuYXBzaG90UmVxdWVzdBonLnJlYWN0aXZlLnYxLlByb2plY3Rpb25TbmFwc2hvdFJlc3BvbnNlQjxaOmdpdGh1Yi5jb20vYWRpb20tZGF0YS93ZWF2ZS9wa2cvZ2VuL3JlYWN0aXZlL3YxO3JlYWN0aXZldjFiBnByb3RvMw", [file_google_protobuf_timestamp, file_google_protobuf_struct]);
+  fileDesc("ChpyZWFjdGl2ZS92MS9yZWFjdGl2ZS5wcm90bxILcmVhY3RpdmUudjEijgIKGVByb2plY3Rpb25TbmFwc2hvdFJlcXVlc3QSKQoEcm9vdBgBIAEoCzIbLnJlYWN0aXZlLnYxLlByb2plY3Rpb25Ob2RlEkoKCnBhcmFtZXRlcnMYAiADKAsyNi5yZWFjdGl2ZS52MS5Qcm9qZWN0aW9uU25hcHNob3RSZXF1ZXN0LlBhcmFtZXRlcnNFbnRyeRIVCg13YWl0X2Zvcl9zeW5jGAMgASgIEhwKFGFsbG93X3BhcnRpYWxfZXJyb3JzGAQgASgIGkUKD1BhcmFtZXRlcnNFbnRyeRILCgNrZXkYASABKAkSIQoFdmFsdWUYAiABKAsyEi5yZWFjdGl2ZS52MS5WYWx1ZToCOAEiuAEKGlByb2plY3Rpb25TbmFwc2hvdFJlc3BvbnNlEiUKBGRhdGEYASABKAsyFy5nb29nbGUucHJvdG9idWYuU3RydWN0Ej0KCmV4dGVuc2lvbnMYAiABKAsyKS5yZWFjdGl2ZS52MS5Qcm9qZWN0aW9uU25hcHNob3RFeHRlbnNpb25zEjQKBmVycm9ycxgDIAMoCzIkLnJlYWN0aXZlLnYxLlByb2plY3Rpb25TbmFwc2hvdEVycm9yImoKF1Byb2plY3Rpb25TbmFwc2hvdEVycm9yEjAKBHBhdGgYASADKAsyIi5yZWFjdGl2ZS52MS5Qcm9qZWN0aW9uUGF0aEVsZW1lbnQSDAoEY29kZRgCIAEoCRIPCgdtZXNzYWdlGAMgASgJIkQKFVByb2plY3Rpb25QYXRoRWxlbWVudBIPCgVmaWVsZBgBIAEoCUgAEg8KBWluZGV4GAIgASgNSABCCQoHZWxlbWVudCJIChxQcm9qZWN0aW9uU25hcHNob3RFeHRlbnNpb25zEhQKDHN5bmNocm9uaXplZBgBIAEoCBISCgpjaGVja3BvaW50GAIgASgJIuYCCg1DbGllbnRNZXNzYWdlEhcKD3N1YnNjcmlwdGlvbl9pZBgBIAEoCRISCgpyZXF1ZXN0X2lkGAIgASgJEisKCXN1YnNjcmliZRgDIAEoCzIWLnJlYWN0aXZlLnYxLlN1YnNjcmliZUgAEjIKDXVwZGF0ZV93aW5kb3cYBCABKAsyGS5yZWFjdGl2ZS52MS5VcGRhdGVXaW5kb3dIABIvCgt1bnN1YnNjcmliZRgFIAEoCzIYLnJlYWN0aXZlLnYxLlVuc3Vic2NyaWJlSAASQAoUc3Vic2NyaWJlX3Byb2plY3Rpb24YBiABKAsyIC5yZWFjdGl2ZS52MS5TdWJzY3JpYmVQcm9qZWN0aW9uSAASRwoYdXBkYXRlX3Byb2plY3Rpb25fd2luZG93GAcgASgLMiMucmVhY3RpdmUudjEuVXBkYXRlUHJvamVjdGlvbldpbmRvd0gAQgsKCW9wZXJhdGlvbiJaCglTdWJzY3JpYmUSIQoFcXVlcnkYASABKAsyEi5yZWFjdGl2ZS52MS5RdWVyeRIqCgZ3aW5kb3cYAiABKAsyGi5yZWFjdGl2ZS52MS5Jbml0aWFsV2luZG93IoICChNTdWJzY3JpYmVQcm9qZWN0aW9uEikKBHJvb3QYASABKAsyGy5yZWFjdGl2ZS52MS5Qcm9qZWN0aW9uTm9kZRJECgpwYXJhbWV0ZXJzGAIgAygLMjAucmVhY3RpdmUudjEuU3Vic2NyaWJlUHJvamVjdGlvbi5QYXJhbWV0ZXJzRW50cnkSFQoNd2FpdF9mb3Jfc3luYxgDIAEoCBIcChRhbGxvd19wYXJ0aWFsX2Vycm9ycxgEIAEoCBpFCg9QYXJhbWV0ZXJzRW50cnkSCwoDa2V5GAEgASgJEiEKBXZhbHVlGAIgASgLMhIucmVhY3RpdmUudjEuVmFsdWU6AjgBIo8CCg5Qcm9qZWN0aW9uTm9kZRIPCgdub2RlX2lkGAEgASgJEi8KBmVudGl0eRgCIAEoCzIdLnJlYWN0aXZlLnYxLlByb2plY3Rpb25FbnRpdHlIABIrCgRsaXN0GAMgASgLMhsucmVhY3RpdmUudjEuUHJvamVjdGlvbkxpc3RIABItCghjaGlsZHJlbhgEIAMoCzIbLnJlYWN0aXZlLnYxLlByb2plY3Rpb25Ob2RlEiwKBmZpZWxkcxgFIAEoCzIcLnJlYWN0aXZlLnYxLk9iamVjdFNlbGVjdGlvbhISCgphbGxfZmllbGRzGAYgASgIEhAKCGNvbXB1dGVkGAcgAygJQgsKCXNlbGVjdGlvbiI9Cg9PYmplY3RTZWxlY3Rpb24SKgoGZmllbGRzGAEgAygLMhoucmVhY3RpdmUudjEuU2VsZWN0ZWRGaWVsZCJlCg1TZWxlY3RlZEZpZWxkEiQKBHBhdGgYASABKAsyFi5yZWFjdGl2ZS52MS5GaWVsZFBhdGgSLgoJc2VsZWN0aW9uGAIgASgLMhsucmVhY3RpdmUudjEuVmFsdWVTZWxlY3Rpb24iigEKDlZhbHVlU2VsZWN0aW9uEi4KBm9iamVjdBgBIAEoCzIcLnJlYWN0aXZlLnYxLk9iamVjdFNlbGVjdGlvbkgAEi8KCGVsZW1lbnRzGAIgASgLMhsucmVhY3RpdmUudjEuVmFsdWVTZWxlY3Rpb25IABIPCgV3aG9sZRgDIAEoCEgAQgYKBGtpbmQiZwoQUHJvamVjdGlvbkVudGl0eRIhCgVxdWVyeRgBIAEoCzISLnJlYWN0aXZlLnYxLlF1ZXJ5EjAKCGJpbmRpbmdzGAIgAygLMh4ucmVhY3RpdmUudjEuUHJvamVjdGlvbkJpbmRpbmciqgEKDlByb2plY3Rpb25MaXN0EiEKBXF1ZXJ5GAEgASgLMhIucmVhY3RpdmUudjEuUXVlcnkSKgoGd2luZG93GAIgASgLMhoucmVhY3RpdmUudjEuSW5pdGlhbFdpbmRvdxIwCghiaW5kaW5ncxgDIAMoCzIeLnJlYWN0aXZlLnYxLlByb2plY3Rpb25CaW5kaW5nEhcKD2ZldGNoX3JlZmVyZW5jZRgEIAEoCSLlAQoRUHJvamVjdGlvbkJpbmRpbmcSJgoGY29sdW1uGAEgASgLMhYucmVhY3RpdmUudjEuRmllbGRQYXRoEjIKCG9wZXJhdG9yGAIgASgOMiAucmVhY3RpdmUudjEuQ29tcGFyaXNvbi5PcGVyYXRvchIlCgdsaXRlcmFsGAMgASgLMhIucmVhY3RpdmUudjEuVmFsdWVIABITCglwYXJhbWV0ZXIYBCABKAlIABIvCg1wYXJlbnRfY29sdW1uGAUgASgLMhYucmVhY3RpdmUudjEuRmllbGRQYXRoSABCBwoFdmFsdWUiWwoWVXBkYXRlUHJvamVjdGlvbldpbmRvdxITCgtpbnN0YW5jZV9pZBgBIAEoCRIsCgd1cGRhdGVzGAIgAygLMhsucmVhY3RpdmUudjEuQm91bmRhcnlVcGRhdGUingEKBVF1ZXJ5Eg4KBnNjaGVtYRgBIAEoCRINCgV0YWJsZRgCIAEoCRInCgdjb2x1bW5zGAMgAygLMhYucmVhY3RpdmUudjEuRmllbGRQYXRoEiYKBmZpbHRlchgEIAEoCzIWLnJlYWN0aXZlLnYxLlByZWRpY2F0ZRIlCgVvcmRlchgFIAMoCzIWLnJlYWN0aXZlLnYxLk9yZGVyVGVybSIdCglGaWVsZFBhdGgSEAoIc2VnbWVudHMYASADKAkiygEKCVByZWRpY2F0ZRItCgpjb21wYXJpc29uGAEgASgLMhcucmVhY3RpdmUudjEuQ29tcGFyaXNvbkgAEikKCGp1bmN0aW9uGAIgASgLMhUucmVhY3RpdmUudjEuSnVuY3Rpb25IABIqCgludWxsX3Rlc3QYAyABKAsyFS5yZWFjdGl2ZS52MS5OdWxsVGVzdEgAEikKCG5lZ2F0aW9uGAQgASgLMhUucmVhY3RpdmUudjEuTmVnYXRpb25IAEIMCgpleHByZXNzaW9uIjMKCE5lZ2F0aW9uEicKB29wZXJhbmQYASABKAsyFi5yZWFjdGl2ZS52MS5QcmVkaWNhdGUi1gIKCkNvbXBhcmlzb24SJgoGY29sdW1uGAEgASgLMhYucmVhY3RpdmUudjEuRmllbGRQYXRoEjIKCG9wZXJhdG9yGAIgASgOMiAucmVhY3RpdmUudjEuQ29tcGFyaXNvbi5PcGVyYXRvchIhCgV2YWx1ZRgDIAEoCzISLnJlYWN0aXZlLnYxLlZhbHVlIsgBCghPcGVyYXRvchIYChRPUEVSQVRPUl9VTlNQRUNJRklFRBAAEhIKDk9QRVJBVE9SX0VRVUFMEAESFgoST1BFUkFUT1JfTk9UX0VRVUFMEAISFgoST1BFUkFUT1JfTEVTU19USEFOEAMSHwobT1BFUkFUT1JfTEVTU19USEFOX09SX0VRVUFMEAQSGQoVT1BFUkFUT1JfR1JFQVRFUl9USEFOEAUSIgoeT1BFUkFUT1JfR1JFQVRFUl9USEFOX09SX0VRVUFMEAYirwEKCEp1bmN0aW9uEjAKCG9wZXJhdG9yGAEgASgOMh4ucmVhY3RpdmUudjEuSnVuY3Rpb24uT3BlcmF0b3ISKAoIb3BlcmFuZHMYAiADKAsyFi5yZWFjdGl2ZS52MS5QcmVkaWNhdGUiRwoIT3BlcmF0b3ISGAoUT1BFUkFUT1JfVU5TUEVDSUZJRUQQABIQCgxPUEVSQVRPUl9BTkQQARIPCgtPUEVSQVRPUl9PUhACIkMKCE51bGxUZXN0EiYKBmNvbHVtbhgBIAEoCzIWLnJlYWN0aXZlLnYxLkZpZWxkUGF0aBIPCgdpc19udWxsGAIgASgIIlwKCU9yZGVyVGVybRImCgZjb2x1bW4YASABKAsyFi5yZWFjdGl2ZS52MS5GaWVsZFBhdGgSEgoKZGVzY2VuZGluZxgCIAEoCBITCgtudWxsc19maXJzdBgDIAEoCCKJAQoNSW5pdGlhbFdpbmRvdxItCgRmcm9tGAEgASgOMh8ucmVhY3RpdmUudjEuSW5pdGlhbFdpbmRvdy5Gcm9tEg0KBWNvdW50GAIgASgNIjoKBEZyb20SFAoQRlJPTV9VTlNQRUNJRklFRBAAEg4KCkZST01fU1RBUlQQARIMCghGUk9NX0VORBACIjwKDFVwZGF0ZVdpbmRvdxIsCgd1cGRhdGVzGAEgAygLMhsucmVhY3RpdmUudjEuQm91bmRhcnlVcGRhdGUiwAIKDkJvdW5kYXJ5VXBkYXRlEi4KBHNpZGUYASABKA4yIC5yZWFjdGl2ZS52MS5Cb3VuZGFyeVVwZGF0ZS5TaWRlEjgKCW9wZXJhdGlvbhgCIAEoDjIlLnJlYWN0aXZlLnYxLkJvdW5kYXJ5VXBkYXRlLk9wZXJhdGlvbhINCgVjb3VudBgDIAEoDRIOCgZjdXJzb3IYBCABKAwiOwoEU2lkZRIUChBTSURFX1VOU1BFQ0lGSUVEEAASDQoJU0lERV9MRUZUEAESDgoKU0lERV9SSUdIVBACImgKCU9wZXJhdGlvbhIZChVPUEVSQVRJT05fVU5TUEVDSUZJRUQQABIUChBPUEVSQVRJT05fRVhURU5EEAESFgoST1BFUkFUSU9OX0NPTlRSQUNUEAISEgoOT1BFUkFUSU9OX01PVkUQAyINCgtVbnN1YnNjcmliZSK2AgoNU2VydmVyTWVzc2FnZRIXCg9zdWJzY3JpcHRpb25faWQYASABKAkSEgoKcmVxdWVzdF9pZBgCIAEoCRIQCghzZXF1ZW5jZRgDIAEoBBIjCgVyZWFkeRgEIAEoCzISLnJlYWN0aXZlLnYxLlJlYWR5SAASLwoFZXJyb3IYBSABKAsyHi5yZWFjdGl2ZS52MS5TdWJzY3JpcHRpb25FcnJvckgAEi4KC21vZGVsX2JhdGNoGAYgASgLMhcucmVhY3RpdmUudjEuTW9kZWxCYXRjaEgAEjoKEWNvbm5lY3Rpb25fb3BlbmVkGAggASgLMh0ucmVhY3RpdmUudjEuQ29ubmVjdGlvbk9wZW5lZEgAEhsKE2Nvbm5lY3Rpb25fc2VxdWVuY2UYByABKARCBwoFZXZlbnQiLgoQQ29ubmVjdGlvbk9wZW5lZBIaChJjb25uZWN0aW9uX2NvbnRleHQYASABKAkiVQoYUm91dGVkVHJhbnNhY3Rpb25NZXNzYWdlEhoKEmNvbm5lY3Rpb25fY29udGV4dBgBIAEoCRIMCgRraW5kGAIgASgJEg8KB3BheWxvYWQYAyABKAwiMwoSVHJhbnNhY3Rpb25NZXNzYWdlEgwKBGtpbmQYASABKAkSDwoHcGF5bG9hZBgCIAEoDCLdAgoFVmFsdWUSFAoKbnVsbF92YWx1ZRgBIAEoCEgAEhQKCmJvb2xfdmFsdWUYAiABKAhIABIXCg1pbnRlZ2VyX3ZhbHVlGAMgASgJSAASFwoNZGVjaW1hbF92YWx1ZRgEIAEoCUgAEhUKC2Zsb2F0X3ZhbHVlGAUgASgJSAASFAoKdGV4dF92YWx1ZRgGIAEoCUgAEhUKC2J5dGVzX3ZhbHVlGAcgASgMSAASFAoKdXVpZF92YWx1ZRgIIAEoCUgAEjQKDmRhdGV0aW1lX3ZhbHVlGAkgASgLMhouZ29vZ2xlLnByb3RvYnVmLlRpbWVzdGFtcEgAEiwKCmxpc3RfdmFsdWUYCiABKAsyFi5yZWFjdGl2ZS52MS5WYWx1ZUxpc3RIABIwCgxvYmplY3RfdmFsdWUYCyABKAsyGC5yZWFjdGl2ZS52MS5WYWx1ZU9iamVjdEgAQgYKBGtpbmQiLwoJVmFsdWVMaXN0EiIKBnZhbHVlcxgBIAMoCzISLnJlYWN0aXZlLnYxLlZhbHVlIoYBCgtWYWx1ZU9iamVjdBI0CgZmaWVsZHMYASADKAsyJC5yZWFjdGl2ZS52MS5WYWx1ZU9iamVjdC5GaWVsZHNFbnRyeRpBCgtGaWVsZHNFbnRyeRILCgNrZXkYASABKAkSIQoFdmFsdWUYAiABKAsyEi5yZWFjdGl2ZS52MS5WYWx1ZToCOAEi4gMKCk1vZGVsQmF0Y2gSEgoKY2hlY2twb2ludBgBIAEoCRIqCghlbnRpdGllcxgCIAMoCzIYLnJlYWN0aXZlLnYxLkVudGl0eUV2ZW50EigKB3F1ZXJpZXMYAyADKAsyFy5yZWFjdGl2ZS52MS5RdWVyeUV2ZW50EjUKC3Byb2plY3Rpb25zGAQgAygLMiAucmVhY3RpdmUudjEuUHJvamVjdGlvblJlZmVyZW5jZRIqCgRraW5kGAUgASgOMhwucmVhY3RpdmUudjEuTW9kZWxCYXRjaC5LaW5kEg4KBmF0b21pYxgGIAEoCBIxCghtZXNzYWdlcxgHIAMoCzIfLnJlYWN0aXZlLnYxLlRyYW5zYWN0aW9uTWVzc2FnZRIsCghjb21wdXRlZBgIIAMoCzIaLnJlYWN0aXZlLnYxLkNvbXB1dGVkRXZlbnQSLwoIYnJhbmNoZXMYCSADKAsyHS5yZWFjdGl2ZS52MS5Qcm9qZWN0aW9uQnJhbmNoImUKBEtpbmQSFAoQS0lORF9VTlNQRUNJRklFRBAAEhEKDUtJTkRfU05BUFNIT1QQARIPCgtLSU5EX0NPTU1JVBACEhIKDktJTkRfSFlEUkFUSU9OEAMSDwoLS0lORF9XSU5ET1cQBCKZAgoQUHJvamVjdGlvbkJyYW5jaBIXCg9zdWJzY3JpcHRpb25faWQYASABKAkSFQoNb2NjdXJyZW5jZV9pZBgCIAEoCRIPCgdub2RlX2lkGAMgASgJEhwKFHBhcmVudF9vY2N1cnJlbmNlX2lkGAQgASgJEhgKEHBhcmVudF9lbnRpdHlfaWQYBSABKAkSEQoJZW50aXR5X2lkGAYgASgJEjMKBWVycm9yGAcgASgLMiIucmVhY3RpdmUudjEuUHJvamVjdGlvbkJyYW5jaEVycm9ySAASOwoJcmVjb3ZlcmVkGAggASgLMiYucmVhY3RpdmUudjEuUHJvamVjdGlvbkJyYW5jaFJlY292ZXJlZEgAQgcKBXN0YXRlIjYKFVByb2plY3Rpb25CcmFuY2hFcnJvchIMCgRjb2RlGAEgASgJEg8KB21lc3NhZ2UYAiABKAkiGwoZUHJvamVjdGlvbkJyYW5jaFJlY292ZXJlZCK2AQoLRW50aXR5RXZlbnQSEQoJZW50aXR5X2lkGAEgASgJEisKBnVwc2VydBgCIAEoCzIZLnJlYWN0aXZlLnYxLkVudGl0eVVwc2VydEgAEi8KCHJlbGVhc2VkGAMgASgLMhsucmVhY3RpdmUudjEuRW50aXR5UmVsZWFzZWRIABItCgdwZW5kaW5nGAQgASgLMhoucmVhY3RpdmUudjEuRW50aXR5UGVuZGluZ0gAQgcKBWV2ZW50IqEBCg1Db21wdXRlZEV2ZW50EhUKDW9jY3VycmVuY2VfaWQYASABKAkSEQoJZW50aXR5X2lkGAIgASgJEioKBnVwc2VydBgDIAEoCzIYLnJlYWN0aXZlLnYxLlZhbHVlT2JqZWN0SAASMQoIcmVsZWFzZWQYBCABKAsyHS5yZWFjdGl2ZS52MS5Db21wdXRlZFJlbGVhc2VkSABCBwoFZXZlbnQiEgoQQ29tcHV0ZWRSZWxlYXNlZCKIAQoMRW50aXR5VXBzZXJ0EjUKBnZhbHVlcxgBIAMoCzIlLnJlYWN0aXZlLnYxLkVudGl0eVVwc2VydC5WYWx1ZXNFbnRyeRpBCgtWYWx1ZXNFbnRyeRILCgNrZXkYASABKAkSIQoFdmFsdWUYAiABKAsyEi5yZWFjdGl2ZS52MS5WYWx1ZToCOAEiEAoORW50aXR5UmVsZWFzZWQiDwoNRW50aXR5UGVuZGluZyKAAgoKUXVlcnlFdmVudBIdChVxdWVyeV9zdWJzY3JpcHRpb25faWQYASABKAkSDwoHbm9kZV9pZBgCIAEoCRIoCgVyZXNldBgDIAEoCzIXLnJlYWN0aXZlLnYxLlF1ZXJ5UmVzZXRIABIqCgZjbG9zZWQYBCABKAsyGC5yZWFjdGl2ZS52MS5RdWVyeUNsb3NlZEgAEigKBWRlbHRhGAUgASgLMhcucmVhY3RpdmUudjEuUXVlcnlEZWx0YUgAEjkKDndpbmRvd19jaGFuZ2VkGAYgASgLMh8ucmVhY3RpdmUudjEuUXVlcnlXaW5kb3dDaGFuZ2VkSABCBwoFZXZlbnQifAoKUXVlcnlSZXNldBIjCgRsZWZ0GAEgASgLMhUucmVhY3RpdmUudjEuQm91bmRhcnkSJAoFcmlnaHQYAiABKAsyFS5yZWFjdGl2ZS52MS5Cb3VuZGFyeRISCgplbnRpdHlfaWRzGAMgAygJEg8KB3ZlcnNpb24YBCABKAQihwEKClF1ZXJ5RGVsdGESFAoMYmFzZV92ZXJzaW9uGAEgASgEEhYKDnJlc3VsdF92ZXJzaW9uGAIgASgEEhoKEnJlbW92ZWRfZW50aXR5X2lkcxgDIAMoCRIvCgppbnNlcnRpb25zGAQgAygLMhsucmVhY3RpdmUudjEuUXVlcnlJbnNlcnRpb24iOAoOUXVlcnlJbnNlcnRpb24SEQoJZW50aXR5X2lkGAEgASgJEhMKC2ZpbmFsX2luZGV4GAIgASgNIl8KElF1ZXJ5V2luZG93Q2hhbmdlZBIjCgRsZWZ0GAEgASgLMhUucmVhY3RpdmUudjEuQm91bmRhcnkSJAoFcmlnaHQYAiABKAsyFS5yZWFjdGl2ZS52MS5Cb3VuZGFyeSINCgtRdWVyeUNsb3NlZCL/AQoTUHJvamVjdGlvblJlZmVyZW5jZRIVCg1vY2N1cnJlbmNlX2lkGAEgASgJEg8KB25vZGVfaWQYAiABKAkSGAoQcGFyZW50X2VudGl0eV9pZBgDIAEoCRIxCghhdHRhY2hlZBgEIAEoCzIdLnJlYWN0aXZlLnYxLlByb2plY3Rpb25UYXJnZXRIABIzCghkZXRhY2hlZBgFIAEoCzIfLnJlYWN0aXZlLnYxLlByb2plY3Rpb25EZXRhY2hlZEgAEhcKD3N1YnNjcmlwdGlvbl9pZBgGIAEoCRIcChRwYXJlbnRfb2NjdXJyZW5jZV9pZBgHIAEoCUIHCgVldmVudCJSChBQcm9qZWN0aW9uVGFyZ2V0EhMKCWVudGl0eV9pZBgBIAEoCUgAEh8KFXF1ZXJ5X3N1YnNjcmlwdGlvbl9pZBgCIAEoCUgAQggKBnRhcmdldCIUChJQcm9qZWN0aW9uRGV0YWNoZWQipQEKCEJvdW5kYXJ5EjIKCHNlbnRpbmVsGAEgASgOMh4ucmVhY3RpdmUudjEuQm91bmRhcnkuU2VudGluZWxIABIQCgZjdXJzb3IYAiABKAxIACJKCghTZW50aW5lbBIYChRTRU5USU5FTF9VTlNQRUNJRklFRBAAEhIKDlNFTlRJTkVMX1NUQVJUEAESEAoMU0VOVElORUxfRU5EEAJCBwoFdmFsdWUiBwoFUmVhZHkiMgoRU3Vic2NyaXB0aW9uRXJyb3ISDAoEY29kZRgBIAEoCRIPCgdtZXNzYWdlGAIgASgJMr8BCg9SZWFjdGl2ZVF1ZXJpZXMSQgoET3BlbhIaLnJlYWN0aXZlLnYxLkNsaWVudE1lc3NhZ2UaGi5yZWFjdGl2ZS52MS5TZXJ2ZXJNZXNzYWdlKAEwARJoChVHZXRQcm9qZWN0aW9uU25hcHNob3QSJi5yZWFjdGl2ZS52MS5Qcm9qZWN0aW9uU25hcHNob3RSZXF1ZXN0GicucmVhY3RpdmUudjEuUHJvamVjdGlvblNuYXBzaG90UmVzcG9uc2VCPFo6Z2l0aHViLmNvbS9hZGlvbS1kYXRhL3dlYXZlL3BrZy9nZW4vcmVhY3RpdmUvdjE7cmVhY3RpdmV2MWIGcHJvdG8z", [file_google_protobuf_timestamp, file_google_protobuf_struct]);
 
 /**
  * ProjectionSnapshotRequest materializes a projection without retaining live
@@ -38,6 +38,11 @@ export type ProjectionSnapshotRequest = Message<"reactive.v1.ProjectionSnapshotR
    * @generated from field: bool wait_for_sync = 3;
    */
   waitForSync: boolean;
+
+  /**
+   * @generated from field: bool allow_partial_errors = 4;
+   */
+  allowPartialErrors: boolean;
 };
 
 /**
@@ -64,6 +69,11 @@ export type ProjectionSnapshotRequestJson = {
    * @generated from field: bool wait_for_sync = 3;
    */
   waitForSync?: boolean;
+
+  /**
+   * @generated from field: bool allow_partial_errors = 4;
+   */
+  allowPartialErrors?: boolean;
 };
 
 /**
@@ -82,7 +92,8 @@ export type ProjectionSnapshotResponse = Message<"reactive.v1.ProjectionSnapshot
    * object keys; field paths retain their stored names and object structure.
    * Recursive node.fields selections also trim embedded objects and arrays.
    * Lists are arrays; missing or invisible entities are null. No live model
-   * identifiers are included. Failures use RPC errors, never partial data.
+   * identifiers are included. Opted-in branch failures are null with errors;
+   * request/transport failures still use RPC errors.
    * Integers, decimals, bytes (base64), UUIDs, datetimes (RFC 3339), and
    * non-finite floats are strings; finite floats are JSON numbers.
    *
@@ -94,6 +105,11 @@ export type ProjectionSnapshotResponse = Message<"reactive.v1.ProjectionSnapshot
    * @generated from field: reactive.v1.ProjectionSnapshotExtensions extensions = 2;
    */
   extensions?: ProjectionSnapshotExtensions | undefined;
+
+  /**
+   * @generated from field: repeated reactive.v1.ProjectionSnapshotError errors = 3;
+   */
+  errors: ProjectionSnapshotError[];
 };
 
 /**
@@ -105,7 +121,8 @@ export type ProjectionSnapshotResponseJson = {
    * object keys; field paths retain their stored names and object structure.
    * Recursive node.fields selections also trim embedded objects and arrays.
    * Lists are arrays; missing or invisible entities are null. No live model
-   * identifiers are included. Failures use RPC errors, never partial data.
+   * identifiers are included. Opted-in branch failures are null with errors;
+   * request/transport failures still use RPC errors.
    * Integers, decimals, bytes (base64), UUIDs, datetimes (RFC 3339), and
    * non-finite floats are strings; finite floats are JSON numbers.
    *
@@ -117,6 +134,11 @@ export type ProjectionSnapshotResponseJson = {
    * @generated from field: reactive.v1.ProjectionSnapshotExtensions extensions = 2;
    */
   extensions?: ProjectionSnapshotExtensionsJson;
+
+  /**
+   * @generated from field: repeated reactive.v1.ProjectionSnapshotError errors = 3;
+   */
+  errors?: ProjectionSnapshotErrorJson[];
 };
 
 /**
@@ -125,6 +147,97 @@ export type ProjectionSnapshotResponseJson = {
  */
 export const ProjectionSnapshotResponseSchema: GenMessage<ProjectionSnapshotResponse, {jsonType: ProjectionSnapshotResponseJson}> = /*@__PURE__*/
   messageDesc(file_reactive_v1_reactive, 1);
+
+/**
+ * @generated from message reactive.v1.ProjectionSnapshotError
+ */
+export type ProjectionSnapshotError = Message<"reactive.v1.ProjectionSnapshotError"> & {
+  /**
+   * @generated from field: repeated reactive.v1.ProjectionPathElement path = 1;
+   */
+  path: ProjectionPathElement[];
+
+  /**
+   * @generated from field: string code = 2;
+   */
+  code: string;
+
+  /**
+   * @generated from field: string message = 3;
+   */
+  message: string;
+};
+
+/**
+ * @generated from message reactive.v1.ProjectionSnapshotError
+ */
+export type ProjectionSnapshotErrorJson = {
+  /**
+   * @generated from field: repeated reactive.v1.ProjectionPathElement path = 1;
+   */
+  path?: ProjectionPathElementJson[];
+
+  /**
+   * @generated from field: string code = 2;
+   */
+  code?: string;
+
+  /**
+   * @generated from field: string message = 3;
+   */
+  message?: string;
+};
+
+/**
+ * Describes the message reactive.v1.ProjectionSnapshotError.
+ * Use `create(ProjectionSnapshotErrorSchema)` to create a new message.
+ */
+export const ProjectionSnapshotErrorSchema: GenMessage<ProjectionSnapshotError, {jsonType: ProjectionSnapshotErrorJson}> = /*@__PURE__*/
+  messageDesc(file_reactive_v1_reactive, 2);
+
+/**
+ * @generated from message reactive.v1.ProjectionPathElement
+ */
+export type ProjectionPathElement = Message<"reactive.v1.ProjectionPathElement"> & {
+  /**
+   * @generated from oneof reactive.v1.ProjectionPathElement.element
+   */
+  element: {
+    /**
+     * @generated from field: string field = 1;
+     */
+    value: string;
+    case: "field";
+  } | {
+    /**
+     * @generated from field: uint32 index = 2;
+     */
+    value: number;
+    case: "index";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * @generated from message reactive.v1.ProjectionPathElement
+ */
+export type ProjectionPathElementJson = {
+  /**
+   * @generated from field: string field = 1;
+   */
+  field?: string;
+
+  /**
+   * @generated from field: uint32 index = 2;
+   */
+  index?: number;
+};
+
+/**
+ * Describes the message reactive.v1.ProjectionPathElement.
+ * Use `create(ProjectionPathElementSchema)` to create a new message.
+ */
+export const ProjectionPathElementSchema: GenMessage<ProjectionPathElement, {jsonType: ProjectionPathElementJson}> = /*@__PURE__*/
+  messageDesc(file_reactive_v1_reactive, 3);
 
 /**
  * @generated from message reactive.v1.ProjectionSnapshotExtensions
@@ -165,7 +278,7 @@ export type ProjectionSnapshotExtensionsJson = {
  * Use `create(ProjectionSnapshotExtensionsSchema)` to create a new message.
  */
 export const ProjectionSnapshotExtensionsSchema: GenMessage<ProjectionSnapshotExtensions, {jsonType: ProjectionSnapshotExtensionsJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 2);
+  messageDesc(file_reactive_v1_reactive, 4);
 
 /**
  * @generated from message reactive.v1.ClientMessage
@@ -270,7 +383,7 @@ export type ClientMessageJson = {
  * Use `create(ClientMessageSchema)` to create a new message.
  */
 export const ClientMessageSchema: GenMessage<ClientMessage, {jsonType: ClientMessageJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 3);
+  messageDesc(file_reactive_v1_reactive, 5);
 
 /**
  * @generated from message reactive.v1.Subscribe
@@ -307,7 +420,7 @@ export type SubscribeJson = {
  * Use `create(SubscribeSchema)` to create a new message.
  */
 export const SubscribeSchema: GenMessage<Subscribe, {jsonType: SubscribeJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 4);
+  messageDesc(file_reactive_v1_reactive, 6);
 
 /**
  * A projection is an orchestration tree. Every expanded node is still an
@@ -333,6 +446,13 @@ export type SubscribeProjection = Message<"reactive.v1.SubscribeProjection"> & {
    * @generated from field: bool wait_for_sync = 3;
    */
   waitForSync: boolean;
+
+  /**
+   * Keep failed branches tracked for recovery instead of failing the projection.
+   *
+   * @generated from field: bool allow_partial_errors = 4;
+   */
+  allowPartialErrors: boolean;
 };
 
 /**
@@ -359,6 +479,13 @@ export type SubscribeProjectionJson = {
    * @generated from field: bool wait_for_sync = 3;
    */
   waitForSync?: boolean;
+
+  /**
+   * Keep failed branches tracked for recovery instead of failing the projection.
+   *
+   * @generated from field: bool allow_partial_errors = 4;
+   */
+  allowPartialErrors?: boolean;
 };
 
 /**
@@ -366,7 +493,7 @@ export type SubscribeProjectionJson = {
  * Use `create(SubscribeProjectionSchema)` to create a new message.
  */
 export const SubscribeProjectionSchema: GenMessage<SubscribeProjection, {jsonType: SubscribeProjectionJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 5);
+  messageDesc(file_reactive_v1_reactive, 7);
 
 /**
  * @generated from message reactive.v1.ProjectionNode
@@ -480,7 +607,7 @@ export type ProjectionNodeJson = {
  * Use `create(ProjectionNodeSchema)` to create a new message.
  */
 export const ProjectionNodeSchema: GenMessage<ProjectionNode, {jsonType: ProjectionNodeJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 6);
+  messageDesc(file_reactive_v1_reactive, 8);
 
 /**
  * @generated from message reactive.v1.ObjectSelection
@@ -507,7 +634,7 @@ export type ObjectSelectionJson = {
  * Use `create(ObjectSelectionSchema)` to create a new message.
  */
 export const ObjectSelectionSchema: GenMessage<ObjectSelection, {jsonType: ObjectSelectionJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 7);
+  messageDesc(file_reactive_v1_reactive, 9);
 
 /**
  * @generated from message reactive.v1.SelectedField
@@ -548,7 +675,7 @@ export type SelectedFieldJson = {
  * Use `create(SelectedFieldSchema)` to create a new message.
  */
 export const SelectedFieldSchema: GenMessage<SelectedField, {jsonType: SelectedFieldJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 8);
+  messageDesc(file_reactive_v1_reactive, 10);
 
 /**
  * @generated from message reactive.v1.ValueSelection
@@ -607,7 +734,7 @@ export type ValueSelectionJson = {
  * Use `create(ValueSelectionSchema)` to create a new message.
  */
 export const ValueSelectionSchema: GenMessage<ValueSelection, {jsonType: ValueSelectionJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 9);
+  messageDesc(file_reactive_v1_reactive, 11);
 
 /**
  * @generated from message reactive.v1.ProjectionEntity
@@ -644,7 +771,7 @@ export type ProjectionEntityJson = {
  * Use `create(ProjectionEntitySchema)` to create a new message.
  */
 export const ProjectionEntitySchema: GenMessage<ProjectionEntity, {jsonType: ProjectionEntityJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 10);
+  messageDesc(file_reactive_v1_reactive, 12);
 
 /**
  * @generated from message reactive.v1.ProjectionList
@@ -707,7 +834,7 @@ export type ProjectionListJson = {
  * Use `create(ProjectionListSchema)` to create a new message.
  */
 export const ProjectionListSchema: GenMessage<ProjectionList, {jsonType: ProjectionListJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 11);
+  messageDesc(file_reactive_v1_reactive, 13);
 
 /**
  * @generated from message reactive.v1.ProjectionBinding
@@ -782,7 +909,7 @@ export type ProjectionBindingJson = {
  * Use `create(ProjectionBindingSchema)` to create a new message.
  */
 export const ProjectionBindingSchema: GenMessage<ProjectionBinding, {jsonType: ProjectionBindingJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 12);
+  messageDesc(file_reactive_v1_reactive, 14);
 
 /**
  * @generated from message reactive.v1.UpdateProjectionWindow
@@ -825,7 +952,7 @@ export type UpdateProjectionWindowJson = {
  * Use `create(UpdateProjectionWindowSchema)` to create a new message.
  */
 export const UpdateProjectionWindowSchema: GenMessage<UpdateProjectionWindow, {jsonType: UpdateProjectionWindowJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 13);
+  messageDesc(file_reactive_v1_reactive, 15);
 
 /**
  * @generated from message reactive.v1.Query
@@ -892,7 +1019,7 @@ export type QueryJson = {
  * Use `create(QuerySchema)` to create a new message.
  */
 export const QuerySchema: GenMessage<Query, {jsonType: QueryJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 14);
+  messageDesc(file_reactive_v1_reactive, 16);
 
 /**
  * A path is an exact sequence of object keys. Array positions and string path
@@ -925,7 +1052,7 @@ export type FieldPathJson = {
  * Use `create(FieldPathSchema)` to create a new message.
  */
 export const FieldPathSchema: GenMessage<FieldPath, {jsonType: FieldPathJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 15);
+  messageDesc(file_reactive_v1_reactive, 17);
 
 /**
  * @generated from message reactive.v1.Predicate
@@ -991,7 +1118,7 @@ export type PredicateJson = {
  * Use `create(PredicateSchema)` to create a new message.
  */
 export const PredicateSchema: GenMessage<Predicate, {jsonType: PredicateJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 16);
+  messageDesc(file_reactive_v1_reactive, 18);
 
 /**
  * @generated from message reactive.v1.Negation
@@ -1018,7 +1145,7 @@ export type NegationJson = {
  * Use `create(NegationSchema)` to create a new message.
  */
 export const NegationSchema: GenMessage<Negation, {jsonType: NegationJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 17);
+  messageDesc(file_reactive_v1_reactive, 19);
 
 /**
  * @generated from message reactive.v1.Comparison
@@ -1065,7 +1192,7 @@ export type ComparisonJson = {
  * Use `create(ComparisonSchema)` to create a new message.
  */
 export const ComparisonSchema: GenMessage<Comparison, {jsonType: ComparisonJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 18);
+  messageDesc(file_reactive_v1_reactive, 20);
 
 /**
  * @generated from enum reactive.v1.Comparison.Operator
@@ -1116,7 +1243,7 @@ export type Comparison_OperatorJson = "OPERATOR_UNSPECIFIED" | "OPERATOR_EQUAL" 
  * Describes the enum reactive.v1.Comparison.Operator.
  */
 export const Comparison_OperatorSchema: GenEnum<Comparison_Operator, Comparison_OperatorJson> = /*@__PURE__*/
-  enumDesc(file_reactive_v1_reactive, 18, 0);
+  enumDesc(file_reactive_v1_reactive, 20, 0);
 
 /**
  * @generated from message reactive.v1.Junction
@@ -1153,7 +1280,7 @@ export type JunctionJson = {
  * Use `create(JunctionSchema)` to create a new message.
  */
 export const JunctionSchema: GenMessage<Junction, {jsonType: JunctionJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 19);
+  messageDesc(file_reactive_v1_reactive, 21);
 
 /**
  * @generated from enum reactive.v1.Junction.Operator
@@ -1184,7 +1311,7 @@ export type Junction_OperatorJson = "OPERATOR_UNSPECIFIED" | "OPERATOR_AND" | "O
  * Describes the enum reactive.v1.Junction.Operator.
  */
 export const Junction_OperatorSchema: GenEnum<Junction_Operator, Junction_OperatorJson> = /*@__PURE__*/
-  enumDesc(file_reactive_v1_reactive, 19, 0);
+  enumDesc(file_reactive_v1_reactive, 21, 0);
 
 /**
  * @generated from message reactive.v1.NullTest
@@ -1221,7 +1348,7 @@ export type NullTestJson = {
  * Use `create(NullTestSchema)` to create a new message.
  */
 export const NullTestSchema: GenMessage<NullTest, {jsonType: NullTestJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 20);
+  messageDesc(file_reactive_v1_reactive, 22);
 
 /**
  * @generated from message reactive.v1.OrderTerm
@@ -1268,7 +1395,7 @@ export type OrderTermJson = {
  * Use `create(OrderTermSchema)` to create a new message.
  */
 export const OrderTermSchema: GenMessage<OrderTerm, {jsonType: OrderTermJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 21);
+  messageDesc(file_reactive_v1_reactive, 23);
 
 /**
  * @generated from message reactive.v1.InitialWindow
@@ -1305,7 +1432,7 @@ export type InitialWindowJson = {
  * Use `create(InitialWindowSchema)` to create a new message.
  */
 export const InitialWindowSchema: GenMessage<InitialWindow, {jsonType: InitialWindowJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 22);
+  messageDesc(file_reactive_v1_reactive, 24);
 
 /**
  * @generated from enum reactive.v1.InitialWindow.From
@@ -1336,7 +1463,7 @@ export type InitialWindow_FromJson = "FROM_UNSPECIFIED" | "FROM_START" | "FROM_E
  * Describes the enum reactive.v1.InitialWindow.From.
  */
 export const InitialWindow_FromSchema: GenEnum<InitialWindow_From, InitialWindow_FromJson> = /*@__PURE__*/
-  enumDesc(file_reactive_v1_reactive, 22, 0);
+  enumDesc(file_reactive_v1_reactive, 24, 0);
 
 /**
  * @generated from message reactive.v1.UpdateWindow
@@ -1369,7 +1496,7 @@ export type UpdateWindowJson = {
  * Use `create(UpdateWindowSchema)` to create a new message.
  */
 export const UpdateWindowSchema: GenMessage<UpdateWindow, {jsonType: UpdateWindowJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 23);
+  messageDesc(file_reactive_v1_reactive, 25);
 
 /**
  * @generated from message reactive.v1.BoundaryUpdate
@@ -1426,7 +1553,7 @@ export type BoundaryUpdateJson = {
  * Use `create(BoundaryUpdateSchema)` to create a new message.
  */
 export const BoundaryUpdateSchema: GenMessage<BoundaryUpdate, {jsonType: BoundaryUpdateJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 24);
+  messageDesc(file_reactive_v1_reactive, 26);
 
 /**
  * @generated from enum reactive.v1.BoundaryUpdate.Side
@@ -1457,7 +1584,7 @@ export type BoundaryUpdate_SideJson = "SIDE_UNSPECIFIED" | "SIDE_LEFT" | "SIDE_R
  * Describes the enum reactive.v1.BoundaryUpdate.Side.
  */
 export const BoundaryUpdate_SideSchema: GenEnum<BoundaryUpdate_Side, BoundaryUpdate_SideJson> = /*@__PURE__*/
-  enumDesc(file_reactive_v1_reactive, 24, 0);
+  enumDesc(file_reactive_v1_reactive, 26, 0);
 
 /**
  * @generated from enum reactive.v1.BoundaryUpdate.Operation
@@ -1493,7 +1620,7 @@ export type BoundaryUpdate_OperationJson = "OPERATION_UNSPECIFIED" | "OPERATION_
  * Describes the enum reactive.v1.BoundaryUpdate.Operation.
  */
 export const BoundaryUpdate_OperationSchema: GenEnum<BoundaryUpdate_Operation, BoundaryUpdate_OperationJson> = /*@__PURE__*/
-  enumDesc(file_reactive_v1_reactive, 24, 1);
+  enumDesc(file_reactive_v1_reactive, 26, 1);
 
 /**
  * @generated from message reactive.v1.Unsubscribe
@@ -1512,7 +1639,7 @@ export type UnsubscribeJson = {
  * Use `create(UnsubscribeSchema)` to create a new message.
  */
 export const UnsubscribeSchema: GenMessage<Unsubscribe, {jsonType: UnsubscribeJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 25);
+  messageDesc(file_reactive_v1_reactive, 27);
 
 /**
  * @generated from message reactive.v1.ServerMessage
@@ -1624,7 +1751,7 @@ export type ServerMessageJson = {
  * Use `create(ServerMessageSchema)` to create a new message.
  */
 export const ServerMessageSchema: GenMessage<ServerMessage, {jsonType: ServerMessageJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 26);
+  messageDesc(file_reactive_v1_reactive, 28);
 
 /**
  * Issued only after the projection server has attached its transaction-message
@@ -1659,7 +1786,7 @@ export type ConnectionOpenedJson = {
  * Use `create(ConnectionOpenedSchema)` to create a new message.
  */
 export const ConnectionOpenedSchema: GenMessage<ConnectionOpened, {jsonType: ConnectionOpenedJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 27);
+  messageDesc(file_reactive_v1_reactive, 29);
 
 /**
  * Mutation producers encode this as transaction metadata with kind
@@ -1712,7 +1839,7 @@ export type RoutedTransactionMessageJson = {
  * Use `create(RoutedTransactionMessageSchema)` to create a new message.
  */
 export const RoutedTransactionMessageSchema: GenMessage<RoutedTransactionMessage, {jsonType: RoutedTransactionMessageJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 28);
+  messageDesc(file_reactive_v1_reactive, 30);
 
 /**
  * @generated from message reactive.v1.TransactionMessage
@@ -1749,7 +1876,7 @@ export type TransactionMessageJson = {
  * Use `create(TransactionMessageSchema)` to create a new message.
  */
 export const TransactionMessageSchema: GenMessage<TransactionMessage, {jsonType: TransactionMessageJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 29);
+  messageDesc(file_reactive_v1_reactive, 31);
 
 /**
  * @generated from message reactive.v1.Value
@@ -1892,7 +2019,7 @@ export type ValueJson = {
  * Use `create(ValueSchema)` to create a new message.
  */
 export const ValueSchema: GenMessage<Value, {jsonType: ValueJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 30);
+  messageDesc(file_reactive_v1_reactive, 32);
 
 /**
  * @generated from message reactive.v1.ValueList
@@ -1919,7 +2046,7 @@ export type ValueListJson = {
  * Use `create(ValueListSchema)` to create a new message.
  */
 export const ValueListSchema: GenMessage<ValueList, {jsonType: ValueListJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 31);
+  messageDesc(file_reactive_v1_reactive, 33);
 
 /**
  * @generated from message reactive.v1.ValueObject
@@ -1946,7 +2073,7 @@ export type ValueObjectJson = {
  * Use `create(ValueObjectSchema)` to create a new message.
  */
 export const ValueObjectSchema: GenMessage<ValueObject, {jsonType: ValueObjectJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 32);
+  messageDesc(file_reactive_v1_reactive, 34);
 
 /**
  * ModelBatch updates the connection's normalized entity/query/projection
@@ -1998,6 +2125,11 @@ export type ModelBatch = Message<"reactive.v1.ModelBatch"> & {
    * @generated from field: repeated reactive.v1.ComputedEvent computed = 8;
    */
   computed: ComputedEvent[];
+
+  /**
+   * @generated from field: repeated reactive.v1.ProjectionBranch branches = 9;
+   */
+  branches: ProjectionBranch[];
 };
 
 /**
@@ -2050,6 +2182,11 @@ export type ModelBatchJson = {
    * @generated from field: repeated reactive.v1.ComputedEvent computed = 8;
    */
   computed?: ComputedEventJson[];
+
+  /**
+   * @generated from field: repeated reactive.v1.ProjectionBranch branches = 9;
+   */
+  branches?: ProjectionBranchJson[];
 };
 
 /**
@@ -2057,7 +2194,7 @@ export type ModelBatchJson = {
  * Use `create(ModelBatchSchema)` to create a new message.
  */
 export const ModelBatchSchema: GenMessage<ModelBatch, {jsonType: ModelBatchJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 33);
+  messageDesc(file_reactive_v1_reactive, 35);
 
 /**
  * @generated from enum reactive.v1.ModelBatch.Kind
@@ -2098,7 +2235,181 @@ export type ModelBatch_KindJson = "KIND_UNSPECIFIED" | "KIND_SNAPSHOT" | "KIND_C
  * Describes the enum reactive.v1.ModelBatch.Kind.
  */
 export const ModelBatch_KindSchema: GenEnum<ModelBatch_Kind, ModelBatch_KindJson> = /*@__PURE__*/
-  enumDesc(file_reactive_v1_reactive, 33, 0);
+  enumDesc(file_reactive_v1_reactive, 35, 0);
+
+/**
+ * A failure is relative to a concrete projection occurrence, never to a shared
+ * entity. Empty entity_id addresses an entire expansion; otherwise it addresses
+ * one row and its descendants. Failed branches have no live model contents.
+ * Clients may retain their previous immutable view separately as stale display.
+ * A recovered event clears the error in the same batch as a complete replacement
+ * of the branch (or its definitive removal). Recovery never requires old data.
+ *
+ * @generated from message reactive.v1.ProjectionBranch
+ */
+export type ProjectionBranch = Message<"reactive.v1.ProjectionBranch"> & {
+  /**
+   * @generated from field: string subscription_id = 1;
+   */
+  subscriptionId: string;
+
+  /**
+   * @generated from field: string occurrence_id = 2;
+   */
+  occurrenceId: string;
+
+  /**
+   * @generated from field: string node_id = 3;
+   */
+  nodeId: string;
+
+  /**
+   * @generated from field: string parent_occurrence_id = 4;
+   */
+  parentOccurrenceId: string;
+
+  /**
+   * @generated from field: string parent_entity_id = 5;
+   */
+  parentEntityId: string;
+
+  /**
+   * @generated from field: string entity_id = 6;
+   */
+  entityId: string;
+
+  /**
+   * @generated from oneof reactive.v1.ProjectionBranch.state
+   */
+  state: {
+    /**
+     * @generated from field: reactive.v1.ProjectionBranchError error = 7;
+     */
+    value: ProjectionBranchError;
+    case: "error";
+  } | {
+    /**
+     * @generated from field: reactive.v1.ProjectionBranchRecovered recovered = 8;
+     */
+    value: ProjectionBranchRecovered;
+    case: "recovered";
+  } | { case: undefined; value?: undefined };
+};
+
+/**
+ * A failure is relative to a concrete projection occurrence, never to a shared
+ * entity. Empty entity_id addresses an entire expansion; otherwise it addresses
+ * one row and its descendants. Failed branches have no live model contents.
+ * Clients may retain their previous immutable view separately as stale display.
+ * A recovered event clears the error in the same batch as a complete replacement
+ * of the branch (or its definitive removal). Recovery never requires old data.
+ *
+ * @generated from message reactive.v1.ProjectionBranch
+ */
+export type ProjectionBranchJson = {
+  /**
+   * @generated from field: string subscription_id = 1;
+   */
+  subscriptionId?: string;
+
+  /**
+   * @generated from field: string occurrence_id = 2;
+   */
+  occurrenceId?: string;
+
+  /**
+   * @generated from field: string node_id = 3;
+   */
+  nodeId?: string;
+
+  /**
+   * @generated from field: string parent_occurrence_id = 4;
+   */
+  parentOccurrenceId?: string;
+
+  /**
+   * @generated from field: string parent_entity_id = 5;
+   */
+  parentEntityId?: string;
+
+  /**
+   * @generated from field: string entity_id = 6;
+   */
+  entityId?: string;
+
+  /**
+   * @generated from field: reactive.v1.ProjectionBranchError error = 7;
+   */
+  error?: ProjectionBranchErrorJson;
+
+  /**
+   * @generated from field: reactive.v1.ProjectionBranchRecovered recovered = 8;
+   */
+  recovered?: ProjectionBranchRecoveredJson;
+};
+
+/**
+ * Describes the message reactive.v1.ProjectionBranch.
+ * Use `create(ProjectionBranchSchema)` to create a new message.
+ */
+export const ProjectionBranchSchema: GenMessage<ProjectionBranch, {jsonType: ProjectionBranchJson}> = /*@__PURE__*/
+  messageDesc(file_reactive_v1_reactive, 36);
+
+/**
+ * @generated from message reactive.v1.ProjectionBranchError
+ */
+export type ProjectionBranchError = Message<"reactive.v1.ProjectionBranchError"> & {
+  /**
+   * @generated from field: string code = 1;
+   */
+  code: string;
+
+  /**
+   * @generated from field: string message = 2;
+   */
+  message: string;
+};
+
+/**
+ * @generated from message reactive.v1.ProjectionBranchError
+ */
+export type ProjectionBranchErrorJson = {
+  /**
+   * @generated from field: string code = 1;
+   */
+  code?: string;
+
+  /**
+   * @generated from field: string message = 2;
+   */
+  message?: string;
+};
+
+/**
+ * Describes the message reactive.v1.ProjectionBranchError.
+ * Use `create(ProjectionBranchErrorSchema)` to create a new message.
+ */
+export const ProjectionBranchErrorSchema: GenMessage<ProjectionBranchError, {jsonType: ProjectionBranchErrorJson}> = /*@__PURE__*/
+  messageDesc(file_reactive_v1_reactive, 37);
+
+/**
+ * @generated from message reactive.v1.ProjectionBranchRecovered
+ */
+export type ProjectionBranchRecovered = Message<"reactive.v1.ProjectionBranchRecovered"> & {
+};
+
+/**
+ * @generated from message reactive.v1.ProjectionBranchRecovered
+ */
+export type ProjectionBranchRecoveredJson = {
+};
+
+/**
+ * Describes the message reactive.v1.ProjectionBranchRecovered.
+ * Use `create(ProjectionBranchRecoveredSchema)` to create a new message.
+ */
+export const ProjectionBranchRecoveredSchema: GenMessage<ProjectionBranchRecovered, {jsonType: ProjectionBranchRecoveredJson}> = /*@__PURE__*/
+  messageDesc(file_reactive_v1_reactive, 38);
 
 /**
  * @generated from message reactive.v1.EntityEvent
@@ -2163,7 +2474,7 @@ export type EntityEventJson = {
  * Use `create(EntityEventSchema)` to create a new message.
  */
 export const EntityEventSchema: GenMessage<EntityEvent, {jsonType: EntityEventJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 34);
+  messageDesc(file_reactive_v1_reactive, 39);
 
 /**
  * Authoritative occurrence-relative values, separate from the shared entity.
@@ -2231,7 +2542,7 @@ export type ComputedEventJson = {
  * Use `create(ComputedEventSchema)` to create a new message.
  */
 export const ComputedEventSchema: GenMessage<ComputedEvent, {jsonType: ComputedEventJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 35);
+  messageDesc(file_reactive_v1_reactive, 40);
 
 /**
  * @generated from message reactive.v1.ComputedReleased
@@ -2250,7 +2561,7 @@ export type ComputedReleasedJson = {
  * Use `create(ComputedReleasedSchema)` to create a new message.
  */
 export const ComputedReleasedSchema: GenMessage<ComputedReleased, {jsonType: ComputedReleasedJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 36);
+  messageDesc(file_reactive_v1_reactive, 41);
 
 /**
  * @generated from message reactive.v1.EntityUpsert
@@ -2283,7 +2594,7 @@ export type EntityUpsertJson = {
  * Use `create(EntityUpsertSchema)` to create a new message.
  */
 export const EntityUpsertSchema: GenMessage<EntityUpsert, {jsonType: EntityUpsertJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 37);
+  messageDesc(file_reactive_v1_reactive, 42);
 
 /**
  * @generated from message reactive.v1.EntityReleased
@@ -2302,7 +2613,7 @@ export type EntityReleasedJson = {
  * Use `create(EntityReleasedSchema)` to create a new message.
  */
 export const EntityReleasedSchema: GenMessage<EntityReleased, {jsonType: EntityReleasedJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 38);
+  messageDesc(file_reactive_v1_reactive, 43);
 
 /**
  * EntityPending makes a normalized reference explicit before its complete
@@ -2327,7 +2638,7 @@ export type EntityPendingJson = {
  * Use `create(EntityPendingSchema)` to create a new message.
  */
 export const EntityPendingSchema: GenMessage<EntityPending, {jsonType: EntityPendingJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 39);
+  messageDesc(file_reactive_v1_reactive, 44);
 
 /**
  * @generated from message reactive.v1.QueryEvent
@@ -2413,7 +2724,7 @@ export type QueryEventJson = {
  * Use `create(QueryEventSchema)` to create a new message.
  */
 export const QueryEventSchema: GenMessage<QueryEvent, {jsonType: QueryEventJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 40);
+  messageDesc(file_reactive_v1_reactive, 45);
 
 /**
  * @generated from message reactive.v1.QueryReset
@@ -2470,7 +2781,7 @@ export type QueryResetJson = {
  * Use `create(QueryResetSchema)` to create a new message.
  */
 export const QueryResetSchema: GenMessage<QueryReset, {jsonType: QueryResetJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 41);
+  messageDesc(file_reactive_v1_reactive, 46);
 
 /**
  * QueryDelta is applied atomically. Remove every listed ID first, then apply
@@ -2533,7 +2844,7 @@ export type QueryDeltaJson = {
  * Use `create(QueryDeltaSchema)` to create a new message.
  */
 export const QueryDeltaSchema: GenMessage<QueryDelta, {jsonType: QueryDeltaJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 42);
+  messageDesc(file_reactive_v1_reactive, 47);
 
 /**
  * @generated from message reactive.v1.QueryInsertion
@@ -2570,7 +2881,7 @@ export type QueryInsertionJson = {
  * Use `create(QueryInsertionSchema)` to create a new message.
  */
 export const QueryInsertionSchema: GenMessage<QueryInsertion, {jsonType: QueryInsertionJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 43);
+  messageDesc(file_reactive_v1_reactive, 48);
 
 /**
  * @generated from message reactive.v1.QueryWindowChanged
@@ -2607,7 +2918,7 @@ export type QueryWindowChangedJson = {
  * Use `create(QueryWindowChangedSchema)` to create a new message.
  */
 export const QueryWindowChangedSchema: GenMessage<QueryWindowChanged, {jsonType: QueryWindowChangedJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 44);
+  messageDesc(file_reactive_v1_reactive, 49);
 
 /**
  * @generated from message reactive.v1.QueryClosed
@@ -2626,7 +2937,7 @@ export type QueryClosedJson = {
  * Use `create(QueryClosedSchema)` to create a new message.
  */
 export const QueryClosedSchema: GenMessage<QueryClosed, {jsonType: QueryClosedJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 45);
+  messageDesc(file_reactive_v1_reactive, 50);
 
 /**
  * @generated from message reactive.v1.ProjectionReference
@@ -2724,7 +3035,7 @@ export type ProjectionReferenceJson = {
  * Use `create(ProjectionReferenceSchema)` to create a new message.
  */
 export const ProjectionReferenceSchema: GenMessage<ProjectionReference, {jsonType: ProjectionReferenceJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 46);
+  messageDesc(file_reactive_v1_reactive, 51);
 
 /**
  * @generated from message reactive.v1.ProjectionTarget
@@ -2768,7 +3079,7 @@ export type ProjectionTargetJson = {
  * Use `create(ProjectionTargetSchema)` to create a new message.
  */
 export const ProjectionTargetSchema: GenMessage<ProjectionTarget, {jsonType: ProjectionTargetJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 47);
+  messageDesc(file_reactive_v1_reactive, 52);
 
 /**
  * @generated from message reactive.v1.ProjectionDetached
@@ -2787,7 +3098,7 @@ export type ProjectionDetachedJson = {
  * Use `create(ProjectionDetachedSchema)` to create a new message.
  */
 export const ProjectionDetachedSchema: GenMessage<ProjectionDetached, {jsonType: ProjectionDetachedJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 48);
+  messageDesc(file_reactive_v1_reactive, 53);
 
 /**
  * @generated from message reactive.v1.Boundary
@@ -2831,7 +3142,7 @@ export type BoundaryJson = {
  * Use `create(BoundarySchema)` to create a new message.
  */
 export const BoundarySchema: GenMessage<Boundary, {jsonType: BoundaryJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 49);
+  messageDesc(file_reactive_v1_reactive, 54);
 
 /**
  * @generated from enum reactive.v1.Boundary.Sentinel
@@ -2862,7 +3173,7 @@ export type Boundary_SentinelJson = "SENTINEL_UNSPECIFIED" | "SENTINEL_START" | 
  * Describes the enum reactive.v1.Boundary.Sentinel.
  */
 export const Boundary_SentinelSchema: GenEnum<Boundary_Sentinel, Boundary_SentinelJson> = /*@__PURE__*/
-  enumDesc(file_reactive_v1_reactive, 49, 0);
+  enumDesc(file_reactive_v1_reactive, 54, 0);
 
 /**
  * @generated from message reactive.v1.Ready
@@ -2881,7 +3192,7 @@ export type ReadyJson = {
  * Use `create(ReadySchema)` to create a new message.
  */
 export const ReadySchema: GenMessage<Ready, {jsonType: ReadyJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 50);
+  messageDesc(file_reactive_v1_reactive, 55);
 
 /**
  * @generated from message reactive.v1.SubscriptionError
@@ -2918,7 +3229,7 @@ export type SubscriptionErrorJson = {
  * Use `create(SubscriptionErrorSchema)` to create a new message.
  */
 export const SubscriptionErrorSchema: GenMessage<SubscriptionError, {jsonType: SubscriptionErrorJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_reactive, 51);
+  messageDesc(file_reactive_v1_reactive, 56);
 
 /**
  * @generated from service reactive.v1.ReactiveQueries

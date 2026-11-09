@@ -41,6 +41,9 @@ type ProjectionLimits struct {
 	MaxActiveInstances      int
 	MaxConcurrentExpansions int
 	MaxPendingExpansions    int
+	RecoveryInitialDelay    time.Duration
+	RecoveryMaxDelay        time.Duration
+	RecoveryMaxAttempts     int
 }
 
 // MessageOptions bounds the optional connection-message routing owned by this server.
@@ -134,6 +137,9 @@ func New(ctx context.Context, queries querysubscription.Client, options Options)
 		return nil, errors.New("query subscription client is required")
 	}
 	options = options.withDefaults()
+	if options.ProjectionLimits.RecoveryMaxDelay < options.ProjectionLimits.RecoveryInitialDelay {
+		return nil, errors.New("projection recovery max delay must be at least initial delay")
+	}
 	s := newServer(queries, options)
 	s.lifetime, s.cancel = context.WithCancel(ctx)
 	if options.Relations != nil {
@@ -505,7 +511,7 @@ func (session *connectionSession) run() error {
 		if err != nil {
 			return err
 		}
-		if len(batch.Entities) == 0 && len(batch.Queries) == 0 && len(batch.Projections) == 0 && len(batch.Computed) == 0 {
+		if len(batch.Entities) == 0 && len(batch.Queries) == 0 && len(batch.Projections) == 0 && len(batch.Computed) == 0 && len(batch.Branches) == 0 {
 			return nil
 		}
 		*sequence = *sequence + 1
@@ -748,7 +754,7 @@ func (session *connectionSession) run() error {
 			}
 			batch.Atomic = delivery.metadata.Atomic
 			coalesceEntityEvents(batch)
-			if len(batch.Entities) > 0 || len(batch.Queries) > 0 || len(batch.Projections) > 0 || len(batch.Computed) > 0 || len(batch.Messages) > 0 {
+			if len(batch.Entities) > 0 || len(batch.Queries) > 0 || len(batch.Projections) > 0 || len(batch.Computed) > 0 || len(batch.Messages) > 0 || len(batch.Branches) > 0 {
 				connectionSequence++
 				if err := stream.Send(&reactivev1.ServerMessage{ConnectionSequence: connectionSequence, Event: &reactivev1.ServerMessage_ModelBatch{ModelBatch: batch}}); err != nil {
 					return err
@@ -833,9 +839,12 @@ func (session *connectionSession) run() error {
 			appendModelBatch(batch, windowBatch)
 			requestID = window.Token
 		}
-		batch.Kind = reactivev1.ModelBatch_KIND_WINDOW
+		batch.Kind = reactivev1.ModelBatch_KIND_HYDRATION
+		if item.batch.Window != nil {
+			batch.Kind = reactivev1.ModelBatch_KIND_WINDOW
+		}
 		coalesceEntityEvents(batch)
-		if len(batch.Entities) == 0 && len(batch.Queries) == 0 && len(batch.Projections) == 0 && len(batch.Computed) == 0 && requestID == "" {
+		if len(batch.Entities) == 0 && len(batch.Queries) == 0 && len(batch.Projections) == 0 && len(batch.Computed) == 0 && len(batch.Branches) == 0 && requestID == "" {
 			return nil
 		}
 		projection.sequence++
@@ -1191,17 +1200,30 @@ func handleQueryEvent(
 			}
 		}
 		for _, state := range projections {
-			if _, _, err := state.projection.ApplyEvent(event); err != nil {
+			batch, changed, err := state.projection.ApplyEvent(event)
+			if err != nil {
 				return closeProjection(state, err)
+			}
+			if changed {
+				// Failures have no source transaction. Publish their branch state
+				// as hydration, without inventing an earlier commit position.
+				if err := emit([]feedDelivery{{metadata: batch.Delivery, parts: []deliveryPayload{projectionBatchMessage{externalID: state.externalID, generation: state.generation, batch: batch}}}}); err != nil {
+					return err
+				}
 			}
 		}
 		for _, state := range pending {
 			if state.projection != nil {
+				if !state.projection.OwnsSubscription(failure.SubscriptionID) {
+					continue
+				}
 				if _, _, err := state.projection.ApplyEvent(event); err != nil {
 					state.cancel()
-					state.retry = true
-					return nil
 				}
+				// A partial failure changes the private initial image even though
+				// ApplyEvent has no public batch until admission. Reconsider it
+				// without waiting for unrelated fact IO or another source position.
+				state.retry = true
 				continue
 			}
 			if state.owns != nil && state.owns(failure.SubscriptionID) {

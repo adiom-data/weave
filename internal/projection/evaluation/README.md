@@ -92,6 +92,15 @@ component keeps the old public model, consumes updates privately, and later
 reconciles with a current authorized image. Slow or failed clients never block
 the query feed or CDC. No general MVCC cache or per-client replay log is used.
 
+Opted-in partial failures retain visited fact leases and definition stamps even
+when expression evaluation errors. That lets subsequent evidence/definition
+updates reevaluate the failed occurrence. Failed leaf subscriptions retry at the
+configured recovery cadence with new upstream IDs but stable dependency IDs.
+Their replacement snapshots remain fenced, and old views retain their memoized
+errors. A dependency-registration recheck also covers errors replaced during an
+in-flight evaluation. Already-failed branches can resolve privately without
+holding healthy siblings; newly pending checks retain the publication hold.
+
 The publication gate merges changed rows, explicit authorization invalidations,
 and affected descendants before evaluating them in one parent-first pass. Each
 final occurrence is checked once per delivery, including when several dependency

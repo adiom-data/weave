@@ -19,22 +19,23 @@ type Occurrence struct {
 }
 
 type Session struct {
-	mu               sync.Mutex
-	facts            *Facts
-	evaluator        *relationdef.Evaluator
-	policyWatch      *relationdef.Watcher
-	policyDependents map[relationdef.Key]map[Occurrence]struct{}
-	claims           relationdef.Claims
-	scopes           map[Occurrence]*occurrenceState
-	resources        map[string]map[Occurrence]struct{}
-	pendingScopes    map[string]int
-	dependents       map[string]map[Occurrence]struct{}
-	dirty            map[Occurrence]struct{}
-	changed          chan struct{}
-	version          uint64
-	factEpoch        uint64
-	factChanges      map[Occurrence]uint64
-	closed           bool
+	mu                 sync.Mutex
+	facts              *Facts
+	evaluator          *relationdef.Evaluator
+	policyWatch        *relationdef.Watcher
+	policyDependents   map[relationdef.Key]map[Occurrence]struct{}
+	claims             relationdef.Claims
+	scopes             map[Occurrence]*occurrenceState
+	resources          map[string]map[Occurrence]struct{}
+	pendingScopes      map[string]int
+	pendingOccurrences map[Occurrence]struct{}
+	dependents         map[string]map[Occurrence]struct{}
+	dirty              map[Occurrence]struct{}
+	changed            chan struct{}
+	version            uint64
+	factEpoch          uint64
+	factChanges        map[Occurrence]uint64
+	closed             bool
 }
 type occurrenceState struct {
 	mu           sync.Mutex
@@ -55,7 +56,7 @@ func NewSession(ctx context.Context, feed q.Feed, evaluator *relationdef.Evaluat
 	}
 	facts.allowAll = allowAll
 	claims = relationdef.Claims(storage.CloneRecord(storage.Record(claims)))
-	return &Session{facts: facts, evaluator: evaluator, policyWatch: evaluator.Watch(), policyDependents: map[relationdef.Key]map[Occurrence]struct{}{}, claims: claims, scopes: make(map[Occurrence]*occurrenceState), resources: make(map[string]map[Occurrence]struct{}), pendingScopes: make(map[string]int), dependents: make(map[string]map[Occurrence]struct{}), dirty: make(map[Occurrence]struct{}), factChanges: make(map[Occurrence]uint64), changed: make(chan struct{})}, nil
+	return &Session{facts: facts, evaluator: evaluator, policyWatch: evaluator.Watch(), policyDependents: map[relationdef.Key]map[Occurrence]struct{}{}, claims: claims, scopes: make(map[Occurrence]*occurrenceState), resources: make(map[string]map[Occurrence]struct{}), pendingScopes: make(map[string]int), pendingOccurrences: map[Occurrence]struct{}{}, dependents: make(map[string]map[Occurrence]struct{}), dirty: make(map[Occurrence]struct{}), factChanges: make(map[Occurrence]uint64), changed: make(chan struct{})}, nil
 }
 
 func (s *Session) ComputedValues(occurrence Occurrence) storage.Record {
@@ -177,14 +178,28 @@ func (s *Session) PendingIn(contains func(string) bool) bool {
 	return false
 }
 
-func (s *Session) setPending(scope string, state *occurrenceState, pending bool) {
+func (s *Session) PendingMatching(contains func(Occurrence) bool) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for occurrence := range s.pendingOccurrences {
+		if contains(occurrence) {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Session) setPending(occurrence Occurrence, state *occurrenceState, pending bool) {
 	if state.pending == pending {
 		return
 	}
 	state.pending = pending
+	scope := occurrence.Scope
 	if pending {
+		s.pendingOccurrences[occurrence] = struct{}{}
 		s.pendingScopes[scope]++
 	} else {
+		delete(s.pendingOccurrences, occurrence)
 		s.pendingScopes[scope]--
 		if s.pendingScopes[scope] == 0 {
 			delete(s.pendingScopes, scope)
@@ -212,7 +227,7 @@ func (s *Session) Evaluate(ctx context.Context, occurrence Occurrence, candidate
 			return relationdef.Decision{}, err
 		}
 		state = &occurrenceState{scope: scope}
-		s.setPending(occurrence.Scope, state, true)
+		s.setPending(occurrence, state, true)
 		s.scopes[occurrence] = state
 		if s.resources[occurrence.Scope] == nil {
 			s.resources[occurrence.Scope] = make(map[Occurrence]struct{})
@@ -231,7 +246,7 @@ func (s *Session) Evaluate(ctx context.Context, occurrence Occurrence, candidate
 		if compared < 0 {
 			s.mu.Lock()
 			if s.scopes[occurrence] == state {
-				s.setPending(occurrence.Scope, state, true)
+				s.setPending(occurrence, state, true)
 				s.dirty[occurrence] = struct{}{}
 			}
 			s.mu.Unlock()
@@ -239,9 +254,6 @@ func (s *Session) Evaluate(ctx context.Context, occurrence Occurrence, candidate
 		}
 	}
 	decision, err := state.scope.EvaluatePath(ctx, s.evaluator, s.claims, candidate, view)
-	if err != nil {
-		return relationdef.Decision{}, err
-	}
 	dependencies := state.scope.DependencyIDs()
 	policyStamps := state.scope.PolicyStamps()
 	s.mu.Lock()
@@ -268,20 +280,20 @@ func (s *Session) Evaluate(ctx context.Context, occurrence Occurrence, candidate
 	// Installation may race the first dependency registration, or a view may
 	// have memoized unknown evidence before another occurrence used it. Once
 	// linked, recheck only those unknown reads so neither case loses its wake.
-	if !decision.Resolved && state.scope.needsRetry(view) {
+	if (err != nil || !decision.Resolved) && state.scope.needsRetry(view) {
 		s.factEpoch++
 		s.factChanges[occurrence] = s.factEpoch
 		s.facts.notify()
 	}
-	s.setPending(occurrence.Scope, state, !decision.Resolved)
+	s.setPending(occurrence, state, err == nil && !decision.Resolved)
 	state.at = copyPosition(view.at)
-	if decision.Resolved && version == s.version {
+	if (err != nil || decision.Resolved) && version == s.version {
 		delete(s.dirty, occurrence)
 		delete(s.factChanges, occurrence)
 	} else {
 		s.dirty[occurrence] = struct{}{}
 	}
-	return decision, nil
+	return decision, err
 }
 
 func (s *Session) unlink(occurrence Occurrence, dependencies []string) {
@@ -306,7 +318,7 @@ func (s *Session) Forget(ctx context.Context, occurrence Occurrence) error {
 	s.mu.Lock()
 	state := s.scopes[occurrence]
 	if state != nil {
-		s.setPending(occurrence.Scope, state, false)
+		s.setPending(occurrence, state, false)
 		delete(s.scopes, occurrence)
 		delete(s.dirty, occurrence)
 		delete(s.factChanges, occurrence)
@@ -350,6 +362,7 @@ func (s *Session) Close() error {
 	s.scopes = make(map[Occurrence]*occurrenceState)
 	clear(s.resources)
 	clear(s.pendingScopes)
+	clear(s.pendingOccurrences)
 	clear(s.dependents)
 	clear(s.dirty)
 	clear(s.factChanges)

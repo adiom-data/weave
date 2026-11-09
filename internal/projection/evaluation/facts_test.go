@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/adiom-data/weave/internal/projection/retry"
 	q "github.com/adiom-data/weave/internal/querysubscription/model"
 	"github.com/adiom-data/weave/internal/storage"
 )
@@ -196,6 +197,157 @@ func TestCoalescedFactsAreFencedAndOwned(t *testing.T) {
 	}
 }
 
+func TestFailedFactRetriesKeepDependencyIdentityAndFenceFreshEvidence(t *testing.T) {
+	f, feed := newFacts(t, Options{MaxQueries: 10, MaxRows: 10, LoadConcurrency: 1, Recovery: retry.Policy{InitialDelay: 10 * time.Millisecond, MaxDelay: time.Second, MaxAttempts: 3}})
+	lease, err := f.Acquire(selector("p1"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lease.Close(context.Background())
+	first := receive(t, feed)
+	install(t, feed, first, snapshot(10, 1, row("g1", "old")))
+	consume(t, f, feed, progress(10, 1, 0))
+	cause := errors.New("subscription failed")
+	consume(t, f, feed, q.Event{Failure: &q.SubscriptionFailure{SubscriptionID: first.request.ID, Cause: cause}})
+	old, err := f.OpenView(at(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer old.Close()
+	if _, err := old.read(lease); !errors.Is(err, cause) {
+		t.Fatalf("failed evidence not reported: %v", err)
+	}
+	id := lease.ID()
+	retry := receive(t, feed)
+	if retry.request.ID == first.request.ID || lease.ID() != id {
+		t.Fatal("recovery reused upstream identity or changed dependency identity")
+	}
+	install(t, feed, retry, snapshot(20, 2, row("g1", "new")))
+	if result, err := lease.Read(at(10)); err != nil || result.Complete {
+		t.Fatalf("newer recovery image leaked before fence: %+v, %v", result, err)
+	}
+	consume(t, f, feed, progress(20, 2, 1))
+	// Late frames from the retired handle must not fail its replacement.
+	consume(t, f, feed, q.Event{Failure: &q.SubscriptionFailure{SubscriptionID: first.request.ID, Cause: cause}})
+	result, err := lease.Read(at(20))
+	if err != nil || !result.Complete || len(result.Rows) != 1 || string(result.Rows[0].Record["title"].Data) != "new" {
+		t.Fatalf("fresh fenced evidence unavailable: %+v, %v", result, err)
+	}
+	if _, err := old.read(lease); !errors.Is(err, cause) {
+		t.Fatal("recovery mutated an immutable failed view")
+	}
+	if !old.needsRetry(lease) {
+		t.Fatal("replacement evidence lost the dependency-registration wakeup")
+	}
+}
+
+func TestLiveFactFailuresRetryAndFenceReplacementEvidence(t *testing.T) {
+	for _, cause := range []string{"coverage limit", "invalid row"} {
+		t.Run(cause, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+			defer cancel()
+			f, feed := newFacts(t, Options{MaxQueries: 10, MaxRows: 1, LoadConcurrency: 1, Recovery: retry.Policy{InitialDelay: 5 * time.Millisecond, MaxDelay: 10 * time.Millisecond, MaxAttempts: 2}})
+			lease, err := f.Acquire(selector("p1"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer lease.Close(ctx)
+			first := receive(t, feed)
+			install(t, feed, first, snapshot(10, 1, row("g1", "old")))
+			// A live failure must schedule itself, not rely on an installation
+			// worker still unwinding and incidentally discovering the error.
+			for {
+				f.mu.Lock()
+				completed := lease.entry.completed && !lease.entry.loading
+				f.mu.Unlock()
+				if completed {
+					break
+				}
+				select {
+				case <-f.Changed():
+				case <-ctx.Done():
+					t.Fatal("initial fact subscription did not complete")
+				}
+			}
+			consume(t, f, feed, progress(10, 1, 0))
+			batch := q.Batch{}
+			if cause == "coverage limit" {
+				added := row("g2", "additional grant")
+				batch.Changes = []q.Change{{Kind: q.Added, Row: added}}
+				batch.Membership.Insertions = []q.Insertion{{Key: added.Key, FinalIndex: 1}}
+			} else {
+				invalid := row("g1", "invalid")
+				invalid.Record = nil
+				batch.Changes = []q.Change{{Kind: q.Updated, Row: invalid}}
+			}
+			consume(t, f, feed, commit(11, 2, 1, q.SubscriptionEffect{SubscriptionID: first.request.ID, Batch: batch}))
+			id := lease.ID()
+			replacement := receive(t, feed)
+			if replacement.request.ID == first.request.ID || lease.ID() != id {
+				t.Fatal("retry reused the failed attempt or changed dependency identity")
+			}
+			if feed.closed.Load() != 1 {
+				t.Fatal("retry did not retire the failed handle")
+			}
+			install(t, feed, replacement, snapshot(20, 3, row("g1", "recovered")))
+			if result, err := lease.Read(at(11)); err != nil || result.Complete {
+				t.Fatalf("recovery exposed newer evidence before its fence: %+v, %v", result, err)
+			}
+			consume(t, f, feed, progress(20, 3, 2))
+			// Failed-handle effects cannot poison the recovered dependency.
+			consume(t, f, feed, commit(21, 4, 3, q.SubscriptionEffect{SubscriptionID: first.request.ID, Batch: batch}))
+			result, err := lease.Read(at(21))
+			if err != nil || !result.Complete || len(result.Rows) != 1 || string(result.Rows[0].Record["title"].Data) != "recovered" {
+				t.Fatalf("recovered evidence unavailable or overwritten: %+v, %v", result, err)
+			}
+		})
+	}
+}
+
+func TestFactRecoveryExhaustsBudgetWithoutReevaluationRestartingIt(t *testing.T) {
+	f, feed := newFacts(t, Options{MaxQueries: 10, MaxRows: 10, LoadConcurrency: 1, Recovery: retry.Policy{InitialDelay: time.Millisecond, MaxDelay: 2 * time.Millisecond, MaxAttempts: 2}})
+	lease, err := f.Acquire(selector("broken"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer lease.Close(t.Context())
+	seen := map[string]bool{}
+	for range 3 { // Original + exactly two retries, all rejected at installation.
+		request := receive(t, feed)
+		if seen[request.request.ID] {
+			t.Fatal("reused attempt ID")
+		}
+		seen[request.request.ID] = true
+		if err := request.install(&testHandle{id: request.request.ID, feed: feed}, q.QuerySnapshot{}); !errors.Is(err, ErrCoverageLimit) {
+			t.Fatal(err)
+		}
+	}
+	for range 20 {
+		duplicate, err := f.Acquire(selector("broken"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = duplicate.Close(t.Context())
+		_, _ = lease.Read(at(10))
+	}
+	select {
+	case unexpected := <-feed.requests:
+		t.Fatal("exhausted selector restarted", unexpected.request.ID)
+	case <-time.After(40 * time.Millisecond):
+	}
+	// A genuinely different selector is a new dependency, not a retry reset.
+	fresh, err := f.Acquire(selector("new"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer fresh.Close(t.Context())
+	request := receive(t, feed)
+	if request.request.Query.Filter.Comparison.Value.Data[0] != 'n' {
+		t.Fatal("wrong selector")
+	}
+	install(t, feed, request, snapshot(10, 1))
+}
+
 type completingFeed struct {
 	*testFeed
 	installed chan struct{}
@@ -257,7 +409,7 @@ func TestFactProgressDemandWaitsForSubscriptionCompletion(t *testing.T) {
 }
 
 func TestTransactionAndHydrationKeepEvidenceOrdered(t *testing.T) {
-	f, feed := newFacts(t, Options{10, 10, 2})
+	f, feed := newFacts(t, Options{MaxQueries: 10, MaxRows: 10, LoadConcurrency: 2})
 	lease, _ := f.Acquire(selector("p1"))
 	i := receive(t, feed)
 	install(t, feed, i, snapshot(10, 1, row("g1", "old")))
@@ -279,7 +431,7 @@ func TestTransactionAndHydrationKeepEvidenceOrdered(t *testing.T) {
 }
 
 func TestOldQueuedEventsCannotReplaceNewerSnapshot(t *testing.T) {
-	f, feed := newFacts(t, Options{10, 10, 1})
+	f, feed := newFacts(t, Options{MaxQueries: 10, MaxRows: 10, LoadConcurrency: 1})
 	lease, _ := f.Acquire(selector("p1"))
 	i := receive(t, feed)
 	install(t, feed, i, snapshot(20, 3, row("g1", "snapshot")))
@@ -292,7 +444,7 @@ func TestOldQueuedEventsCannotReplaceNewerSnapshot(t *testing.T) {
 }
 
 func TestCoverageAndFailureAreScopedToSelector(t *testing.T) {
-	f, feed := newFacts(t, Options{10, 1, 2})
+	f, feed := newFacts(t, Options{MaxQueries: 10, MaxRows: 1, LoadConcurrency: 2})
 	a, _ := f.Acquire(selector("p1"))
 	b, _ := f.Acquire(selector("p2"))
 	first, second := receive(t, feed), receive(t, feed)
@@ -365,7 +517,7 @@ func TestCanceledQueuedLoadsDoNotBlockNewAcquires(t *testing.T) {
 }
 
 func TestBrokenFeedFailsEvidenceRatherThanReturningNegative(t *testing.T) {
-	f, feed := newFacts(t, Options{10, 10, 1})
+	f, feed := newFacts(t, Options{MaxQueries: 10, MaxRows: 10, LoadConcurrency: 1})
 	lease, _ := f.Acquire(selector("p1"))
 	i := receive(t, feed)
 	install(t, feed, i, snapshot(10, 1))
@@ -379,7 +531,7 @@ func TestBrokenFeedFailsEvidenceRatherThanReturningNegative(t *testing.T) {
 }
 
 func TestFactsCloseReleasesSubscriptionsButLeavesFeedToOwner(t *testing.T) {
-	f, feed := newFacts(t, Options{10, 10, 1})
+	f, feed := newFacts(t, Options{MaxQueries: 10, MaxRows: 10, LoadConcurrency: 1})
 	if _, err := f.Acquire(selector("p1")); err != nil {
 		t.Fatal(err)
 	}
@@ -399,7 +551,7 @@ func TestFactsCloseReleasesSubscriptionsButLeavesFeedToOwner(t *testing.T) {
 }
 
 func TestFactFeedCanAttachToLiveRevisionChain(t *testing.T) {
-	f, feed := newFacts(t, Options{10, 10, 1})
+	f, feed := newFacts(t, Options{MaxQueries: 10, MaxRows: 10, LoadConcurrency: 1})
 	lease, _ := f.Acquire(selector("p1"))
 	i := receive(t, feed)
 	install(t, feed, i, snapshot(50, 100))

@@ -1,5 +1,5 @@
-import { immutable, ProtocolError } from './protocol.js'
-import type { Bounds, ModelBatch, Occurrence, RecordData, ServerMessage } from './protocol.js'
+import { immutable, ProtocolError, branchKey } from './protocol.js'
+import type { Bounds, ModelBatch, Occurrence, RecordData, ServerMessage, BranchFailure } from './protocol.js'
 import { OptimisticLayers } from './optimistic.js'
 import type { OptimisticMutation, OptimisticHandle, OptimisticTarget, TemporaryEntity, OptimisticChanges } from './optimistic.js'
 import { selectionKey } from './optimistic_selection.js'
@@ -43,6 +43,8 @@ const queryKey = (id: string) => JSON.stringify(['query', id])
 const statusKey = (id: string) => JSON.stringify(['status', id])
 const occurrenceKey = (scope: string, node: string, parent: string, entity: string) => JSON.stringify(['occurrences', scope, node, parent, entity])
 const bucketKey = (v: Occurrence) => occurrenceKey(v.subscriptionId, v.nodeId, v.parentOccurrenceId, v.parentEntityId)
+const branchesKey = (scope: string) => JSON.stringify(['branches', scope])
+const noFailures: readonly BranchFailure[] = Object.freeze([])
 
 // A dependency-tracked, cached selector. Snapshots stay referentially stable
 // between relevant commits; the first subscriber installs dependencies lazily.
@@ -104,6 +106,7 @@ class StoreSelection<T> implements Selection<T> {
 // Owns the connection's read model, not datastore query evaluation. Every batch
 // is staged in touched-key overlays, validated, then committed before notifying.
 export class ModelStore {
+  private branches = new Map<string, readonly BranchFailure[]>()
   private computed = new Map<string, Map<string, RecordData>>()
   // Immutable list images share a lazily built membership index. Scalar-only
   // updates reuse it; retired images/indexes are collected together.
@@ -146,6 +149,7 @@ export class ModelStore {
   }
   getEntity(id: string): EntitySnapshot { this.read(entityKey(id)); return this.optimistic.read(id, this.entities.get(id) ?? unavailable) }
   getAuthoritativeEntity(id: string): EntitySnapshot { this.read(authoritativeEntityKey(id)); return this.entities.get(id) ?? unavailable }
+  getBranchErrors(scope: string): readonly BranchFailure[] { this.read(branchesKey(scope)); return this.branches.get(scope) ?? noFailures }
   temporaryEntity(): TemporaryEntity { return this.optimistic.temporary() }
   projectionTarget(scope: string, node: string, ancestors: readonly string[], kind: 'entity' | 'list'): OptimisticTarget { return this.optimistic.target(scope, node, ancestors, kind) }
   projectionSelection(scope: string, node: string, ancestors: readonly string[], base: readonly string[]): Readonly<{ ids: readonly string[]; overridden: boolean }> {
@@ -191,13 +195,15 @@ export class ModelStore {
   forgetSubscription(id: string): void {
     this.statuses.delete(id)
     this.sequences.delete(id)
-    this.notify(new Set([statusKey(id)]))
+    this.branches.delete(id)
+    this.notify(new Set([statusKey(id), branchesKey(id)]))
   }
   // A reconnect is a new model generation, never an overlay over stale IDs.
   reset(connection: ConnectionSnapshot = { status: 'disconnected' }): void {
     this.optimistic.clear()
     this.entities.clear(); this.queries.clear(); this.occurrences.clear(); this.buckets.clear()
     this.computed.clear()
+    this.branches.clear()
     this.queryMembers = new WeakMap()
     this.availableEntities = 0; this.pendingEntities = 0
     this.connectionSequence = 0n; this.sequences.clear()
@@ -227,6 +233,16 @@ export class ModelStore {
   }
 
   private stageBatch(batch: ModelBatch): Set<string> {
+    const branches = new Map<string, Map<string, BranchFailure>>()
+    for (const change of batch.branches) {
+      let scope = branches.get(change.subscriptionId)
+      if (!scope) { scope = new Map(this.getBranchErrors(change.subscriptionId).map(error => [branchKey(error), error])); branches.set(change.subscriptionId, scope) }
+      const key = branchKey(change)
+      if (change.type === 'error') {
+        const { type: _, ...failure } = change
+        scope.set(key, immutable(failure))
+      } else scope.delete(key)
+    }
     const entities = new Map<string, EntitySnapshot | null>()
     const queries = new Map<string, QuerySnapshot | null>()
     const occurrences = new Map<string, Occurrence | null>()
@@ -338,6 +354,10 @@ export class ModelStore {
       const values = this.computed.get(id) ?? new Map<string, RecordData>()
       for (const [entity, value] of patches) { if (value) values.set(entity, value); else values.delete(entity) }
       if (values.size) this.computed.set(id, values); else this.computed.delete(id)
+    }
+    for (const [id, errors] of branches) {
+      if (errors.size) this.branches.set(id, Object.freeze([...errors.values()])); else this.branches.delete(id)
+      changed.add(branchesKey(id))
     }
     return changed
   }

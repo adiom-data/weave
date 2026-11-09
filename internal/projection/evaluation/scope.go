@@ -63,14 +63,14 @@ func (s *Scope) EvaluatePath(ctx context.Context, evaluator *relationdef.Evaluat
 		return relationdef.Decision{}, q.ErrClosed
 	}
 	result, source, err := view.authorize(ctx, evaluator, claims, candidate)
-	if err != nil {
-		return relationdef.Decision{}, err
+	var values storage.Record
+	if err == nil {
+		result, values, err = selectedValues(ctx, result, candidate.Context.Computed, view, evaluator)
 	}
-	result, values, err := selectedValues(ctx, result, candidate.Context.Computed, view, evaluator)
-	if err != nil {
-		return relationdef.Decision{}, err
+	if result != nil && source != nil {
+		err = errors.Join(err, s.adopt(ctx, result, source))
 	}
-	if err := s.adopt(ctx, result, source); err != nil {
+	if err != nil {
 		return relationdef.Decision{}, err
 	}
 	s.values = values
@@ -88,13 +88,6 @@ func (s *Scope) evaluate(ctx context.Context, evaluator *relationdef.Evaluator, 
 	}
 	resolver := &scopeResolver{scope: s, view: view, used: make(map[string]struct{}), added: make(map[string]struct{})}
 	result, err := evaluateNode(ctx, evaluator, input, resolver, view, nil)
-	if err != nil {
-		for key := range resolver.added {
-			err = errors.Join(err, s.leases[key].Close(ctx))
-			delete(s.leases, key)
-		}
-		return relationdef.Decision{}, err
-	}
 	for key, lease := range s.leases {
 		if _, used := resolver.used[key]; used {
 			continue
@@ -102,10 +95,12 @@ func (s *Scope) evaluate(ctx context.Context, evaluator *relationdef.Evaluator, 
 		err = errors.Join(err, lease.Close(ctx))
 		delete(s.leases, key)
 	}
+	if result != nil {
+		s.policyStamps = result.stamps
+	}
 	if err != nil {
 		return relationdef.Decision{}, err
 	}
-	s.policyStamps = result.stamps
 	return result.decision, nil
 }
 
@@ -129,18 +124,19 @@ func selectedValues(ctx context.Context, original *pathDecision, names []string,
 	}
 	for _, name := range names {
 		value, err := result.state.Compute(ctx, name)
-		if err != nil {
-			return nil, nil, err
-		}
-		for key := range value.Dependencies {
+		dependencies, definitions := result.state.Evidence()
+		for key := range dependencies {
 			result.dependencies[key] = struct{}{}
 		}
 		var keys []relationdef.Key
-		for key := range value.Definitions {
+		for key := range definitions {
 			keys = append(keys, key)
 		}
 		for key, stamp := range pass.Stamps(keys) {
 			result.stamps[key] = stamp
+		}
+		if err != nil {
+			return &result, nil, err
 		}
 		if !value.Complete {
 			result.decision = relationdef.Decision{}

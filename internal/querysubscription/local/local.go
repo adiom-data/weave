@@ -111,7 +111,6 @@ func (c *Client) openFeed(ctx context.Context, options querysubscription.FeedOpt
 		ctx:           feedCtx,
 		cancel:        cancel,
 		subscriptions: make(map[string]*localSubscription),
-		used:          make(map[string]struct{}),
 		pendingDone:   pendingDone,
 		events:        feedbuffer.New(options.BufferLimit),
 		deliveries:    make(map[uint64]*pendingDelivery),
@@ -137,7 +136,6 @@ type localFeed struct {
 	closed          bool
 	released        bool
 	subscriptions   map[string]*localSubscription
-	used            map[string]struct{}
 	pending         int
 	pendingDone     chan struct{}
 	closeMu         sync.Mutex
@@ -215,6 +213,7 @@ func (s *localFeed) subscribe(ctx context.Context, request querysubscription.Que
 	opened, err := s.coordinator.SubscribeGroupedWithFetch(subscribeCtx, nativeID, s.group, request.Query, engine.InitialWindow{
 		FromEnd: request.Window.FromEnd,
 		Count:   request.Window.Count,
+		Bounds:  request.Window.Bounds,
 	}, fetch)
 	if err != nil {
 		s.removeReservation(request.ID)
@@ -232,11 +231,10 @@ func (s *localFeed) reserveSubscription(id string) error {
 	if _, exists := s.subscriptions[id]; exists {
 		return errors.New("subscription ID already exists in feed")
 	}
-	if _, used := s.used[id]; used {
-		return errors.New("subscription ID was already used in feed")
-	}
 	// A nil entry reserves the connection-scoped ID while the snapshot loads.
-	s.used[id] = struct{}{}
+	if err := s.events.RegisterSubscription(id); err != nil {
+		return err
+	}
 	s.subscriptions[id] = nil
 	s.beginPendingLocked()
 	return nil
@@ -369,6 +367,7 @@ func (s *localFeed) finishPending() {
 func (s *localFeed) removeReservation(id string) {
 	s.mu.Lock()
 	delete(s.subscriptions, id)
+	s.events.RetireSubscription(id)
 	s.signalRegistered()
 	s.mu.Unlock()
 }
@@ -448,7 +447,6 @@ func (s *localFeed) Close(ctx context.Context) error {
 	// The consumer is cancelled during shutdown. Do not retain closed interests
 	// through a held feed handle.
 	s.subscriptions = nil
-	s.used = nil
 	s.mu.Unlock()
 	s.feedMu.Lock()
 	s.retirements = nil
@@ -627,12 +625,13 @@ func (s *localSubscription) failSubscription(err error) {
 	if !s.markFailed() {
 		return
 	}
+	if offerErr := s.owner.offer(querysubscription.Event{Failure: &querysubscription.SubscriptionFailure{SubscriptionID: s.id, Cause: err}}); offerErr != nil {
+		s.owner.fail(offerErr)
+		return
+	}
 	if closeErr := s.Close(s.owner.ctx); closeErr != nil {
 		s.owner.fail(errors.Join(err, closeErr))
 		return
-	}
-	if offerErr := s.owner.offer(querysubscription.Event{Failure: &querysubscription.SubscriptionFailure{SubscriptionID: s.id, Cause: err}}); offerErr != nil {
-		s.owner.fail(offerErr)
 	}
 }
 

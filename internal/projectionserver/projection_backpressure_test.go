@@ -31,7 +31,7 @@ type stalledInitialPrepared struct {
 	owner *stalledInitialVisibility
 }
 
-func (p *stalledInitialPrepared) Evaluate(ctx context.Context, view accesscontrol.View, candidates []accesscontrol.Candidate) ([]bool, error) {
+func (p *stalledInitialPrepared) Evaluate(ctx context.Context, view accesscontrol.View, candidates []accesscontrol.Candidate) ([]accesscontrol.Decision, error) {
 	for _, candidate := range candidates {
 		if string(candidate.Record["title"].Data) == "Slow" {
 			p.owner.once.Do(func() { close(p.owner.started) })

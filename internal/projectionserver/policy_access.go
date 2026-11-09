@@ -7,6 +7,7 @@ import (
 
 	"github.com/adiom-data/weave/internal/accesscontrol"
 	"github.com/adiom-data/weave/internal/projection/evaluation"
+	"github.com/adiom-data/weave/internal/projection/retry"
 	q "github.com/adiom-data/weave/internal/querysubscription/model"
 	relationdef "github.com/adiom-data/weave/internal/relation"
 	"github.com/adiom-data/weave/internal/storage"
@@ -15,7 +16,8 @@ import (
 func (s *server) prepareAccess(ctx context.Context, feed q.Feed, id accesscontrol.PreparedID, claims accesscontrol.Claims) (*server, accesscontrol.Prepared, error) {
 	if s.evaluator != nil {
 		configuration := s.options.Relations
-		access, err := newRelationAccess(ctx, feed, s.evaluator, claims, evaluation.Options{MaxQueries: configuration.MaxFactQueries, MaxRows: configuration.MaxFactRows, LoadConcurrency: configuration.FactLoadConcurrency}, configuration.AllowAll)
+		limits := s.options.ProjectionLimits
+		access, err := newRelationAccess(ctx, feed, s.evaluator, claims, evaluation.Options{MaxQueries: configuration.MaxFactQueries, MaxRows: configuration.MaxFactRows, LoadConcurrency: configuration.FactLoadConcurrency, Recovery: retry.Policy{InitialDelay: limits.RecoveryInitialDelay, MaxDelay: limits.RecoveryMaxDelay, MaxAttempts: limits.RecoveryMaxAttempts}}, configuration.AllowAll)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -71,6 +73,32 @@ func (p *relationAccess) requestProgress(targets ...*q.Position) {
 	p.progress.require(targets...)
 }
 
+// An already-failed path can retry evidence privately without holding healthy
+// branches behind it. Other unresolved checks retain the existing publication
+// hold semantics. The session indexes pending occurrences, not every row.
+func (p *relationAccess) pendingProjection(v *projectionVisibility) bool {
+	if !v.partial {
+		return p.session.PendingIn(func(id string) bool { return v.instances[id] != nil })
+	}
+	return p.session.PendingMatching(func(occurrence evaluation.Occurrence) bool {
+		instance := v.instances[occurrence.Scope]
+		if instance == nil {
+			return false
+		}
+		key := occurrence.Key
+		for instance != nil {
+			if instance.failure != nil {
+				return false
+			}
+			if row := instance.rows[key]; row != nil && row.failure != nil {
+				return false
+			}
+			key, instance = instance.open.ParentEntityKey, v.instances[instance.open.ParentInstanceID]
+		}
+		return true
+	})
+}
+
 // relationAccess is a connection-owned adapter for the existing publication
 // gate. Views carry partial, immutable evidence at an explicit source position;
 // an unresolved decision withholds output and keeps its dependency ownership.
@@ -122,18 +150,15 @@ func (p *relationAccess) AcquireSnapshot(_ context.Context, fence storage.Fence)
 	view, err := p.session.OpenView(&q.Position{SourceID: fence.Source(), Value: fence.Order()})
 	return accesscontrol.SnapshotCheckpoint{Fence: fence, View: view}, err
 }
-func (p *relationAccess) Evaluate(ctx context.Context, view accesscontrol.View, candidates []accesscontrol.Candidate) ([]bool, error) {
+func (p *relationAccess) Evaluate(ctx context.Context, view accesscontrol.View, candidates []accesscontrol.Candidate) ([]accesscontrol.Decision, error) {
 	evidence, ok := view.(*evaluation.View)
 	if !ok {
 		return nil, errors.New("policy evaluation requires its session's evidence view")
 	}
-	visible := make([]bool, len(candidates))
+	visible := make([]accesscontrol.Decision, len(candidates))
 	for i, candidate := range candidates {
 		decision, err := p.session.Evaluate(ctx, evaluation.Occurrence{Scope: candidate.Context.InstanceID, Key: candidate.Key}, candidate, evidence)
-		if err != nil {
-			return nil, err
-		}
-		visible[i] = decision.Visible
+		visible[i] = accesscontrol.Decision{Visible: decision.Visible, Err: err, Pending: err == nil && !decision.Resolved}
 	}
 	return visible, nil
 }

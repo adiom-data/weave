@@ -12,6 +12,7 @@ import (
 type memberBindings struct {
 	once    sync.Once
 	queries map[*ProjectionNode]storage.QuerySpec
+	errors  map[*ProjectionNode]error
 	err     error
 }
 
@@ -27,9 +28,14 @@ func (p *Projection) childBindings(node *ProjectionNode, member *projectionMembe
 	p.mu.Unlock()
 	bindings.once.Do(func() {
 		bindings.queries = make(map[*ProjectionNode]storage.QuerySpec, len(node.Children))
+		bindings.errors = make(map[*ProjectionNode]error)
 		for _, child := range node.Children {
 			query, err := child.BuildQuery(member.record)
 			if err != nil {
+				if p.partialErrors {
+					bindings.errors[child] = err
+					continue
+				}
 				bindings.err = err
 				return
 			}
@@ -73,7 +79,7 @@ func (p *Projection) reconcileChildren(parent *projectionInstance, previous, nex
 			return nil, false, err
 		}
 		for _, child := range parent.node.Children {
-			unchanged[child] = reflect.DeepEqual(before[child], after[child])
+			unchanged[child] = reflect.DeepEqual(before[child], after[child]) && sameBindingError(previous.bindings.errors[child], next.bindings.errors[child])
 			all = all && unchanged[child]
 		}
 	}
@@ -113,6 +119,13 @@ func (p *Projection) reconcileChildren(parent *projectionInstance, previous, nex
 		}
 	}
 	return closed, all, nil
+}
+
+func sameBindingError(a, b error) bool {
+	if a == nil || b == nil {
+		return a == nil && b == nil
+	}
+	return a.Error() == b.Error()
 }
 
 // retireReplacedChildren requires processMu. A publication can have

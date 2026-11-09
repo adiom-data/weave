@@ -189,14 +189,14 @@ func (a *policyAdmissions) query(external, request, internal, queryID string, sp
 	return nil
 }
 
-func (a *policyAdmissions) projection(external, request, prefix string, root *proj.ProjectionNode, selected map[string]*fieldSelection, waitForSync bool) error {
+func (a *policyAdmissions) projection(external, request, prefix string, root *proj.ProjectionNode, selected map[string]*fieldSelection, waitForSync, partial bool) error {
 	ctx, cancel := context.WithCancel(a.ctx)
 	generation := prefix + "projection:" + strconv.FormatUint(streamSequence.Add(1), 10)
 	owns := func(id string) bool { return strings.HasPrefix(id, generation+":") }
 	loading := &pendingSharedSubscription{context: ctx, cancel: cancel, generation: generation, owns: owns, policyOwns: owns, requestID: request}
 	a.pending[external] = loading
 	position, revision := a.service.relationAccess.progress.current()
-	p, err := proj.BeginProjection(ctx, a.queries, root, proj.StartOptions{Prefix: generation, QueueLimit: a.service.options.SubscriptionQueueLimit, Limits: proj.Limits(a.service.options.ProjectionLimits), ExpansionLimiter: a.service.expansionLimiter, WaitForSync: waitForSync, CurrentImageAdmission: true, ConsumedCheckpoint: position, ConsumedRevision: revision})
+	p, err := proj.BeginProjection(ctx, a.queries, root, proj.StartOptions{Prefix: generation, QueueLimit: a.service.options.SubscriptionQueueLimit, Limits: proj.Limits(a.service.options.ProjectionLimits), ExpansionLimiter: a.service.expansionLimiter, WaitForSync: waitForSync, AllowPartialErrors: partial, CurrentImageAdmission: true, ConsumedCheckpoint: position, ConsumedRevision: revision})
 	if err != nil {
 		delete(a.pending, external)
 		cancel()
@@ -205,6 +205,7 @@ func (a *policyAdmissions) projection(external, request, prefix string, root *pr
 	loading.projection = p
 	go forwardProjection(ctx, external, generation, p, a.outbound)
 	image := newInitialPolicyImage(selected)
+	image.visibility.partial = partial
 	loading.cancel = func() {
 		cancel()
 		p.Close()

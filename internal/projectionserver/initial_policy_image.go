@@ -30,17 +30,23 @@ func (i *initialPolicyImage) apply(ctx context.Context, s *server, prepared acce
 	}
 	// This policy-owned path needs evidence, not the generic controller's
 	// complete invalidation list (which also contains every unresolved row).
-	view, err := s.relationAccess.session.OpenView(batch.Delivery.Checkpoint)
-	if err != nil {
-		return false, err
+	var view accesscontrol.View
+	if batch.Delivery.Checkpoint != nil {
+		opened, err := s.relationAccess.session.OpenView(batch.Delivery.Checkpoint)
+		if err != nil {
+			return false, err
+		}
+		view = opened
 	}
 	epoch, changed := s.relationAccess.session.FactChangesAfter(i.epoch)
 	var targets []accesscontrol.InvalidationTarget
 	for _, target := range changed {
 		targets = append(targets, accesscontrol.InvalidationTarget{InstanceID: target.Scope, Key: target.Key})
 	}
-	_, err = i.visibility.filterTransaction(ctx, prepared, view, batch, accesscontrol.Invalidation{Targets: targets})
-	err = errors.Join(err, view.Close())
+	_, err := i.visibility.filterTransaction(ctx, prepared, view, batch, accesscontrol.Invalidation{Targets: targets})
+	if view != nil {
+		err = errors.Join(err, view.Close())
+	}
 	if err != nil {
 		return false, err
 	}
@@ -50,7 +56,7 @@ func (i *initialPolicyImage) apply(ctx context.Context, s *server, prepared acce
 		}
 	}
 	i.epoch, i.position = epoch, batch.Delivery.Checkpoint
-	return !s.relationAccess.session.PendingIn(func(id string) bool { return i.visibility.instances[id] != nil }), nil
+	return !s.relationAccess.pendingProjection(i.visibility), nil
 }
 
 func (i *initialPolicyImage) release(ctx context.Context, prepared accesscontrol.Prepared) error {
@@ -71,13 +77,26 @@ func (i *initialPolicyImage) borrowEvents() []proj.ProjectionEvent {
 	var visit func(string)
 	visit = func(id string) {
 		instance := i.visibility.instances[id]
-		if instance == nil || !instance.effective {
+		if instance == nil {
+			return
+		}
+		if instance.errorPublished {
+			event := instance.open
+			event.Type, event.Failure = proj.ProjectionBranchChanged, instance.failure
+			result = append(result, event)
+		}
+		if !instance.effective {
 			return
 		}
 		open := instance.open
 		open.Checkpoint, open.Initial = i.position, true
 		result = append(result, open)
 		for _, row := range i.visibility.orderedRows(instance) {
+			if row.errorPublished {
+				event := row.event
+				event.Type, event.Failure = proj.ProjectionBranchChanged, row.failure
+				result = append(result, event)
+			}
 			if !row.effective {
 				continue
 			}

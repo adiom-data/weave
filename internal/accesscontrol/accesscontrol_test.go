@@ -60,7 +60,7 @@ func TestAllowAllUsesStableViewsAndPreparedLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	visible, err := prepared.Evaluate(context.Background(), checkpoint.View, []Candidate{{}, {}})
-	if err != nil || len(visible) != 2 || !visible[0] || !visible[1] {
+	if err != nil || len(visible) != 2 || !visible[0].Visible || !visible[1].Visible || visible[0].Err != nil || visible[1].Err != nil {
 		t.Fatalf("visibility = %v, err=%v", visible, err)
 	}
 	if err := checkpoint.View.Close(); err != nil {

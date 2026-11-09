@@ -19,7 +19,7 @@ import (
 
 func WrapFeed(parentCtx context.Context, base q.Feed, options q.FeedOptions) q.Feed {
 	ctx, cancel := context.WithCancel(parentCtx)
-	f := &feed{Feed: base, ctx: ctx, cancel: cancel, events: feedbuffer.New(options.BufferLimit), parents: map[string]*parent{}, aliases: map[string]*alias{}, used: map[string]bool{}}
+	f := &feed{Feed: base, ctx: ctx, cancel: cancel, events: feedbuffer.New(options.BufferLimit), parents: map[string]*parent{}, aliases: map[string]*alias{}}
 	go f.run()
 	return f
 }
@@ -33,7 +33,6 @@ type feed struct {
 	events  *feedbuffer.Buffer
 	parents map[string]*parent
 	aliases map[string]*alias
-	used    map[string]bool
 }
 type parent struct {
 	shape   *storage.ReferenceFetch
@@ -65,6 +64,7 @@ func (a *alias) Close(context.Context) error {
 	defer a.feed.mu.Unlock()
 	a.closed = true
 	delete(a.feed.aliases, a.id)
+	a.feed.events.RetireSubscription(a.id)
 	if p := a.feed.parents[a.parent]; p != nil {
 		delete(p.aliases[a.key], a.id)
 		if len(p.aliases[a.key]) == 0 {
@@ -84,6 +84,7 @@ func (h queryHandle) Close(ctx context.Context) error {
 	if err == nil {
 		h.feed.mu.Lock()
 		h.feed.removeParent(h.ID())
+		h.feed.events.RetireSubscription(h.ID())
 		h.feed.mu.Unlock()
 	}
 	return err
@@ -95,13 +96,9 @@ func (f *feed) reserve(id string) error {
 	if f.closed {
 		return q.ErrClosed
 	}
-	if f.used[id] {
-		return errors.New("subscription ID already used in feed")
-	}
-	f.used[id] = true
-	return nil
+	return f.events.RegisterSubscription(id)
 }
-func (f *feed) SubscribeQuery(ctx context.Context, request q.QuerySubscribeRequest, install q.QuerySnapshotInstaller) error {
+func (f *feed) SubscribeQuery(ctx context.Context, request q.QuerySubscribeRequest, install q.QuerySnapshotInstaller) (err error) {
 	if err := q.ValidateQuerySubscribeRequest(request); err != nil {
 		return err
 	}
@@ -111,6 +108,11 @@ func (f *feed) SubscribeQuery(ctx context.Context, request q.QuerySubscribeReque
 	if err := f.reserve(request.ID); err != nil {
 		return err
 	}
+	defer func() {
+		if err != nil {
+			f.events.DiscardSubscription(request.ID)
+		}
+	}()
 	return f.Feed.SubscribeQuery(ctx, request, func(native q.QuerySubscription, snapshot q.QuerySnapshot) error {
 		if snapshot.OwnedReferences {
 			encoded, err := json.Marshal(request.Reference)
@@ -168,7 +170,7 @@ func bindingFields(shape *storage.ReferenceFetch, record storage.Record) storage
 	return selected
 }
 
-func (f *feed) SubscribeEntity(ctx context.Context, request q.EntitySubscribeRequest, install q.EntitySnapshotInstaller) error {
+func (f *feed) SubscribeEntity(ctx context.Context, request q.EntitySubscribeRequest, install q.EntitySnapshotInstaller) (result error) {
 	if err := q.ValidateEntitySubscribeRequest(request); err != nil {
 		return err
 	}
@@ -178,6 +180,11 @@ func (f *feed) SubscribeEntity(ctx context.Context, request q.EntitySubscribeReq
 	if err := f.reserve(request.ID); err != nil {
 		return err
 	}
+	defer func() {
+		if result != nil {
+			f.events.DiscardSubscription(request.ID)
+		}
+	}()
 	f.mu.Lock()
 	var p *parent
 	if request.FetchFrom != nil {
@@ -254,7 +261,22 @@ func (f *feed) subscribeUnreferenced(ctx context.Context, request q.EntitySubscr
 		return err
 	}
 	request.FetchFrom = nil
-	return f.Feed.SubscribeEntity(ctx, request, install)
+	return f.Feed.SubscribeEntity(ctx, request, func(handle q.EntitySubscription, snapshot q.EntitySnapshot) error {
+		return install(entityHandle{handle, f}, snapshot)
+	})
+}
+
+type entityHandle struct {
+	q.EntitySubscription
+	feed *feed
+}
+
+func (h entityHandle) Close(ctx context.Context) error {
+	err := h.EntitySubscription.Close(ctx)
+	if err == nil {
+		h.feed.events.RetireSubscription(h.ID())
+	}
+	return err
 }
 
 func cloneSnapshot(snapshot q.EntitySnapshot) q.EntitySnapshot {
@@ -320,6 +342,7 @@ func (f *feed) removeParent(id string) {
 			for id, a := range aliases {
 				a.closed = true
 				delete(f.aliases, id)
+				f.events.RetireSubscription(id)
 			}
 		}
 		for _, c := range p.cells {

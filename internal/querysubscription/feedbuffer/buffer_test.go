@@ -74,6 +74,7 @@ func TestInstallationStartingDuringPublicationCannotLeakItsEvents(t *testing.T) 
 
 func TestFailedInstallationOnlyDiscardsItsEffects(t *testing.T) {
 	b := New(4)
+	register(t, b, "failed", "healthy")
 	b.BeginInstallation()
 	envelope := &querysubscription.DeliveryEnvelope{Delivery: querysubscription.DeliveryMetadata{Kind: querysubscription.DeliveryCommit, Checkpoint: &querysubscription.Position{SourceID: "test", Value: 1}, Revision: 1}, Effects: []querysubscription.SubscriptionEffect{{SubscriptionID: "failed"}, {SubscriptionID: "healthy"}}}
 	if err := b.Offer(querysubscription.Event{Delivery: envelope}); err != nil {
@@ -104,6 +105,7 @@ func TestFailedInstallationOnlyDiscardsItsEffects(t *testing.T) {
 
 func TestDiscardRetainsOtherEntityEffectsAndTransactionClock(t *testing.T) {
 	b := New(4)
+	register(t, b, "failed", "healthy")
 	b.BeginInstallation()
 	failed := querysubscription.EntityTarget{SubscriptionID: "failed"}
 	healthy := querysubscription.EntityTarget{SubscriptionID: "healthy"}

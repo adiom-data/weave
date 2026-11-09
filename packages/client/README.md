@@ -74,10 +74,40 @@ as stored data. Optimistic entity patches do not alter authoritative computation
 - [Optimistic entity updates](#optimistic-entity-updates)
 - [Temporary entities and list membership](#temporary-entities-and-explicit-membership)
 - [Reconnects](#seamless-reconnects) and [connection liveness](#connection-liveness)
+- [Partial projection failures](#partial-projection-failures)
 - [React hooks and selections](#react)
 - [Configuration](#configuration)
 - [Tests](#tests)
 - [Implementation and wire format](#implementation-and-wire-format)
+
+## Partial projection failures
+
+Partial failures are opt-in. Generated definitions accept
+`definition.subscribe(client, parameters, { allowPartialErrors: true })`;
+raw requests accept `client.subscribeProjection({ ...request, allowPartialErrors: true })`.
+Without this option, a branch failure still fails the whole projection.
+
+The projection remains ready while `view.getSnapshot().errors` identifies failed
+branches. Raw nodes/rows and typed entities/lists expose `error` and `stale`.
+If a branch was previously available, the runtime retains its immutable last-good
+authoritative display. An initial failure has an unavailable placeholder instead.
+Healthy branches continue updating, including other paths to the same entity.
+Applications choose whether to display retained data, an error, or a placeholder.
+
+Failed displays do not read from the live shared entity cache and cannot be
+paginated. Their window controls report `undefined` bounds (including lists
+under a failed ancestor), and reject updates without sending a request. Controls
+resolve the live replacement automatically after recovery. Server recovery
+replaces the complete branch and clears its error in
+one publication, preserving unchanged object identities where possible. Removed
+rows and children do not survive recovery. There is no individual-branch retry
+API; the server reevaluates dependencies and retries failed source subscriptions,
+or the application can reopen the whole projection.
+
+Optimistic entity predictions are not frozen into the retained last-good image.
+Mutation confirmations continue retiring overlays independently of branch errors.
+Disconnect, malformed protocol, and backpressure retain their existing
+connection/projection resynchronization behavior.
 
 ## Framework-independent use
 

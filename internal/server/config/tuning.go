@@ -93,11 +93,14 @@ type ProjectionMessageConfig struct {
 }
 
 type ProjectionLimits struct {
-	MaxDefinitionDepth      int `yaml:"max_definition_depth"`
-	MaxDefinitionNodes      int `yaml:"max_definition_nodes"`
-	MaxActiveInstances      int `yaml:"max_active_instances"`
-	MaxConcurrentExpansions int `yaml:"max_concurrent_expansions"`
-	MaxPendingExpansions    int `yaml:"max_pending_expansions"`
+	MaxDefinitionDepth      int           `yaml:"max_definition_depth"`
+	MaxDefinitionNodes      int           `yaml:"max_definition_nodes"`
+	MaxActiveInstances      int           `yaml:"max_active_instances"`
+	MaxConcurrentExpansions int           `yaml:"max_concurrent_expansions"`
+	MaxPendingExpansions    int           `yaml:"max_pending_expansions"`
+	RecoveryInitialDelay    time.Duration `yaml:"recovery_initial_delay"`
+	RecoveryMaxDelay        time.Duration `yaml:"recovery_max_delay"`
+	RecoveryMaxAttempts     int           `yaml:"recovery_max_attempts"`
 }
 
 type DependencyConfig struct {
@@ -194,6 +197,9 @@ func (c Config) validateTuning() error {
 	}
 	if pg.Replication.RetryMaxDelay < pg.Replication.RetryMinDelay {
 		return fmt.Errorf("storage.postgres.replication.retry_max_delay must be at least retry_min_delay")
+	}
+	if c.Projection.ProjectionLimits.RecoveryMaxDelay < c.Projection.ProjectionLimits.RecoveryInitialDelay {
+		return fmt.Errorf("projection.limits.recovery_max_delay must be at least recovery_initial_delay")
 	}
 	if err := messagebudget.Limits(pg.MessageLimits).Validate(); err != nil {
 		return fmt.Errorf("storage.postgres.message_limits: %w", err)

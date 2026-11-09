@@ -17,7 +17,6 @@ func responseTestFeed() *remoteFeed {
 	feed := &remoteFeed{
 		pending:       make(map[string]chan response),
 		subscriptions: make(map[string]*remoteSubscription),
-		used:          make(map[string]struct{}),
 		requests:      make(chan outboundRequest),
 		controls:      make(chan *queryv1.ClientMessage, 4),
 		done:          make(chan struct{}),
@@ -25,7 +24,7 @@ func responseTestFeed() *remoteFeed {
 	}
 	for _, id := range []string{"canceled", "healthy"} {
 		feed.subscriptions[id] = &remoteSubscription{id: id, owner: feed}
-		feed.used[id] = struct{}{}
+		_ = feed.events.RegisterSubscription(id)
 	}
 	return feed
 }

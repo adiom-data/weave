@@ -95,25 +95,22 @@ func SnapshotPosition(checkpoint, fence *Position) (*Position, error) {
 type InitialWindow struct {
 	FromEnd bool
 	Count   int
+	// Bounds starts directly at an existing opaque interval instead of resolving
+	// a count. Mutually exclusive with Count and FromEnd; snapshots and live
+	// delivery follow exactly the same contract for either starting form.
+	Bounds *Bounds
 }
 
-type BoundaryKind uint8
+type BoundaryKind = storage.CursorBoundaryKind
 
 const (
-	BoundaryStart BoundaryKind = iota + 1
-	BoundaryCursor
-	BoundaryEnd
+	BoundaryStart  = storage.CursorStart
+	BoundaryCursor = storage.CursorKey
+	BoundaryEnd    = storage.CursorEnd
 )
 
-type Boundary struct {
-	Kind   BoundaryKind
-	Cursor []byte
-}
-
-type Bounds struct {
-	Left  Boundary
-	Right Boundary
-}
+type Boundary = storage.CursorBoundary
+type Bounds = storage.CursorBounds
 
 type BoundarySide uint8
 
@@ -520,7 +517,14 @@ func ValidateQuerySubscribeRequest(request QuerySubscribeRequest) error {
 	if request.ID == "" || strings.ContainsRune(request.ID, 0) {
 		return errors.New("query subscription ID is required")
 	}
-	if request.Window.Count <= 0 {
+	if request.Window.Bounds != nil {
+		if request.Window.Count != 0 || request.Window.FromEnd {
+			return errors.New("initial bounds are mutually exclusive with count/from_end")
+		}
+		if err := request.Window.Bounds.Validate(); err != nil {
+			return err
+		}
+	} else if request.Window.Count <= 0 {
 		return errors.New("query subscription initial window must be positive")
 	}
 	return request.Reference.Validate()
@@ -585,9 +589,12 @@ type EntitySnapshotInstaller func(EntitySubscription, EntitySnapshot) error
 // Subscription IDs are unique for the complete feed lifetime and are
 // consumed when a well-formed subscribe operation begins, even if that attempt
 // later fails. They cannot be reused after Close; this keeps canceled and retired
-// remote delivery metadata unambiguous. All methods must be safe for concurrent
-// use: projection expansion can subscribe children while existing subscriptions
-// deliver.
+// remote delivery metadata unambiguous.
+// Callers own lifetime uniqueness; implementations need only track live attempts
+// and may not detect reuse of a retired ID. Late effects for inactive IDs are
+// ignored, retaining their envelopes' ordering/progress metadata.
+// All methods must be safe for concurrent use: projection expansion can
+// subscribe children while existing subscriptions deliver.
 type Feed interface {
 	SubscribeQuery(context.Context, QuerySubscribeRequest, QuerySnapshotInstaller) error
 	SubscribeEntity(context.Context, EntitySubscribeRequest, EntitySnapshotInstaller) error

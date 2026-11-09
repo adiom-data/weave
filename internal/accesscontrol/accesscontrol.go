@@ -101,11 +101,23 @@ type Controller interface {
 // later.
 type Prepared interface {
 	ID() PreparedID
-	Evaluate(context.Context, View, []Candidate) ([]bool, error)
+	Evaluate(context.Context, View, []Candidate) ([]Decision, error)
 	// Release drops dependency ownership for rows that actually left a query,
 	// not rows hidden by visibility. Nil keys retires the whole instance.
 	Release(context.Context, string, []storage.EntityKey) error
 	Close() error
+}
+
+// Decision distinguishes a successful denial from a failed evaluation. Err is
+// candidate-local; the outer Evaluate error means the supplied view or the
+// complete operation failed and no decisions can be used. Err takes precedence
+// over Visible and Pending; Pending takes precedence over Visible.
+type Decision struct {
+	Visible bool
+	Err     error
+	// Pending means required evidence is still loading; it is neither denial
+	// nor failure. Implementations returning a final result leave this false.
+	Pending bool
 }
 
 // allowAll is the initial policy implementation. It exercises the complete
@@ -183,10 +195,10 @@ type allowAllPrepared struct {
 
 func (p *allowAllPrepared) ID() PreparedID { return p.id }
 
-func (*allowAllPrepared) Evaluate(_ context.Context, _ View, candidates []Candidate) ([]bool, error) {
-	result := make([]bool, len(candidates))
+func (*allowAllPrepared) Evaluate(_ context.Context, _ View, candidates []Candidate) ([]Decision, error) {
+	result := make([]Decision, len(candidates))
 	for index := range result {
-		result[index] = true
+		result[index].Visible = true
 	}
 	return result, nil
 }

@@ -383,6 +383,18 @@ export class ReactiveClient {
         if (this.generation !== generation) return
       }
     }
+    if (message.event.type === 'batch' && message.event.batch.branches.length) {
+      const byScope = new Map<string, typeof message.event.batch.branches[number][]>()
+      for (const branch of message.event.batch.branches) {
+        if (branch.type !== 'error') continue
+        const changes = byScope.get(branch.subscriptionId) ?? []
+        changes.push(branch); byScope.set(branch.subscriptionId, changes)
+      }
+      for (const [id, changes] of byScope) {
+        const registration = this.handles.get(id)
+        if (registration) registration.publication.prepareFailures(changes, readProjection(this.store, id, registration.handle.request, { authoritative: true }).root)
+      }
+    }
     this.store.apply(message, { retireOptimistic: [...retire] })
     for (const notify of appliedReceipts) invokeSafely(notify, error => this.reportListenerError(error))
     // Store observers may disconnect/reconnect synchronously. Never apply old

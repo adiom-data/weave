@@ -3,6 +3,7 @@ package feedbuffer
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 
@@ -18,9 +19,62 @@ func image(id string) q.Event {
 	return q.Event{Entity: &q.EntityInstallation{Target: q.EntityTarget{SubscriptionID: id}}}
 }
 
+func register(t *testing.T, b *Buffer, ids ...string) {
+	t.Helper()
+	for _, id := range ids {
+		if err := b.RegisterSubscription(id); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+func TestAttemptRetirementDoesNotRetainLifetimeHistory(t *testing.T) {
+	b := New(4)
+	for i := range 1000 {
+		id := fmt.Sprintf("attempt-%d", i)
+		register(t, b, id)
+		if err := b.Offer(failure(id)); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := b.Next(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+		if err := b.Offer(image(id)); err != nil {
+			t.Fatal(err)
+		}
+		if err := b.Offer(failure(id)); err != nil {
+			t.Fatal(err)
+		}
+		if len(b.active) != 0 || b.Len() != 0 {
+			t.Fatal("retired attempt retained state or published late data")
+		}
+	}
+	register(t, b, "new")
+	if err := b.RegisterSubscription("new"); err == nil {
+		t.Fatal("accepted concurrent duplicate")
+	}
+	if err := b.Offer(image("new")); err != nil {
+		t.Fatal(err)
+	}
+	if err := b.Offer(progress(1)); err != nil {
+		t.Fatal(err)
+	}
+	if b.Len() != 2 {
+		t.Fatal("retirement stopped healthy publication")
+	}
+	b.RetireSubscription("new")
+	if len(b.active) != 0 {
+		t.Fatal("normal retirement retained ID")
+	}
+	if _, err := b.Next(t.Context()); err != nil {
+		t.Fatal("normal retirement discarded accepted history", err)
+	}
+}
+
 func TestFailurePrecedesDelayedImageWithoutConsumingCapacity(t *testing.T) {
 	for _, staging := range []bool{false, true} {
 		b := New(2)
+		register(t, b, "failed")
 		if staging {
 			b.BeginInstallation()
 		}
@@ -64,6 +118,7 @@ func TestFailurePrecedesDelayedImageWithoutConsumingCapacity(t *testing.T) {
 
 func TestTerminalFilteringPreservesHealthyEffectsAndTransactionClock(t *testing.T) {
 	b := New(5)
+	register(t, b, "failed", "failed-entity", "healthy", "healthy-query")
 	if err := b.Offer(failure("failed")); err != nil {
 		t.Fatal(err)
 	}
@@ -112,6 +167,7 @@ func TestTerminalFilteringPreservesHealthyEffectsAndTransactionClock(t *testing.
 
 func TestFailureNotificationRemainsTerminalAcrossInstallations(t *testing.T) {
 	b := New(2)
+	register(t, b, "failed", "healthy")
 	first := failure("failed")
 	if err := b.Offer(first); err != nil {
 		t.Fatal(err)
@@ -141,13 +197,14 @@ func TestFailureNotificationRemainsTerminalAcrossInstallations(t *testing.T) {
 		t.Fatal("duplicate notification escaped")
 	}
 	b.Close(nil)
-	if b.terminal != nil {
-		t.Fatal("closed buffer retained terminal IDs")
+	if b.active != nil {
+		t.Fatal("closed buffer retained active IDs")
 	}
 }
 
 func TestDiscardedInstallationSuppressesFutureWork(t *testing.T) {
 	b := New(2)
+	register(t, b, "failed", "healthy")
 	b.BeginInstallation()
 	if err := b.Offer(image("failed")); err != nil {
 		t.Fatal(err)
@@ -181,6 +238,7 @@ func TestDiscardedInstallationSuppressesFutureWork(t *testing.T) {
 func TestConcurrentFailureAndImageHaveOnePublicationOrder(t *testing.T) {
 	for range 500 {
 		b := New(2)
+		register(t, b, "failed")
 		start := make(chan struct{})
 		var workers sync.WaitGroup
 		for _, event := range []q.Event{failure("failed"), image("failed")} {
@@ -214,6 +272,7 @@ func TestConcurrentFailureAndImageHaveOnePublicationOrder(t *testing.T) {
 
 func TestDiscardPreservesOtherSubscriptionsAcceptedHistory(t *testing.T) {
 	b := New(4)
+	register(t, b, "other", "discarded")
 	b.BeginInstallation()
 	for _, event := range []q.Event{image("other"), failure("other"), image("discarded"), failure("discarded")} {
 		if err := b.Offer(event); err != nil {

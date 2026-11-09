@@ -88,6 +88,9 @@ projection:
     max_active_instances: 1000
     max_concurrent_expansions: 8 # Per projection.
     max_pending_expansions: 1024
+    recovery_initial_delay: 1s # Exponential backoff with equal jitter.
+    recovery_max_delay: 30s
+    recovery_max_attempts: 5 # Retries after the original attempt; then retain the error.
   dependencies:
     upstream_buffer_limit: 4096
     max_subscriptions: 10000

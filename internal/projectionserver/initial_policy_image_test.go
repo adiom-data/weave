@@ -19,7 +19,7 @@ type countedPolicy struct {
 	candidates int
 }
 
-func (p *countedPolicy) Evaluate(ctx context.Context, view accesscontrol.View, candidates []accesscontrol.Candidate) ([]bool, error) {
+func (p *countedPolicy) Evaluate(ctx context.Context, view accesscontrol.View, candidates []accesscontrol.Candidate) ([]accesscontrol.Decision, error) {
 	p.candidates += len(candidates)
 	return p.Prepared.Evaluate(ctx, view, candidates)
 }

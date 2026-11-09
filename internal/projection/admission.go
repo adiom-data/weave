@@ -80,6 +80,9 @@ func (p *Projection) tryCurrentImage(initial bool, accept func(string) (bool, er
 	root := p.rootID
 	var progress []*q.Position
 	for _, instance := range p.instances {
+		if instance.failure != nil {
+			continue
+		}
 		target, err := q.SnapshotPosition(instance.checkpoint, instance.fence)
 		if err != nil {
 			p.mu.Unlock()
@@ -117,6 +120,10 @@ func (p *Projection) tryCurrentImage(initial bool, accept func(string) (bool, er
 	var retired []string
 	for _, instance := range p.instances {
 		instance.published = true
+		if instance.replaces != "" {
+			retired = append(retired, instance.replaces)
+			instance.replaces = ""
+		}
 		// Admission/reconciliation consumes the complete current topology;
 		// queued replacement tokens must not detach its predecessors again.
 		for _, member := range instance.members {
@@ -137,5 +144,6 @@ func (p *Projection) tryCurrentImage(initial bool, accept func(string) (bool, er
 	for _, id := range retired {
 		p.closeInstance(id)
 	}
+	p.signalRecovery()
 	return AdmissionWait{Accepted: true}, nil
 }

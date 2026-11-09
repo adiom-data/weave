@@ -116,6 +116,39 @@ test('typed hooks stabilize equal parameter values and replace scopes when param
   assert.equal(container.textContent, 'loading', 'old parameters must not leak while the new scope loads')
 })
 
+test('typed hooks replace scopes when partial-error behavior changes but not for equivalent options', async t => {
+  const { client, sockets, root, container } = mounted(t)
+  const definition = defineProjection(request.root, {
+    nodeId: 'project', kind: 'entity', fields: [{ name: 'title', path: ['title'], type: { kind: 'text' } }], children: {},
+  }, [])
+  function View({ partial }) {
+    const view = useTypedProjection(client, definition, {}, { allowPartialErrors: partial })
+    return createElement('div', null, view.data?.status === 'available' ? view.data.value.title : view.status)
+  }
+  const subscriptions = () => sockets[0].sent.filter(message => message.subscribeProjection)
+  const render = partial => root.render(createElement(StrictMode, null, createElement(View, { partial })))
+  await act(async () => render(undefined))
+  const original = subscriptions().at(-1)
+  const count = subscriptions().length
+  await act(async () => {
+    sockets[0].message(image(original.subscriptionId))
+    sockets[0].message({ subscriptionId: original.subscriptionId, sequence: '2', ready: {} })
+  })
+  assert.equal(container.textContent, 'Project')
+  await act(async () => render(false))
+  assert.equal(subscriptions().length, count, 'omitted and explicit defaults are equivalent')
+  await act(async () => render(true))
+  assert.equal(subscriptions().length, count + 1)
+  assert.equal(subscriptions().at(-1).subscribeProjection.allowPartialErrors, true)
+  assert.notEqual(subscriptions().at(-1).subscriptionId, original.subscriptionId)
+  assert.equal(container.textContent, 'loading', 'old behavior must not remain active while the new scope loads')
+  await act(async () => render(true))
+  assert.equal(subscriptions().length, count + 1, 'equal fresh option objects must not reopen the scope')
+  await act(async () => render(false))
+  assert.equal(subscriptions().length, count + 2)
+  assert.equal(subscriptions().at(-1).subscribeProjection.allowPartialErrors ?? false, false)
+})
+
 test('mounted StrictMode and request changes dispose old subscriptions without displaying old parameters', async t => {
   const { client, sockets, root, container } = mounted(t)
   function View({ definition }) {

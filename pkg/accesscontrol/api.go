@@ -51,6 +51,7 @@ type PrepareRequest = impl.PrepareRequest
 // be client supplied. A policy must validate the complete, ordered expansion
 // path against its configured directional edge rules.
 type Candidate = impl.Candidate
+type Decision = impl.Decision
 
 // Invalidation says that a committed authorization checkpoint may have
 // changed the final visibility of Candidates for the Prepared context passed

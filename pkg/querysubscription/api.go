@@ -176,9 +176,12 @@ type EntitySnapshotInstaller = impl.EntitySnapshotInstaller
 // Subscription IDs are unique for the complete feed lifetime and are
 // consumed when a well-formed subscribe operation begins, even if that attempt
 // later fails. They cannot be reused after Close; this keeps canceled and retired
-// remote delivery metadata unambiguous. All methods must be safe for concurrent
-// use: projection expansion can subscribe children while existing subscriptions
-// deliver.
+// remote delivery metadata unambiguous.
+// Callers own lifetime uniqueness; implementations need only track live attempts
+// and may not detect reuse of a retired ID. Late effects for inactive IDs are
+// ignored, retaining their envelopes' ordering/progress metadata.
+// All methods must be safe for concurrent use: projection expansion can
+// subscribe children while existing subscriptions deliver.
 type Feed = impl.Feed
 
 type Client = impl.Client

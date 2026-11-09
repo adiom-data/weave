@@ -64,7 +64,7 @@ func (c *client) openFeed(ctx context.Context, options querysubscription.FeedOpt
 	}
 	feed := &remoteFeed{
 		ctx: feedCtx, cancel: cancel, stream: stream, bufferLimit: options.BufferLimit, options: c.options,
-		pending: make(map[string]chan response), subscriptions: make(map[string]*remoteSubscription), used: make(map[string]struct{}), done: make(chan struct{}),
+		pending: make(map[string]chan response), subscriptions: make(map[string]*remoteSubscription), done: make(chan struct{}),
 		controls: make(chan *querysubscriptionv1.ClientMessage, c.options.ControlQueueLimit),
 		requests: make(chan outboundRequest),
 		events:   feedbuffer.New(options.BufferLimit),
@@ -101,7 +101,6 @@ type remoteFeed struct {
 	err           error
 	pending       map[string]chan response
 	subscriptions map[string]*remoteSubscription
-	used          map[string]struct{}
 	done          chan struct{}
 	doneOnce      sync.Once
 }
@@ -124,6 +123,13 @@ func (s *remoteFeed) SubscribeQuery(ctx context.Context, request querysubscripti
 	if err != nil {
 		return err
 	}
+	window := &querysubscriptionv1.InitialWindow{FromEnd: request.Window.FromEnd, Count: uint32(request.Window.Count)}
+	if request.Window.Bounds != nil {
+		window.Bounds, err = boundsToProto(*request.Window.Bounds)
+		if err != nil {
+			return err
+		}
+	}
 	subscription := &remoteSubscription{id: request.ID, owner: s}
 	s.mu.Lock()
 	if s.closed {
@@ -131,15 +137,18 @@ func (s *remoteFeed) SubscribeQuery(ctx context.Context, request querysubscripti
 		s.mu.Unlock()
 		return err
 	}
-	if _, exists := s.used[request.ID]; exists {
+	if _, exists := s.subscriptions[request.ID]; exists {
 		s.mu.Unlock()
-		return errors.New("subscription ID was already used in feed")
+		return errors.New("subscription ID already active in feed")
 	}
-	s.used[request.ID] = struct{}{}
+	if err := s.events.RegisterSubscription(request.ID); err != nil {
+		s.mu.Unlock()
+		return err
+	}
 	s.subscriptions[request.ID] = subscription
 	s.mu.Unlock()
 	message, err := s.request(ctx, &querysubscriptionv1.ClientMessage{Operation: &querysubscriptionv1.ClientMessage_SubscribeQuery{SubscribeQuery: &querysubscriptionv1.SubscribeQuery{
-		SubscriptionId: request.ID, Query: query, Window: &querysubscriptionv1.InitialWindow{FromEnd: request.Window.FromEnd, Count: uint32(request.Window.Count)}, Reference: reference,
+		SubscriptionId: request.ID, Query: query, Window: window, Reference: reference,
 	}}})
 	if err != nil {
 		s.removeSubscription(request.ID)
@@ -197,11 +206,14 @@ func (s *remoteFeed) SubscribeEntity(ctx context.Context, request querysubscript
 		s.mu.Unlock()
 		return err
 	}
-	if _, exists := s.used[request.ID]; exists {
+	if _, exists := s.subscriptions[request.ID]; exists {
 		s.mu.Unlock()
-		return errors.New("subscription ID was already used in feed")
+		return errors.New("subscription ID already active in feed")
 	}
-	s.used[request.ID] = struct{}{}
+	if err := s.events.RegisterSubscription(request.ID); err != nil {
+		s.mu.Unlock()
+		return err
+	}
 	s.subscriptions[request.ID] = subscription
 	s.mu.Unlock()
 	message, err := s.request(ctx, &querysubscriptionv1.ClientMessage{Operation: &querysubscriptionv1.ClientMessage_SubscribeEntity{SubscribeEntity: &querysubscriptionv1.SubscribeEntity{
@@ -432,11 +444,11 @@ func (s *remoteFeed) receive() {
 		}
 		if wireErr := message.GetError(); wireErr != nil && wireErr.SubscriptionId != "" {
 			cause := remoteError(wireErr)
-			s.removeSubscription(wireErr.SubscriptionId)
 			if err := s.stageOrOffer(querysubscription.Event{Failure: &querysubscription.SubscriptionFailure{SubscriptionID: wireErr.SubscriptionId, Cause: cause}}); err != nil {
 				s.fail(err)
 				return
 			}
+			s.removeSubscription(wireErr.SubscriptionId)
 			continue
 		}
 		s.fail(errors.New("query server returned an unrecognized message"))
@@ -458,27 +470,6 @@ func (s *remoteFeed) discardStagedSubscription(id string) { s.events.DiscardSubs
 func (s *remoteFeed) offerDelivery(envelope *querysubscription.DeliveryEnvelope) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	retained := envelope.Effects[:0]
-	for _, effect := range envelope.Effects {
-		if _, known := s.used[effect.SubscriptionID]; !known {
-			return fmt.Errorf("query server delivered an unknown subscription %q", effect.SubscriptionID)
-		}
-		if s.subscriptions[effect.SubscriptionID] != nil {
-			retained = append(retained, effect)
-		}
-	}
-	envelope.Effects = retained
-	entities := envelope.Entities[:0]
-	for _, entity := range envelope.Entities {
-		id := entity.Target.SubscriptionID
-		if _, known := s.used[id]; !known {
-			return fmt.Errorf("query server delivered an unknown entity owner %q", id)
-		}
-		if s.subscriptions[id] != nil {
-			entities = append(entities, entity)
-		}
-	}
-	envelope.Entities = entities
 	return s.stageOrOffer(querysubscription.Event{Delivery: envelope})
 }
 
@@ -655,6 +646,7 @@ func (s *remoteFeed) removeSubscription(id string) {
 	s.mu.Lock()
 	subscription := s.subscriptions[id]
 	delete(s.subscriptions, id)
+	s.events.RetireSubscription(id)
 	s.mu.Unlock()
 	if subscription != nil {
 		subscription.markClosed()

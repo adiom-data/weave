@@ -37,6 +37,7 @@ type modelOccurrence struct {
 
 type connectionModel struct {
 	computed         map[string]map[string]storage.Record
+	branches         map[modelBranchKey]*reactivev1.ProjectionBranch
 	queries          map[string]*modelQuery
 	occurrences      map[string]modelOccurrence
 	entityRefs       map[string]int
@@ -50,6 +51,7 @@ type connectionModel struct {
 func newConnectionModel() *connectionModel {
 	return &connectionModel{
 		computed: make(map[string]map[string]storage.Record),
+		branches: make(map[modelBranchKey]*reactivev1.ProjectionBranch),
 		queries:  make(map[string]*modelQuery), occurrences: make(map[string]modelOccurrence),
 		entityRefs: make(map[string]int), entityKeys: make(map[string]storage.EntityKey),
 		entities:         make(map[string]*modelEntity),
@@ -276,6 +278,8 @@ func (m *connectionModel) applyProjection(scope string, batch proj.ProjectionBat
 			parentID = publicEntityID(event.ParentEntityKey)
 		}
 		switch event.Type {
+		case proj.ProjectionBranchChanged:
+			m.applyBranch(result, scope, event)
 		case proj.ProjectionInstanceOpened:
 			if event.EntityNode {
 				m.occurrences[event.InstanceID] = modelOccurrence{scope: scope, node: event.Node, parentOccurrenceID: event.ParentInstanceID, parentEntityID: parentID, selected: selectedByNode[event.Node]}
@@ -362,6 +366,7 @@ func (m *connectionModel) applyProjection(scope string, batch proj.ProjectionBat
 				}
 			}
 		case proj.ProjectionInstanceClosed:
+			m.closeBranches(result, scope, event.InstanceID)
 			m.closeComputed(result, event.InstanceID)
 			occurrence, exists := m.occurrences[event.InstanceID]
 			if !exists {
@@ -404,6 +409,7 @@ func (m *connectionModel) closeScope(scope string) (_ *reactivev1.ModelBatch, er
 	result := &reactivev1.ModelBatch{}
 	m.beginBatch()
 	defer m.finishBatch(result, &err)
+	m.closeBranches(result, scope, "")
 	for id, occurrence := range m.occurrences {
 		if occurrence.scope != scope {
 			continue

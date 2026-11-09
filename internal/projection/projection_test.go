@@ -458,19 +458,17 @@ func TestRetiredProjectionWatcherPreservesProgressWithoutStaleEvents(t *testing.
 
 	waitCtx, stop := context.WithTimeout(ctx, time.Second)
 	defer stop()
-	commit, err := p.Next(waitCtx)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if commit.Delivery.Revision != 11 || commit.Delivery.Kind != querysubscription.DeliveryCommit || len(commit.Events) != 0 {
-		t.Fatalf("retired commit metadata = %+v", commit)
-	}
 	window, err := p.Next(waitCtx)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if window.Delivery.Revision != 12 || window.Delivery.Kind != querysubscription.DeliveryWindow || window.Window != nil || window.WindowFailure == nil || window.WindowFailure.Token != "move" || window.WindowFailure.InstanceID != childID {
 		t.Fatalf("retired window result = %+v", window)
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if checkpoint := p.latestCheckpoints["test"]; checkpoint == nil || checkpoint.Value != 11 {
+		t.Fatal("retired delivery lost source progress", checkpoint)
 	}
 }
 

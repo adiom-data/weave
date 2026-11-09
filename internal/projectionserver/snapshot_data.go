@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
 	"time"
 
@@ -24,7 +25,7 @@ func buildSnapshotResponse(request *pb.ProjectionSnapshotRequest, scope string, 
 	if _, err := m.applyProjection(scope, proj.ProjectionBatch{Events: events}, selected); err != nil {
 		return nil, status.Errorf(codes.Internal, "build snapshot image: %v", err)
 	}
-	data, err := snapshotData(m, request.Root)
+	data, failures, err := snapshotDataErrors(m, request.Root)
 	if err != nil {
 		if _, ok := status.FromError(err); ok {
 			return nil, err
@@ -37,7 +38,7 @@ func buildSnapshotResponse(request *pb.ProjectionSnapshotRequest, scope string, 
 			extensions.Checkpoint = checkpointString(position)
 		}
 	}
-	return &pb.ProjectionSnapshotResponse{Data: data, Extensions: extensions}, nil
+	return &pb.ProjectionSnapshotResponse{Data: data, Extensions: extensions, Errors: failures}, nil
 }
 
 // Explicit selections define their top-level output names without loading any
@@ -58,20 +59,53 @@ func validateSnapshotLayout(root *pb.ProjectionNode, selected map[string]*fieldS
 }
 
 func snapshotData(m *connectionModel, root *pb.ProjectionNode) (*structpb.Struct, error) {
+	data, _, err := snapshotDataErrors(m, root)
+	return data, err
+}
+
+// One-shot errors use JSON field/index paths, not connection-owned occurrence
+// identifiers. Failed rows are explicit null slots; failed expansions are null,
+// distinct from a successful empty list. They have no stale presentation state.
+func snapshotDataErrors(m *connectionModel, root *pb.ProjectionNode) (*structpb.Struct, []*pb.ProjectionSnapshotError, error) {
 	type edge struct{ parent, entity, node string }
 	index := make(map[edge]string, len(m.occurrences))
 	for id, occurrence := range m.occurrences {
 		key := edge{occurrence.parentOccurrenceID, occurrence.parentEntityID, occurrence.node}
 		if _, exists := index[key]; exists {
-			return nil, fmt.Errorf("duplicate occurrence for node %q", occurrence.node)
+			return nil, nil, fmt.Errorf("duplicate occurrence for node %q", occurrence.node)
 		}
 		index[key] = id
 	}
-	var visit func(*pb.ProjectionNode, string, string) (*structpb.Value, error)
-	visit = func(node *pb.ProjectionNode, parent, entity string) (*structpb.Value, error) {
+	bySlot := map[edge][]*pb.ProjectionBranch{}
+	for _, branch := range m.branches {
+		key := edge{branch.ParentOccurrenceId, branch.ParentEntityId, branch.NodeId}
+		bySlot[key] = append(bySlot[key], branch)
+	}
+	for _, branches := range bySlot {
+		sort.Slice(branches, func(i, j int) bool { return branches[i].EntityId < branches[j].EntityId })
+	}
+	var failures []*pb.ProjectionSnapshotError
+	appendField := func(path []*pb.ProjectionPathElement, name string) []*pb.ProjectionPathElement {
+		return append(append([]*pb.ProjectionPathElement(nil), path...), &pb.ProjectionPathElement{Element: &pb.ProjectionPathElement_Field{Field: name}})
+	}
+	appendIndex := func(path []*pb.ProjectionPathElement, index int) []*pb.ProjectionPathElement {
+		return append(append([]*pb.ProjectionPathElement(nil), path...), &pb.ProjectionPathElement{Element: &pb.ProjectionPathElement_Index{Index: uint32(index)}})
+	}
+	report := func(branch *pb.ProjectionBranch, path []*pb.ProjectionPathElement) {
+		failures = append(failures, &pb.ProjectionSnapshotError{Path: path, Code: branch.GetError().Code, Message: branch.GetError().Message})
+	}
+	var visit func(*pb.ProjectionNode, string, string, []*pb.ProjectionPathElement) (*structpb.Value, error)
+	visit = func(node *pb.ProjectionNode, parent, entity string, path []*pb.ProjectionPathElement) (*structpb.Value, error) {
+		errors := bySlot[edge{parent, entity, node.NodeId}]
+		if len(errors) > 0 && (node.GetEntity() != nil || errors[0].EntityId == "") {
+			for _, branch := range errors {
+				report(branch, path)
+			}
+			return structpb.NewNullValue(), nil
+		}
 		id := index[edge{parent, entity, node.NodeId}]
 		occurrence := m.occurrences[id]
-		row := func(entityID string, selected *fieldSelection) (*structpb.Value, error) {
+		row := func(entityID string, selected *fieldSelection, path []*pb.ProjectionPathElement) (*structpb.Value, error) {
 			image := m.entities[entityID]
 			if image == nil || !image.hasImage || image.pending {
 				return nil, fmt.Errorf("node %q has an unresolved entity", node.NodeId)
@@ -98,7 +132,7 @@ func snapshotData(m *connectionModel, root *pb.ProjectionNode) (*structpb.Struct
 				if _, exists := fields[child.NodeId]; exists {
 					return nil, projectionOutputCollision(node.NodeId, child.NodeId)
 				}
-				fields[child.NodeId], err = visit(child, id, entityID)
+				fields[child.NodeId], err = visit(child, id, entityID, appendField(path, child.NodeId))
 				if err != nil {
 					return nil, err
 				}
@@ -109,7 +143,7 @@ func snapshotData(m *connectionModel, root *pb.ProjectionNode) (*structpb.Struct
 			if id == "" || occurrence.entityID == "" {
 				return structpb.NewNullValue(), nil
 			}
-			return row(occurrence.entityID, occurrence.selected)
+			return row(occurrence.entityID, occurrence.selected, path)
 		}
 		rows := &structpb.ListValue{}
 		if id != "" {
@@ -121,20 +155,26 @@ func snapshotData(m *connectionModel, root *pb.ProjectionNode) (*structpb.Struct
 				if _, present := query.members[key]; !present {
 					continue
 				}
-				value, err := row(publicEntityID(key), query.selected)
+				value, err := row(publicEntityID(key), query.selected, appendIndex(path, len(rows.Values)))
 				if err != nil {
 					return nil, err
 				}
 				rows.Values = append(rows.Values, value)
 			}
 		}
+		// Failed rows have no live membership/record. Their null placeholders
+		// follow the successfully materialized ordered rows in a one-shot image.
+		for _, branch := range errors {
+			report(branch, appendIndex(path, len(rows.Values)))
+			rows.Values = append(rows.Values, structpb.NewNullValue())
+		}
 		return structpb.NewListValue(rows), nil
 	}
-	value, err := visit(root, "", "")
+	value, err := visit(root, "", "", appendField(nil, root.NodeId))
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return &structpb.Struct{Fields: map[string]*structpb.Value{root.NodeId: value}}, nil
+	return &structpb.Struct{Fields: map[string]*structpb.Value{root.NodeId: value}}, failures, nil
 }
 
 // Reuse the transport's canonical conversion (including datetime bounds), then

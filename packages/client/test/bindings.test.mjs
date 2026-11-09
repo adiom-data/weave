@@ -13,6 +13,16 @@ function setup(definition, parameters = {}) {
 const scalar = (name, kind, nullable = false) => ({ name, path: [name], type: { kind, nullable } })
 const root = { nodeId: 'root', entity: { query: { schema: 'app', table: 'rows' } } }
 
+test('prepared projection keys include every request option and normalize defaults', () => {
+  const definition = defineProjection(root, { nodeId: 'root', kind: 'entity', fields: [], children: {} }, [])
+  const keys = new Set()
+  for (const waitForSync of [false, true]) for (const allowPartialErrors of [false, true]) {
+    keys.add(definition.prepare({}, { waitForSync, allowPartialErrors }).key)
+  }
+  assert.equal(keys.size, 4)
+  assert.equal(definition.prepare({}).key, definition.prepare({}, { waitForSync: false, allowPartialErrors: false }).key)
+})
+
 test('computed selections decode through typed aliases without changing entity values', () => {
   const definition = defineProjection({ ...root, computed: ['role', 'canEdit'] }, {
     nodeId: 'root', kind: 'entity', children: {}, fields: [
@@ -201,7 +211,7 @@ test('nested window locators distinguish the same entity reached along diamond p
       await promise
     }
     socket.message({ connectionSequence: '1', modelBatch: { kind: 'KIND_COMMIT', projections: [{ occurrenceId: 'a-list', detached: {} }], queries: [{ querySubscriptionId: 'a-children', closed: {} }] } })
-    await assert.rejects(first.extend('SIDE_RIGHT', 1), /no longer present/)
+    await assert.rejects(first.extend('SIDE_RIGHT', 1), /active server window/)
   } finally { handle.dispose(); client.disconnect() }
 })
 

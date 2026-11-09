@@ -41,7 +41,7 @@ func (v *subscriptionVisibility) filterSnapshot(ctx context.Context, prepared ac
 	visible := make([]bool, 0, len(candidates))
 	var err error
 	if len(candidates) > 0 {
-		visible, err = prepared.Evaluate(ctx, view, candidates)
+		visible, err = evaluateVisible(ctx, prepared, view, candidates)
 		if err != nil {
 			return querysubscription.QuerySnapshot{}, err
 		}
@@ -97,7 +97,7 @@ func (v *subscriptionVisibility) filterTransaction(ctx context.Context, prepared
 	decisions := make([]bool, 0, len(candidates))
 	var err error
 	if len(candidates) > 0 {
-		decisions, err = prepared.Evaluate(ctx, view, candidates)
+		decisions, err = evaluateVisible(ctx, prepared, view, candidates)
 		if err != nil {
 			return subscriptionBatchMessage{}, err
 		}
@@ -213,7 +213,7 @@ func (v *subscriptionVisibility) filterTransaction(ctx context.Context, prepared
 		inputs = append(inputs, candidate)
 	}
 	if len(inputs) > 0 {
-		allowed, err := prepared.Evaluate(ctx, view, inputs)
+		allowed, err := evaluateVisible(ctx, prepared, view, inputs)
 		if err != nil {
 			return subscriptionBatchMessage{}, err
 		}

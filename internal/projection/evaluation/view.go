@@ -94,7 +94,7 @@ func (v *View) needsRetry(lease *Lease) bool {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	value, read := v.values[lease.entry.key]
-	if v.closed || !read || value.err != nil || value.result.Complete {
+	if v.closed || !read || value.result.Complete {
 		return false
 	}
 	f := lease.owner
@@ -103,6 +103,11 @@ func (v *View) needsRetry(lease *Lease) bool {
 	e := lease.entry
 	if lease.closed || f.closed {
 		return false
+	}
+	if value.err != nil {
+		// A retry can replace failed evidence before the evaluating occurrence
+		// links its dependencies. Do not lose that installation wakeup.
+		return e.err == nil
 	}
 	if e.err != nil {
 		return true

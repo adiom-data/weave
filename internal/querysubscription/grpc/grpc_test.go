@@ -3,6 +3,7 @@ package querygrpc
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"reflect"
 	"sync"
@@ -246,6 +247,35 @@ func TestRemoteSessionPreservesContractValuesAndDelivery(t *testing.T) {
 	}
 }
 
+func TestRemoteInitialWindowPreservesExplicitBounds(t *testing.T) {
+	bounds := querysubscription.Bounds{Left: querysubscription.Boundary{Kind: querysubscription.BoundaryCursor, Cursor: []byte("left")}, Right: querysubscription.Boundary{Kind: querysubscription.BoundaryCursor, Cursor: []byte("right")}}
+	var received querysubscription.QuerySubscribeRequest
+	backend := newTestSession(func(request querysubscription.QuerySubscribeRequest) (querysubscription.QuerySnapshot, error) {
+		received = request
+		return querysubscription.QuerySnapshot{Bounds: *request.Window.Bounds, Checkpoint: &querysubscription.Position{SourceID: "db", Value: 20}}, nil
+	})
+	client := remoteTestClientWithOptions(t, &testClient{session: backend}, TransportOptions{ChunkBytes: 32})
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	feed, err := client.OpenFeed(ctx, querysubscription.FeedOptions{BufferLimit: 8})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer feed.Close(context.Background())
+	request := querysubscription.QuerySubscribeRequest{ID: "restored", Query: storage.QuerySpec{Relation: storage.RelationName{Name: "items"}}, Window: querysubscription.InitialWindow{Bounds: &bounds}}
+	_, snapshot, err := subscribeForTest(ctx, feed, request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(received, request) || !reflect.DeepEqual(snapshot.Bounds, bounds) {
+		t.Fatalf("explicit bounds changed across transport: %+v, %+v", received, snapshot)
+	}
+	request.ID, request.Window.Count = "conflicting", 1
+	if _, _, err := subscribeForTest(ctx, feed, request); err == nil {
+		t.Fatal("accepted count and explicit bounds together")
+	}
+}
+
 func TestRemoteEntitySubscriptionRoundTripsWithoutWindowControl(t *testing.T) {
 	key := storage.EntityKey{Relation: storage.RelationKey{Source: "source", Name: "items"}, Value: "one"}
 	row := querysubscription.Row{Key: key, Record: storage.Record{"id": {Type: storage.TypeText, State: storage.ValuePresent, Data: []byte("one")}}, Cursor: []byte("private-cursor")}
@@ -442,16 +472,16 @@ func TestUnexpectedFeedClosureTerminatesIdleRPC(t *testing.T) {
 	}
 }
 
-func TestRemoteFailedSubscribeConsumesID(t *testing.T) {
+func TestRemoteFailedSubscribeReleasesAttemptRegistration(t *testing.T) {
 	calls := 0
 	backend := newTestSession(func(querysubscription.QuerySubscribeRequest) (querysubscription.QuerySnapshot, error) {
 		calls++
 		return querysubscription.QuerySnapshot{}, errors.New("rejected")
 	})
-	client := remoteTestClient(t, &testClient{session: backend})
+	remote := remoteTestClient(t, &testClient{session: backend})
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	session, err := client.OpenFeed(ctx, querysubscription.FeedOptions{BufferLimit: 4})
+	session, err := remote.(*client).openFeed(ctx, querysubscription.FeedOptions{BufferLimit: 4})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -460,11 +490,14 @@ func TestRemoteFailedSubscribeConsumesID(t *testing.T) {
 	if _, _, err := subscribeForTest(ctx, session, request); err == nil {
 		t.Fatal("first Subscribe succeeded")
 	}
-	if _, _, err := subscribeForTest(ctx, session, request); err == nil {
-		t.Fatal("failed subscription ID was reused")
+	for i := 0; i < 100; i++ {
+		request.ID = fmt.Sprintf("retry-%d", i)
+		if _, _, err := subscribeForTest(ctx, session, request); err == nil {
+			t.Fatal("Subscribe succeeded")
+		}
 	}
-	if calls != 1 {
-		t.Fatalf("backend Subscribe calls = %d, want 1", calls)
+	if calls != 101 || len(session.(*remoteFeed).subscriptions) != 0 {
+		t.Fatalf("calls=%d active=%d", calls, len(session.(*remoteFeed).subscriptions))
 	}
 }
 

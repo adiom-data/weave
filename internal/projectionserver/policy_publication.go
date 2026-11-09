@@ -87,7 +87,7 @@ func (p *policyPublications) withhold(raw deliveryPayload) bool {
 		if s == nil {
 			return true
 		}
-		if p.service.relationAccess.session.PendingIn(func(id string) bool { return s.visibility.instances[id] != nil }) {
+		if p.service.relationAccess.pendingProjection(s.visibility) {
 			s.publication.held = true
 		}
 		return s.publication.held
@@ -122,7 +122,7 @@ func (p *policyPublications) send(id string, sequence *uint64, h *publicationHol
 	batch.Kind = reactivev1.ModelBatch_KIND_HYDRATION
 	batch.Checkpoint = checkpointString(p.position)
 	coalesceEntityEvents(batch)
-	if len(batch.Entities)+len(batch.Queries)+len(batch.Projections)+len(batch.Computed) > 0 {
+	if len(batch.Entities)+len(batch.Queries)+len(batch.Projections)+len(batch.Computed)+len(batch.Branches) > 0 {
 		*sequence++
 		if err := p.stream.Send(&reactivev1.ServerMessage{SubscriptionId: id, Sequence: *sequence, Event: &reactivev1.ServerMessage_ModelBatch{ModelBatch: batch}}); err != nil {
 			return err
@@ -207,7 +207,7 @@ func (p *policyPublications) retry() error {
 		if !s.publication.held {
 			continue
 		}
-		if p.service.relationAccess.session.PendingIn(func(id string) bool { return s.visibility.instances[id] != nil }) {
+		if p.service.relationAccess.pendingProjection(s.visibility) {
 			continue
 		}
 		var fresh *projectionVisibility
@@ -217,12 +217,13 @@ func (p *policyPublications) retry() error {
 				return false, err
 			}
 			fresh = newProjectionVisibility(s.selected)
+			fresh.partial = s.visibility.partial
 			var err error
 			visible, err = fresh.filterInitial(p.ctx, p.service.access, p.prepared, events)
 			if err != nil {
 				return false, err
 			}
-			return !p.service.relationAccess.session.PendingIn(func(id string) bool { return fresh.instances[id] != nil }), nil
+			return !p.service.relationAccess.pendingProjection(fresh), nil
 		})
 		if err != nil {
 			if err := p.closeProjection(s, err); err != nil {
@@ -340,6 +341,7 @@ func (m *connectionModel) reconcileProjection(scope string, events []proj.Projec
 	if err != nil {
 		return nil, err
 	}
+	m.replaceBranches(result, scope, events)
 	for id, open := range desired {
 		if query := m.queries[id]; query != nil && !sameBounds(query.publicBounds, open.Bounds) {
 			window, err := m.applyProjectionWindow(id, open.Bounds)

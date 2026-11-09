@@ -25,16 +25,24 @@ type Result struct {
 // Context memoizes one occurrence. Parents must belong to the same evaluation
 // pass. It is owned by a serialized view, not shared across mutable clocks.
 type Context struct {
-	pass      *Evaluation
-	input     Input
-	parent    *Context
-	resolver  Resolver
-	allowAll  bool
-	remaining int
-	values    map[string]Result
-	active    map[string]bool
-	facts     map[string]factValue
-	exports   map[string]Result // eligibility only; has() never computes an export
+	pass         *Evaluation
+	input        Input
+	parent       *Context
+	resolver     Resolver
+	allowAll     bool
+	remaining    int
+	values       map[string]Result
+	active       map[string]bool
+	facts        map[string]factValue
+	exports      map[string]Result // eligibility only; has() never computes an export
+	dependencies map[string]struct{}
+	definitions  map[Key]struct{}
+}
+
+// Evidence includes inputs read before an evaluation failed. Retaining them is
+// necessary for a later fact/definition update to recover the occurrence.
+func (c *Context) Evidence() (map[string]struct{}, map[Key]struct{}) {
+	return c.dependencies, c.definitions
 }
 
 func (p *Evaluation) NewContext(input Input, resolver Resolver, parent *Context, allowAll bool) *Context {
@@ -107,6 +115,16 @@ func (c *Context) compute(ctx context.Context, name string) (Result, error) {
 		return Result{}, err
 	}
 	s := &evaluation{ctx: ctx, input: c.input, resolver: c.resolver, policy: definition, remaining: &c.remaining, facts: c.facts, owner: c, dependencies: map[string]struct{}{}, definitions: map[Key]struct{}{relationName(c.input.Candidate.Key.Relation): {}}}
+	defer func() {
+		if c.dependencies == nil {
+			c.dependencies = map[string]struct{}{}
+			c.definitions = map[Key]struct{}{}
+		}
+		mergeDependencies(c.dependencies, s.dependencies)
+		for key := range s.definitions {
+			c.definitions[key] = struct{}{}
+		}
+	}()
 	var value storage.Value
 	if name == visibilityField {
 		value, err = c.visible(s, definition)
@@ -121,7 +139,7 @@ func (c *Context) compute(ctx context.Context, name string) (Result, error) {
 		}
 	}
 	if err != nil {
-		return Result{}, fmt.Errorf("%s: %w", name, err)
+		return Result{Dependencies: s.dependencies, Definitions: s.definitions}, fmt.Errorf("%s: %w", name, err)
 	}
 	result := Result{Value: value, Complete: value.State != storage.ValueUnavailable, Dependencies: s.dependencies, Definitions: s.definitions}
 	c.values[name] = result
@@ -221,11 +239,11 @@ func (m *computationMap) Find(key ref.Val) (ref.Val, bool) {
 			}
 		}
 	}
+	s.absorb(result)
 	if err != nil {
 		s.failure = err
 		return types.WrapErr(err), false
 	}
-	s.absorb(result)
 	if !result.Complete {
 		return types.NewUnknown(5, nil), true
 	}

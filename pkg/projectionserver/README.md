@@ -39,7 +39,7 @@ response is nested data rather than a stream's normalized model:
 The root and child `node_id` values are literal response keys (including any
 dots); stored field paths retain their names and nested structure. This is a
 GraphQL-like data envelope, **not** a GraphQL endpoint or the compiler's aliased
-TypeScript result shape. No GraphQL documents, aliases, or partial-error rules
+TypeScript result shape. No GraphQL documents or aliases
 are interpreted here. Generated projection node IDs may contain their full
 path, so choose short node IDs in manually constructed snapshot requests when
 short response keys are desired.
@@ -88,11 +88,55 @@ floats are strings. Objects, arrays, booleans, and null remain ordinary JSON
 values. Protobuf bindings expose `data` as `google.protobuf.Struct`; Connect's
 JSON representation is the plain nested object shown above.
 
-Failures use the RPC's normal error channel, with no partial `data` or `errors`
-array. `extensions.synchronized` reflects `wait_for_sync`; a common checkpoint
+By default, failures use the RPC's normal error channel. With
+`allow_partial_errors = true`, recoverable branch failures instead return `null`
+and an `errors` entry containing a field/index `path`, `code`, and sanitized
+`message`. Failed list rows follow the successful ordered rows as null slots;
+an entirely failed expansion is null, not an empty list. Errors contain no row
+or private-fact data. `extensions.synchronized` reflects `wait_for_sync`; a common checkpoint
 is included only for synchronized single-source images. As usual with protobuf
 JSON, default-valued metadata may be omitted. This does not add a cross-table
 database snapshot guarantee.
+
+## Partial live failures and recovery
+
+`SubscribeProjection.allow_partial_errors` opts into branch-local evaluation
+and subscription failures. The default remains whole-projection failure.
+`ModelBatch.branches` identifies an error by projection subscription, occurrence,
+and optional entity ID. An empty entity ID covers the whole expansion; otherwise
+it covers that row and its descendants. A failed branch relinquishes live entity
+and query references, while healthy paths (including other paths to the same
+entity) continue. An error is not an authorization denial.
+
+Data, error transitions, and recovery are published in one model batch. Recovery
+clears the error and replaces the branch from a complete current image, or
+definitively removes it. Evaluation is retried when its row, facts, or relation
+definitions change. Failed source subscriptions preserve a list's saved cursor
+boundaries and retry with configurable exponential backoff: `RecoveryInitialDelay`
+(default 1s), `RecoveryMaxDelay` (30s), and `RecoveryMaxAttempts` (five retries
+after the original attempt). Each delay is jittered between half and all of the
+exponential delay. These settings live in `Options.ProjectionLimits` and in
+standalone YAML under `projection.limits.recovery_initial_delay`,
+`recovery_max_delay`, and `recovery_max_attempts`.
+
+After exhaustion the branch stays errored without timer polling. Reopening the
+projection starts a fresh budget; a parent rebind to a different selector or a
+recreated branch also starts fresh. Fact selectors get fresh budgets when their
+last lease is released and a later evaluation requests them anew. A policy
+change can cause that lifecycle change but does not reset an unchanged failed
+selector. Unrelated CDC activity or reevaluating the same error does not reset
+budgets. A successful installation resets the budget for a later failure.
+There is no client-side branch retry operation.
+Failed placeholders and their in-flight replacements share one logical instance
+slot, so recovery works at `MaxActiveInstances` without relaxing the limit for
+unrelated expansions. The old error remains addressable until publication.
+Asynchronously loaded recovery is hydration, not a fabricated historical commit.
+
+Clients may retain an immutable last-good display separately from the live
+entity cache. No fresh data is published through an errored visibility path.
+Actual visibility revocations and deletions still remove live branches normally.
+Transport, source-ordering, backpressure, and invariant failures remain terminal;
+partial errors do not provide unbounded buffering or mask a broken connection.
 
 ## Reference fetch hints
 

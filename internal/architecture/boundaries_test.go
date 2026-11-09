@@ -55,7 +55,7 @@ var publicTypes = map[string]string{
 	"storage":                    "AppliedChange AppliedKind AuthoritativeRecord Boundary BoundaryKind Bounds Change ChangeEvent ChangeFeed ChangeKind Checkpoint CommittedChanges Comparison ComparisonOperator DataSource EncodedSortKey EntityKey Fence FieldPath IdentityPreparer IdentityQuery Junction JunctionOperator Literal MessageEvent MessageFeed MessageLimits MessageSource NullTest OrderTerm PostgresOptions PostgresStorage Predicate PreparedQuery PreparedReference PreparedReferenceFetch ProgressRequester QueryFingerprint QueryLimits QuerySpec Record ReferenceBinding ReferenceFetch ReferenceLookup ReferencePreparer ReferenceWindowReader ReferenceWindowRow RelationKey RelationName ReplicationOptions SnapshotSession SortKey SourceID SourcePosition Storage TransactionMessage Value ValueState ValueType WindowRequest",
 	"transactionmessage":         "Batch Client Feed MessageLimits Options Service Stream Transaction",
 	"transactionmessage/grpc":    "Server",
-	"accesscontrol":              "Candidate Checkpoint Controller Invalidation InvalidationTarget PrepareRequest Prepared PreparedID ProjectionPath ProjectionStep Scope SnapshotCheckpoint Claims View",
+	"accesscontrol":              "Candidate Decision Checkpoint Controller Invalidation InvalidationTarget PrepareRequest Prepared PreparedID ProjectionPath ProjectionStep Scope SnapshotCheckpoint Claims View",
 	"queryserver":                "Backend Limits Options ReferenceOptions",
 }
 

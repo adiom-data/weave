@@ -2,9 +2,12 @@ package engine
 
 import (
 	"context"
+	"errors"
 
 	"github.com/adiom-data/weave/internal/datastore"
 	"github.com/adiom-data/weave/internal/engine/queryregistry"
+	"github.com/adiom-data/weave/internal/engine/querywindow"
+	"github.com/adiom-data/weave/internal/storage"
 )
 
 // initialStart runs the in-memory initialization phases together. Only missing
@@ -38,11 +41,17 @@ func (c *Coordinator) startSubscribeActor(operation initialWindowOperation, init
 		}
 	}()
 	start := initialStart{}
-	start.cached, err = c.planCachedInitialWindowActor(operation, initial.Count, initial.FromEnd)
-	if err != nil {
-		return start, err
+	var resolved resolvedWindow
+	ok := operation.bounds != nil
+	if ok {
+		resolved = resolvedWindow{bounds: *operation.bounds, source: windowResolvedFromCache}
+	} else {
+		start.cached, err = c.planCachedInitialWindowActor(operation, initial.Count, initial.FromEnd)
+		if err != nil {
+			return start, err
+		}
+		resolved, ok = cachedInitialWindow(operation.plan, start.cached)
 	}
-	resolved, ok := cachedInitialWindow(operation.plan, start.cached)
 	if !ok {
 		return start, nil
 	}
@@ -55,6 +64,39 @@ func (c *Coordinator) startSubscribeActor(operation initialWindowOperation, init
 		start.opened, err = c.finishSubscribeActor(operation)
 	}
 	return start, err
+}
+
+func decodeInitialBounds(plan datastore.PreparedQuery, bounds storage.CursorBounds) (datastore.Bounds, error) {
+	if err := bounds.Validate(); err != nil {
+		return datastore.Bounds{}, err
+	}
+	decode := func(boundary storage.CursorBoundary) (datastore.Boundary, error) {
+		switch boundary.Kind {
+		case storage.CursorStart:
+			return datastore.Boundary{Kind: datastore.BoundaryStart}, nil
+		case storage.CursorEnd:
+			return datastore.Boundary{Kind: datastore.BoundaryEnd}, nil
+		default:
+			key, err := plan.DecodeKey(boundary.Cursor)
+			return datastore.Boundary{Kind: datastore.BoundaryCursor, Key: key}, err
+		}
+	}
+	left, err := decode(bounds.Left)
+	if err != nil {
+		return datastore.Bounds{}, err
+	}
+	right, err := decode(bounds.Right)
+	if err != nil {
+		return datastore.Bounds{}, err
+	}
+	compared, err := querywindow.CompareBoundary(plan, left, right)
+	if err != nil {
+		return datastore.Bounds{}, err
+	}
+	if compared > 0 {
+		return datastore.Bounds{}, errors.New("left boundary follows right boundary")
+	}
+	return datastore.Bounds{Left: left, Right: right}, nil
 }
 
 func (c *Coordinator) startSubscribe(ctx context.Context, operation initialWindowOperation, initial InitialWindow) (initialStart, error) {

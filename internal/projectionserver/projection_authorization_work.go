@@ -28,6 +28,8 @@ const (
 	projectionRowSuperseded projectionRowAction = iota
 	projectionRowDenied
 	projectionRowAllowed
+	projectionRowFailed
+	projectionRowPending
 )
 
 func projectionRowAuthorization(visible bool) projectionRowAction {
@@ -44,6 +46,8 @@ type projectionAuthorizationTarget struct {
 	changed    bool
 	eventIndex int
 	visible    bool
+	failure    error
+	pending    bool
 }
 
 func (v *projectionVisibility) authorizationWork(batch projection.ProjectionBatch, invalidation accesscontrol.Invalidation, capture *policyCapture) *projectionAuthorizationWork {
@@ -116,7 +120,13 @@ func (v *projectionVisibility) authorizationWork(batch projection.ProjectionBatc
 	for _, target := range invalidation.Targets {
 		retained(occurrenceRow{target.InstanceID, target.Key})
 	}
-	for _, target := range v.descendantTargets(batch.Events) {
+	// A parent's policy/computed-value invalidation can alter propagation even
+	// without a raw row change. Reevaluate its descendants in the same pass.
+	roots := make([]projection.ProjectionEvent, len(work.targets))
+	for i, target := range work.targets {
+		roots[i] = target.event
+	}
+	for _, target := range v.descendantTargets(roots) {
 		retained(occurrenceRow{target.InstanceID, target.Key})
 	}
 	for _, target := range work.targets {
@@ -133,7 +143,7 @@ func (v *projectionVisibility) authorizationWork(batch projection.ProjectionBatc
 	return work
 }
 
-func (w *projectionAuthorizationWork) evaluate(ctx context.Context, prepared accesscontrol.Prepared, view accesscontrol.View) error {
+func (w *projectionAuthorizationWork) evaluate(ctx context.Context, prepared accesscontrol.Prepared, view accesscontrol.View, partial bool) error {
 	if len(w.targets) == 0 {
 		return nil
 	}
@@ -143,18 +153,34 @@ func (w *projectionAuthorizationWork) evaluate(ctx context.Context, prepared acc
 	}
 	visible, err := prepared.Evaluate(ctx, view, candidates)
 	if err != nil {
-		return err
+		if !partial || ctx.Err() != nil {
+			return err
+		}
+		visible = make([]accesscontrol.Decision, len(candidates))
+		for i := range visible {
+			visible[i].Err = err
+		}
 	}
 	if len(visible) != len(w.targets) {
 		return errors.New("access controller returned the wrong number of decisions")
 	}
 	for index, target := range w.targets {
-		target.visible = visible[index]
+		if visible[index].Err != nil && !partial {
+			return visible[index].Err
+		}
+		target.visible, target.failure = visible[index].Visible, visible[index].Err
+		target.pending = visible[index].Pending && target.failure == nil
 		target.event.Computed = computedValues(prepared, target.key.instance, target.key.key)
 		if target.changed {
 			// Only the final raw image can be published under this decision.
 			// Earlier same-occurrence images may not satisfy its policy.
-			w.decisions[target.eventIndex] = projectionRowAuthorization(visible[index])
+			w.decisions[target.eventIndex] = projectionRowAuthorization(visible[index].Visible)
+			if target.failure != nil {
+				w.decisions[target.eventIndex] = projectionRowFailed
+			}
+			if target.pending {
+				w.decisions[target.eventIndex] = projectionRowPending
+			}
 		}
 	}
 	return nil

@@ -57,6 +57,40 @@ func TestCachedInitialStartPublishesAndRegistersInOneActorTurn(t *testing.T) {
 	}
 }
 
+func TestExplicitInitialBoundsReuseCoveredInterval(t *testing.T) {
+	c, plan, key := initialCacheFixture(t)
+	opaque := storage.CursorBounds{Left: storage.CursorBoundary{Kind: storage.CursorStart}, Right: storage.CursorBoundary{Kind: storage.CursorKey, Cursor: []byte("1")}}
+	bounds, err := decodeInitialBounds(plan, opaque)
+	if err != nil {
+		t.Fatal(err)
+	}
+	start, err := c.startSubscribeActor(initialWindowOperation{subscriptionID: "restored", group: "feed", plan: plan, bounds: &bounds}, InitialWindow{Bounds: &opaque})
+	if err != nil || start.opened == nil || start.materialization != nil || !start.staged {
+		t.Fatalf("covered explicit interval required IO: %+v, %v", start, err)
+	}
+	if len(start.opened.Initial) != 1 || start.opened.Initial[0].Key != key || start.opened.Bounds.Right.Kind != datastore.BoundaryCursor {
+		t.Fatalf("saved interval not preserved: %+v", start.opened)
+	}
+}
+
+func TestExplicitInitialBoundsDecodeAndOrder(t *testing.T) {
+	_, plan, _ := initialCacheFixture(t)
+	for _, bounds := range []storage.CursorBounds{
+		{Left: storage.CursorBoundary{Kind: storage.CursorEnd}, Right: storage.CursorBoundary{Kind: storage.CursorStart}},
+		{Left: storage.CursorBoundary{Kind: storage.CursorKey, Cursor: []byte("2")}, Right: storage.CursorBoundary{Kind: storage.CursorKey, Cursor: []byte("1")}},
+		{Left: storage.CursorBoundary{Kind: storage.CursorKey}, Right: storage.CursorBoundary{Kind: storage.CursorEnd}},
+		{Left: storage.CursorBoundary{Kind: storage.CursorStart, Cursor: []byte("invalid")}, Right: storage.CursorBoundary{Kind: storage.CursorEnd}},
+	} {
+		if _, err := decodeInitialBounds(plan, bounds); err == nil {
+			t.Fatalf("accepted invalid bounds: %+v", bounds)
+		}
+	}
+	empty := storage.CursorBounds{Left: storage.CursorBoundary{Kind: storage.CursorKey, Cursor: []byte("1")}, Right: storage.CursorBoundary{Kind: storage.CursorKey, Cursor: []byte("1")}}
+	if _, err := decodeInitialBounds(plan, empty); err != nil {
+		t.Fatalf("empty interval should be valid: %v", err)
+	}
+}
+
 func TestCachedInitialStartDefersMissingProofAndReferenceWork(t *testing.T) {
 	for _, mode := range []string{"no checkpoint", "hydrating", "reference prefetch", "partial coverage"} {
 		t.Run(mode, func(t *testing.T) {

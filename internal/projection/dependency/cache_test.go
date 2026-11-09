@@ -466,8 +466,8 @@ func TestCancelingOneWaiterDoesNotCancelSharedLoad(t *testing.T) {
 	if source.latest().loads.Load() != 1 {
 		t.Fatal("canceling one waiter caused a duplicate load")
 	}
-	if err := f.SubscribeEntity(context.Background(), q.EntitySubscribeRequest{ID: "canceled", Query: query("projects")}, func(q.EntitySubscription, q.EntitySnapshot) error { return nil }); err == nil {
-		t.Fatal("canceled subscription ID was reused")
+	if err := f.SubscribeEntity(context.Background(), q.EntitySubscribeRequest{ID: "fresh-attempt", Query: query("projects")}, func(q.EntitySubscription, q.EntitySnapshot) error { return nil }); err != nil {
+		t.Fatal("fresh attempt failed after cancellation", err)
 	}
 }
 
