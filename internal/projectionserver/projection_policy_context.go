@@ -54,7 +54,7 @@ func newPolicyCapture(v *projectionVisibility, updates policyOverlay) *policyCap
 func (c *policyCapture) candidate(event projection.ProjectionEvent) accesscontrol.Candidate {
 	path := c.capture(event)
 	step := path.Step()
-	return accesscontrol.Candidate{Key: event.Key, Record: step.Record, Complete: step.Complete, Context: accesscontrol.Scope{InstanceID: event.InstanceID, Projection: path}}
+	return accesscontrol.Candidate{Key: event.Key, Record: step.Record, Complete: step.Complete, Context: accesscontrol.Scope{InstanceID: event.InstanceID, Projection: path, Computed: computedSelection(c.visibility.selected[event.Node])}}
 }
 func (c *policyCapture) capture(event projection.ProjectionEvent) *accesscontrol.ProjectionPath {
 	var parent *accesscontrol.ProjectionPath

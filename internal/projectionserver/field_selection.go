@@ -2,44 +2,128 @@ package projectionserver
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/adiom-data/weave/internal/projection/selection"
 	"github.com/adiom-data/weave/internal/storage"
 	pb "github.com/adiom-data/weave/pkg/gen/reactive/v1"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
-type fieldSelection = selection.Selection
+type fieldSelection struct {
+	stored   *selection.Selection
+	computed []string
+}
 
-func selectColumns(paths []storage.FieldPath) *fieldSelection { return selection.Paths(paths) }
+func (s *fieldSelection) View(record storage.Record) storage.Record {
+	return storedSelection(s).View(record)
+}
+func (s *fieldSelection) Names() map[string]struct{} { return storedSelection(s).Names() }
+func storedSelection(s *fieldSelection) *selection.Selection {
+	if s == nil {
+		return nil
+	}
+	return s.stored
+}
+func computedSelection(s *fieldSelection) []string {
+	if s == nil {
+		return nil
+	}
+	return s.computed
+}
 
-func projectionQuery(node *pb.ProjectionNode, query *pb.Query, maxFields, maxPredicateDepth, maxPredicateNodes int) (storage.QuerySpec, *fieldSelection, error) {
+// Explicit output masks are checked during definition validation. Whole-record
+// selections discover their stored names at runtime, at the scope's publication
+// boundary rather than while mutating the shared connection model.
+func (s *fieldSelection) validateComputedOutput(node string, record, computed storage.Record) error {
+	if storedSelection(s) == nil {
+		for name := range computed {
+			if _, collision := record[name]; collision {
+				return projectionOutputCollision(node, name)
+			}
+		}
+	}
+	return nil
+}
+
+func projectionOutputCollision(node, output string) error {
+	return status.Errorf(codes.InvalidArgument, "projection node %q: output %q collides with a selected field", node, output)
+}
+
+func selectColumns(paths []storage.FieldPath) *fieldSelection {
+	return &fieldSelection{stored: selection.Paths(paths)}
+}
+
+func projectionQuery(node *pb.ProjectionNode, query *pb.Query, maxFields, maxDepth, maxNodes int) (storage.QuerySpec, *fieldSelection, error) {
+	var spec storage.QuerySpec
+	var selected *fieldSelection
+	var err error
 	if node.AllFields {
 		if node.Fields != nil || len(query.GetColumns()) != 0 {
-			return storage.QuerySpec{}, nil, fmt.Errorf("all_fields is mutually exclusive with fields and query columns")
+			return spec, nil, fmt.Errorf("all_fields is mutually exclusive with fields and query columns")
 		}
-		spec, err := storageQuerySpec(query, maxPredicateDepth, maxPredicateNodes)
-		return spec, nil, err // Nil is the internal whole-record output selection.
+		spec, err = storageQuerySpec(query, maxDepth, maxNodes)
+	} else if len(query.GetColumns()) == 0 && len(node.Computed) > 0 && node.Fields == nil {
+		spec, err = storageQuerySpec(query, maxDepth, maxNodes)
+		selected = &fieldSelection{stored: selection.Object(nil)}
+	} else {
+		var columns []storage.FieldPath
+		spec, columns, err = storageQuery(query, maxFields, maxDepth, maxNodes)
+		if err == nil {
+			selected, err = projectionFields(node.Fields, columns, maxFields)
+		}
 	}
-	spec, columns, err := storageQuery(query, maxFields, maxPredicateDepth, maxPredicateNodes)
 	if err != nil {
-		return storage.QuerySpec{}, nil, err
+		return spec, nil, err
 	}
-	selected, err := projectionFields(node.Fields, columns, maxFields)
-	return spec, selected, err
+	if len(node.Computed)+len(query.GetColumns()) > maxFields {
+		return spec, nil, fmt.Errorf("selected fields exceed limit %d", maxFields)
+	}
+	if len(node.Computed) > 0 {
+		if selected == nil {
+			selected = &fieldSelection{}
+		}
+		seen := map[string]bool{}
+		stored := selected.Names()
+		for _, name := range node.Computed {
+			if name == "" || name == "$visibility" || strings.HasPrefix(name, "_") || seen[name] {
+				return spec, nil, fmt.Errorf("invalid or duplicate computed field %q", name)
+			}
+			if _, collision := stored[name]; collision {
+				return spec, nil, fmt.Errorf("computed field %q collides with a stored field", name)
+			}
+			for _, child := range node.Children {
+				if child != nil && child.NodeId == name {
+					return spec, nil, fmt.Errorf("computed field %q collides with a child", name)
+				}
+			}
+			seen[name] = true
+			selected.computed = append(selected.computed, name)
+		}
+	}
+	return spec, selected, nil
 }
 
 // Decode output masks separately from storage queries: the query backend always
 // supplies complete records and never sees publication-only field selections.
 func projectionFields(fields *pb.ObjectSelection, columns []storage.FieldPath, limit int) (*fieldSelection, error) {
+	stored, err := projectionStoredFields(fields, columns, limit)
+	if err != nil {
+		return nil, err
+	}
+	return &fieldSelection{stored: stored}, nil
+}
+func projectionStoredFields(fields *pb.ObjectSelection, columns []storage.FieldPath, limit int) (*selection.Selection, error) {
 	if fields == nil {
-		return selectColumns(columns), nil
+		return selection.Paths(columns), nil
 	}
 	if len(fields.Fields) > limit {
 		return nil, fmt.Errorf("output selection exceeds field limit %d", limit)
 	}
 	remaining := limit
-	var object func(*pb.ObjectSelection, int) (*fieldSelection, error)
-	var value func(*pb.ValueSelection, int) (*fieldSelection, error)
+	var object func(*pb.ObjectSelection, int) (*selection.Selection, error)
+	var value func(*pb.ValueSelection, int) (*selection.Selection, error)
 	consume := func(depth int) error {
 		remaining--
 		if remaining < 0 || depth > limit {
@@ -47,7 +131,7 @@ func projectionFields(fields *pb.ObjectSelection, columns []storage.FieldPath, l
 		}
 		return nil
 	}
-	object = func(input *pb.ObjectSelection, depth int) (*fieldSelection, error) {
+	object = func(input *pb.ObjectSelection, depth int) (*selection.Selection, error) {
 		if input == nil || len(input.Fields) == 0 {
 			return nil, fmt.Errorf("object output selection requires fields")
 		}
@@ -76,7 +160,7 @@ func projectionFields(fields *pb.ObjectSelection, columns []storage.FieldPath, l
 		}
 		return selection.Object(out), nil
 	}
-	value = func(input *pb.ValueSelection, depth int) (*fieldSelection, error) {
+	value = func(input *pb.ValueSelection, depth int) (*selection.Selection, error) {
 		if input == nil {
 			return nil, nil
 		}

@@ -41,8 +41,7 @@ auth:
     active: TRUE
     date_label: 2026-10-29
 visibility:
-  mode: policy
-  policy_file: policy.yaml
+  mode: definitions
 shutdown_timeout: 3s
 query:
   limits:
@@ -50,6 +49,8 @@ query:
   references:
     load_concurrency: 2
     load_queue_limit: 32
+relations:
+  file: relations.yaml
 `)
 	c, err := Load(path, func(name string) (string, bool) {
 		if name == "WEAVE_DATABASE_URL" {
@@ -60,7 +61,7 @@ query:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.Storage.Postgres.URL != "postgres://env/app" || c.Address != "127.0.0.1:8080" || c.Visibility.PolicyFile != filepath.Join(filepath.Dir(path), "policy.yaml") {
+	if c.Storage.Postgres.URL != "postgres://env/app" || c.Address != "127.0.0.1:8080" || c.Relations.File != filepath.Join(filepath.Dir(path), "relations.yaml") {
 		t.Fatalf("wrong config: %+v", c)
 	}
 	if c.Auth.FixedClaims["precise"].(json.Number).String() != "9007199254740993" || c.Auth.FixedClaims["active"] != true || c.Auth.FixedClaims["date_label"] != "2026-10-29" {

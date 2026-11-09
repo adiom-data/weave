@@ -28,6 +28,7 @@ func appendModelBatch(target, source *reactivev1.ModelBatch) {
 	target.Entities = append(target.Entities, source.Entities...)
 	target.Queries = append(target.Queries, source.Queries...)
 	target.Projections = append(target.Projections, source.Projections...)
+	target.Computed = append(target.Computed, source.Computed...)
 }
 
 // Entity state is connection-normalized, so only the final event for an entity

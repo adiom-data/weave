@@ -16,7 +16,7 @@ func TestExpansionConfigAndOracle(t *testing.T) {
 		t.Fatal(err)
 	}
 	bad := c
-	bad.Backend = "zero"
+	bad.Backend = "drasi"
 	if err := bad.Validate(); err == nil {
 		t.Fatal("accepted unsupported expansion backend")
 	}
@@ -56,12 +56,12 @@ func TestElectricExpansionDiscoversIDsAndBatchesTargets(t *testing.T) {
 		q := r.URL.Query()
 		w.Header().Set("electric-offset", "0_0")
 		switch q.Get("table") {
-		case "bench.links":
+		case "public.links":
 			if q.Get("where") != "project_id = 2" {
 				t.Error("wrong association filter")
 			}
 			fmt.Fprint(w, `[{"key":"a","headers":{"operation":"insert"},"value":{"id":"4","project_id":"2","task_id":"4"}},{"key":"b","headers":{"operation":"insert"},"value":{"id":3,"project_id":2,"task_id":3}},{"headers":{"control":"up-to-date"}}]`)
-		case "bench.tasks":
+		case "public.tasks":
 			if q.Get("where") != "id = ANY('{3,4}'::bigint[])" {
 				t.Error("did not batch discovered IDs")
 			}
@@ -118,7 +118,7 @@ func TestElectricInitialShapeContinuationAndFailures(t *testing.T) {
 				}
 			}))
 			defer server.Close()
-			rows, _, err := electricInitialShape(context.Background(), server.Client(), server.URL, "bench.tasks", "id > 0")
+			rows, _, err := electricInitialShape(context.Background(), server.Client(), server.URL, "public.tasks", "id > 0")
 			if mode == "pages" {
 				if err != nil || string(rows["a"]["id"]) != "9007199254740993" {
 					t.Fatalf("rows=%v err=%v", rows, err)

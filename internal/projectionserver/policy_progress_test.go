@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/adiom-data/weave/internal/accesscontrol/policy"
-	"github.com/adiom-data/weave/internal/projection/authorization"
+	"github.com/adiom-data/weave/internal/projection/evaluation"
 	q "github.com/adiom-data/weave/internal/querysubscription/model"
+	relationdef "github.com/adiom-data/weave/internal/relation"
 	"github.com/adiom-data/weave/internal/storage"
 	pb "github.com/adiom-data/weave/pkg/gen/reactive/v1"
 )
@@ -108,7 +108,7 @@ func TestPolicyNewSubscriptionsReuseConsumedProgress(t *testing.T) {
 				return policySnapshot(20, policyRow("projects", "p1", "project"))
 			})
 			options := policyOptions()
-			options.Policies.Definitions = policy.Map{{Namespace: "app", Name: "projects"}: {Allow: []policy.Rule{{ID: "all", When: "true"}}}}
+			options.Relations.Definitions = relationdef.Definitions{{Namespace: "app", Name: "projects"}: {Visibility: "true"}}
 			stream, done := openPolicyStreamOptions(t, ctx, backend, options)
 			defer func() { cancel(); <-done }()
 			for _, id := range []string{"first", "second"} {
@@ -145,7 +145,7 @@ func TestPolicyMissingSnapshotPositionFailsOnlyThatSubscription(t *testing.T) {
 		return policySnapshot(20, policyRow("projects", "p1", "project"))
 	})
 	options := policyOptions()
-	options.Policies.Definitions = policy.Map{{Namespace: "app", Name: "projects"}: {Allow: []policy.Rule{{ID: "all", When: "true"}}}}
+	options.Relations.Definitions = relationdef.Definitions{{Namespace: "app", Name: "projects"}: {Visibility: "true"}}
 	stream, done := openPolicyStreamOptions(t, ctx, backend, options)
 	defer func() { cancel(); <-done }()
 	for _, id := range []string{"broken", "projects"} {
@@ -184,12 +184,12 @@ func (f *observedProgressFeed) RequestProgress(ctx context.Context) error {
 func TestPolicyProgressRequestsArePinnedToTargetsNotReplies(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	evaluator, err := policy.Compile(policy.Map{}, policy.Limits{})
+	evaluator, err := relationdef.Compile(relationdef.Definitions{}, relationdef.Limits{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	feed := &observedProgressFeed{requests: make(chan struct{}, 1024)}
-	access, err := newPolicyAccess(ctx, feed, evaluator, nil, authorization.Options{MaxQueries: 10, MaxRows: 10, LoadConcurrency: 1})
+	access, err := newRelationAccess(ctx, feed, evaluator, nil, evaluation.Options{MaxQueries: 10, MaxRows: 10, LoadConcurrency: 1}, false)
 	if err != nil {
 		t.Fatal(err)
 	}

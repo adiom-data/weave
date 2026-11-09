@@ -199,33 +199,70 @@ a trusted proxy before exposure and preserve HTTP/2 for bidi RPCs. Restrict
 `web_origin` for browsers; `*` explicitly permits any origin. Origin checks are
 not authentication. `allow_all` exposes every permitted backend field/row.
 
-## Policies
+## Relation definitions
 
-Choose `visibility.mode: allow_all` or `policy`. Policy mode requires
-`policy_file`, resolved relative to the server config file (or working directory
+Choose `visibility.mode: allow_all` or `definitions`. Definitions mode requires
+`relations.file`, resolved relative to the server config file (or working directory
 with environment-only configuration). Invalid files fail startup, never fall
-back to allow-all. Undefined relations deny visibility.
+back to allow-all. Undefined relations deny visibility in definitions mode.
+Allow-all may also load a relation file to provide computed values.
 
-[policy.example.yaml](policy.example.yaml) shows propagation, receiving edges,
+[relations.example.yaml](relations.example.yaml) shows propagation, receiving edges,
 mandatory requirements, and lazy private fact projections. It is an application
 example, not an installed schema. The file translates to the existing Go policy
 model; CEL evaluation, lazy fact subscriptions, transaction synchronization, and
 requirement semantics are identical to the library. No additional query evaluator
 is added.
 
-Relation entries use separate `schema` and `table` fields. Rules have `id` and
-`when` (CEL). `propagate` entries also have `to`; `receive` entries name `from`
-and its edge `id`. Omitted/null `receive` accepts any configured incoming edge;
-`receive: []` accepts none. Propagation only follows matching projection edges,
-not unrelated objects elsewhere on a connection.
+Relation entries use separate `schema` and `table` fields, shared `facts`, named
+`computed` definitions, and optional `visibility`. Configure the host using:
 
-Every `require` rule must pass; a false requirement stops evaluation before
-propagation and `allow` rules can expand facts. Requirements run in declaration
-order, so place cheap local checks first. Pending requirements withhold visibility
-while other evidence loads. With requirements satisfied, either propagation or
-any `allow` rule can grant access. Omitting `require` adds no constraints, but
-does not grant access by itself. The former `deny` key is no longer accepted;
-convert a deny condition `D` to a requirement `!(D)`.
+```yaml
+visibility:
+  mode: definitions
+relations:
+  file: relations.yaml
+```
+
+Inside `relations.yaml`:
+
+```yaml
+relations:
+  - schema: app
+    table: tasks
+    computed:
+      _role:
+        type: integer
+        expression: 'claims.user_id != null && item.owner_id == claims.user_id ? 2 : 0'
+      canEdit:
+        type: bool
+        expression: 'computed._role >= 2'
+    visibility: item.deleted_at == null && computed._role >= 1
+```
+
+Omitting `visibility` permits a configured relation; `visibility: 'false'` denies.
+Computed values are requested by name, evaluated lazily, and published per row
+occurrence. They can use the same private facts as visibility. Their optional
+`propagate` entries name `to` and a boolean `when` guard; they export the declaring
+field under its own name. Receiving expressions can use
+`has(inherited._role) ? inherited._role : computed._directRole`. Names beginning
+with `_` cannot be requested by clients, but public computations can derive from
+these private helpers.
+See the [library guide](../../pkg/projectionserver/README.md#computed-values-visibility-and-trusted-claims).
+
+There is one optional propagation per computed name/destination relation, with
+no ID or destination field. Relation-level `receive` entries name `from` and
+the exported `field`. Omitted/null `receive` accepts any configured incoming
+export; `receive: []` accepts none. Propagation only follows matching immediate
+projection edges within the same source, not unrelated objects elsewhere on a
+connection. Presence checks evaluate the guard but do not calculate the source
+value. Unknown guards remain unresolved.
+
+Visibility is one boolean CEL expression. Use `&&`, `||`, and conditionals for
+local gates, inherited access, and lazy independent checks. Place cheap local
+gates first so a rejection skips expensive facts. Pending evidence withholds
+publication while other required facts load. The old visibility-rule object
+(`require`, `allow`, visibility propagation) is not accepted.
 
 Facts have `id` and a `projection` with:
 
@@ -275,9 +312,10 @@ Explicit zero is not an alias for the default in standalone configuration.
 - `query.messages`: transaction-message service queue, batch, and payload limits.
 - `projection`: request/subscription/output limits, projection expansion limits,
   shared dependency cache retention/cleanup, and transaction-message routing.
-- `visibility`: fact loading limits/concurrency, policy compilation/evaluation
-  budgets, and compiled-policy cache retention/cleanup. These are inactive in
-  `allow_all` mode but still validated as configuration.
+- `visibility.mode`: whether to enforce relation visibility or allow all.
+- `relations`: definitions file, fact loading limits/concurrency, expression
+  compilation/evaluation budgets. The complete compiled definition map remains
+  resident; it has no load queue or idle-cache cleanup settings.
 - Host, WebSocket, and authentication settings are also listed in the example.
 
 The former top-level `limits` block has moved to these component-owned sections;
@@ -304,7 +342,7 @@ not standalone configuration.
 | `WEAVE_AUTH_MODE` | `oidc`, `unverified_jwt`, or `fixed` |
 | `WEAVE_JWT_ISSUER` / `WEAVE_JWT_AUDIENCE` | OIDC verification inputs |
 | `WEAVE_FIXED_CLAIMS` | Whole claims JSON object or `null` |
-| `WEAVE_VISIBILITY_MODE` / `WEAVE_POLICY_FILE` | Visibility configuration |
+| `WEAVE_VISIBILITY_MODE` / `WEAVE_RELATIONS_FILE` | Visibility configuration |
 
 Set `websocket.enabled: false` to disable that route while retaining RPCs/health.
 The old separate listener settings and direct-JWKS auth settings are removed.

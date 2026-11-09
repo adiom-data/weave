@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/adiom-data/weave/internal/accesscontrol/policy"
 	"github.com/adiom-data/weave/internal/projection/plan"
+	relationdef "github.com/adiom-data/weave/internal/relation"
 	"github.com/adiom-data/weave/internal/storage"
 	pb "github.com/adiom-data/weave/pkg/gen/reactive/v1"
 )
@@ -23,17 +23,16 @@ func TestPolicyProjectionReopensAfterAllViewersDisconnectIntegration(t *testing.
 				INSERT INTO %[1]s.links SELECT n,1,n FROM generate_series(1,%[2]d) n`, schema, rows)); err != nil {
 				t.Fatal(err)
 			}
-			definitions := policy.Map{}
+			definitions := relationdef.Definitions{}
 			for _, table := range []string{"projects", "links", "tasks"} {
-				definitions[storage.RelationName{Namespace: schema, Name: table}] = policy.Relation{
-					Facts: []policy.Fact{{ID: "grant", Projection: &plan.Node{
+				definitions[storage.RelationName{Namespace: schema, Name: table}] = relationdef.Relation{
+					Facts: []relationdef.Fact{{ID: "grant", Projection: &plan.Node{
 						Name: "grant", Query: storage.QuerySpec{Relation: storage.RelationName{Namespace: schema, Name: "tasks"}},
 						Bindings: []plan.Binding{{Field: "id", Operator: storage.ComparisonEqual, Parameter: storage.MustFieldPath("item", "id")}},
-					}}},
-					Allow: []policy.Rule{{ID: "grant", When: "facts.grant.exists(g,true)"}},
+					}}}, Visibility: "facts.grant.exists(g,true)",
 				}
 			}
-			configured, err := New(ctx, queries, Options{Policies: &PolicyOptions{Definitions: definitions}})
+			configured, err := New(ctx, queries, Options{Relations: &RelationOptions{Definitions: definitions}})
 			if err != nil {
 				t.Fatal(err)
 			}

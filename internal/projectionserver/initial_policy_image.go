@@ -20,8 +20,8 @@ type initialPolicyImage struct {
 	owned      map[string]struct{}
 }
 
-func newInitialPolicyImage() *initialPolicyImage {
-	return &initialPolicyImage{visibility: newProjectionVisibility(), owned: make(map[string]struct{})}
+func newInitialPolicyImage(selected ...map[string]*fieldSelection) *initialPolicyImage {
+	return &initialPolicyImage{visibility: newProjectionVisibility(selected...), owned: make(map[string]struct{})}
 }
 
 func (i *initialPolicyImage) apply(ctx context.Context, s *server, prepared accesscontrol.Prepared, batch proj.ProjectionBatch) (bool, error) {
@@ -30,11 +30,11 @@ func (i *initialPolicyImage) apply(ctx context.Context, s *server, prepared acce
 	}
 	// This policy-owned path needs evidence, not the generic controller's
 	// complete invalidation list (which also contains every unresolved row).
-	view, err := s.policyAccess.session.OpenView(batch.Delivery.Checkpoint)
+	view, err := s.relationAccess.session.OpenView(batch.Delivery.Checkpoint)
 	if err != nil {
 		return false, err
 	}
-	epoch, changed := s.policyAccess.session.FactChangesAfter(i.epoch)
+	epoch, changed := s.relationAccess.session.FactChangesAfter(i.epoch)
 	var targets []accesscontrol.InvalidationTarget
 	for _, target := range changed {
 		targets = append(targets, accesscontrol.InvalidationTarget{InstanceID: target.Scope, Key: target.Key})
@@ -50,7 +50,7 @@ func (i *initialPolicyImage) apply(ctx context.Context, s *server, prepared acce
 		}
 	}
 	i.epoch, i.position = epoch, batch.Delivery.Checkpoint
-	return !s.policyAccess.session.PendingIn(func(id string) bool { return i.visibility.instances[id] != nil }), nil
+	return !s.relationAccess.session.PendingIn(func(id string) bool { return i.visibility.instances[id] != nil }), nil
 }
 
 func (i *initialPolicyImage) release(ctx context.Context, prepared accesscontrol.Prepared) error {

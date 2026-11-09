@@ -34,14 +34,15 @@ for configuration, troubleshooting, and database reset instructions.
 ```text
 PostgreSQL → query service → projection service → client runtime → React
                   ↑                ↑
-           shared live queries   visibility policy
+           shared live queries   relation definitions
 ```
 
 - **Query service:** single-table filters, ordered cursor windows, shared entity
   and query caches, and committed change delivery. It can run in-process or behind
   the query gRPC API.
 - **Projection service:** composes entity/query subscriptions into nested views,
-  applies visibility policy, and serves gRPC plus an optional binary WebSocket bridge.
+  evaluates lazy computed values and visibility, and serves gRPC plus an optional
+  binary WebSocket bridge.
 - **Client runtime:** maintains the normalized model, reconnects with fresh
   snapshots, and exposes immutable selections and optional optimistic layers.
 - **Definition tooling:** compiles GraphQL-shaped read definitions into typed

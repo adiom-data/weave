@@ -14,7 +14,7 @@ import (
 // policySnapshot is the one-shot form of initial admission. Feed application,
 // evidence capture, and final visibility evaluation use one serialized consumer
 // just like a live connection. Authorization discovery never reads ahead of it.
-func (s *server) policySnapshot(ctx context.Context, feed q.Feed, p *proj.Projection, prepared accesscontrol.Prepared) ([]proj.ProjectionEvent, map[storage.SourceID]*q.Position, error) {
+func (s *server) policySnapshot(ctx context.Context, feed q.Feed, p *proj.Projection, prepared accesscontrol.Prepared, selected map[string]*fieldSelection) ([]proj.ProjectionEvent, map[storage.SourceID]*q.Position, error) {
 	run, cancel := context.WithCancel(ctx)
 	var workers sync.WaitGroup
 	defer func() { cancel(); workers.Wait() }()
@@ -23,7 +23,7 @@ func (s *server) policySnapshot(ctx context.Context, feed q.Feed, p *proj.Projec
 	go func() { defer workers.Done(); forwardQueryFeed(run, feed, outbound) }()
 	go func() {
 		defer workers.Done()
-		if err := s.policyAccess.runProgress(run); err != nil && run.Err() == nil {
+		if err := s.relationAccess.runProgress(run); err != nil && run.Err() == nil {
 			select {
 			case outbound <- queryEventMessage{err: err}:
 			case <-run.Done():
@@ -39,17 +39,17 @@ func (s *server) policySnapshot(ctx context.Context, feed q.Feed, p *proj.Projec
 		case <-run.Done():
 		}
 	}()
-	image := newInitialPolicyImage()
+	image := newInitialPolicyImage(selected)
 	var waiting <-chan struct{}
 	for {
 		select {
 		case <-run.Done():
 			return nil, nil, run.Err()
-		case <-s.policyAccess.session.FactChanges():
-			s.policyAccess.refresh()
+		case <-s.relationAccess.session.FactChanges():
+			s.relationAccess.refresh()
 			retry = true
-		case <-s.policyAccess.session.PolicyChanges():
-			s.policyAccess.refresh()
+		case <-s.relationAccess.session.PolicyChanges():
+			s.relationAccess.refresh()
 			retry = true
 		case message := <-outbound:
 			switch item := message.(type) {
@@ -57,7 +57,7 @@ func (s *server) policySnapshot(ctx context.Context, feed q.Feed, p *proj.Projec
 				if item.err != nil {
 					return nil, nil, item.err
 				}
-				affected, err := s.policyAccess.observe(item.event)
+				affected, err := s.relationAccess.observe(item.event)
 				if err != nil {
 					return nil, nil, err
 				}
@@ -105,7 +105,7 @@ func (s *server) policySnapshot(ctx context.Context, feed q.Feed, p *proj.Projec
 			}
 			return filtered, positions, nil
 		}
-		s.policyAccess.requestProgress(wait.Progress...)
+		s.relationAccess.requestProgress(wait.Progress...)
 		if wait.Wait != nil && waiting != wait.Wait {
 			waiting = wait.Wait
 			signal := wait.Wait

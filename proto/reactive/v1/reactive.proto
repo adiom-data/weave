@@ -86,6 +86,8 @@ message ProjectionNode {
   // exclusive with fields and query.columns; never inferred from empty columns.
   // Does not automatically expand relationships or change their selections.
   bool all_fields = 6;
+  // Explicit server-defined computed names; all_fields selects stored fields only.
+  repeated string computed = 7;
 }
 
 message ObjectSelection {
@@ -308,6 +310,7 @@ message ModelBatch {
   // Addressed messages are delivered once, alongside the visible effects of
   // their source transaction. A message-only COMMIT may have no model effects.
   repeated TransactionMessage messages = 7;
+  repeated ComputedEvent computed = 8;
 
   enum Kind {
     KIND_UNSPECIFIED = 0;
@@ -326,6 +329,17 @@ message EntityEvent {
     EntityPending pending = 4;
   }
 }
+
+// Authoritative occurrence-relative values, separate from the shared entity.
+message ComputedEvent {
+  string occurrence_id = 1;
+  string entity_id = 2;
+  oneof event {
+    ValueObject upsert = 3;
+    ComputedReleased released = 4;
+  }
+}
+message ComputedReleased {}
 
 message EntityUpsert {
   // Authoritative replacement, not a map patch. A field absent from values

@@ -20,8 +20,8 @@ func TestBundledConfigurationCompilesWithPublicHost(t *testing.T) {
 	if cfg.Address != "127.0.0.1:8080" || cfg.Auth.FixedClaims["user_id"] != "20000000-0000-4000-8000-000000000001" {
 		t.Fatal("demo config does not match the seeded identity/listener")
 	}
-	if cfg.Visibility.PolicyFile != filepath.Join("..", "..", "policy.yaml") {
-		t.Fatal(cfg.Visibility.PolicyFile)
+	if cfg.Relations.File != filepath.Join("..", "..", "relations.yaml") {
+		t.Fatal(cfg.Relations.File)
 	}
 }
 

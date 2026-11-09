@@ -53,7 +53,7 @@ func (s *Weave) Run(ctx context.Context, project int64, o *Observer) error {
 	}()
 	keys := make(map[storage.EntityKey]int64)
 	err = feed.SubscribeQuery(ctx, querysubscription.QuerySubscribeRequest{
-		ID: "project", Query: storage.QuerySpec{Relation: storage.RelationName{Namespace: "bench", Name: "tasks"}, Filter: &storage.Predicate{Comparison: &storage.Comparison{Field: storage.MustFieldPath("project_id"), Operator: storage.ComparisonEqual, Value: storage.Literal{Type: storage.TypeInteger, Data: []byte(strconv.FormatInt(project, 10))}}}},
+		ID: "project", Query: storage.QuerySpec{Relation: storage.RelationName{Namespace: "public", Name: "tasks"}, Filter: &storage.Predicate{Comparison: &storage.Comparison{Field: storage.MustFieldPath("project_id"), Operator: storage.ComparisonEqual, Value: storage.Literal{Type: storage.TypeInteger, Data: []byte(strconv.FormatInt(project, 10))}}}},
 		Window: querysubscription.InitialWindow{Count: s.Rows + 1},
 	}, func(_ querysubscription.QuerySubscription, snapshot querysubscription.QuerySnapshot) error {
 		if snapshot.Bounds.Left.Kind != querysubscription.BoundaryStart || snapshot.Bounds.Right.Kind != querysubscription.BoundaryEnd {
@@ -176,7 +176,7 @@ func (e *Electric) Run(ctx context.Context, project int64, o *Observer) error {
 		return err
 	}
 	query := endpoint.Query()
-	query.Set("table", "bench.tasks")
+	query.Set("table", "public.tasks")
 	query.Set("where", fmt.Sprintf("project_id = %d", project))
 	query.Set("offset", "-1")
 	rows := make(map[string]Task)

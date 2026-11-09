@@ -13,6 +13,64 @@ function setup(definition, parameters = {}) {
 const scalar = (name, kind, nullable = false) => ({ name, path: [name], type: { kind, nullable } })
 const root = { nodeId: 'root', entity: { query: { schema: 'app', table: 'rows' } } }
 
+test('computed selections decode through typed aliases without changing entity values', () => {
+  const definition = defineProjection({ ...root, computed: ['role', 'canEdit'] }, {
+    nodeId: 'root', kind: 'entity', children: {}, fields: [
+      { name: 'permission', path: ['role'], type: { kind: 'integer' }, computed: true },
+      { name: 'editable', path: ['canEdit'], type: { kind: 'bool' }, computed: true },
+      scalar('title', 'text'),
+    ],
+  }, [])
+  const { client, handle, socket, scope } = setup(definition)
+  try {
+    assert.deepEqual(socket.sent[0].subscribeProjection.root.computed, ['role', 'canEdit'])
+    socket.message({ subscriptionId: scope, sequence: '1', modelBatch: { kind: 'KIND_SNAPSHOT',
+      entities: [{ entityId: 'e', upsert: { values: { title: { textValue: 'Task' } } } }],
+      projections: [attach('a', 'root', { entityId: 'e' }, '', '', scope)],
+      computed: [{ occurrenceId: 'a', entityId: 'e', upsert: { fields: { role: { integerValue: '2' }, canEdit: { boolValue: true } } } }],
+    } })
+    socket.message({ subscriptionId: scope, sequence: '2', ready: {} })
+    const before = handle.data.getSnapshot()
+    assert.equal(before.value.permission, 2n)
+    assert.equal(before.value.editable, true)
+    assert.equal(before.value.title, 'Task')
+    assert.equal(client.store.getEntity('e').values.role, undefined)
+    socket.message({ connectionSequence: '1', modelBatch: { kind: 'KIND_COMMIT',
+      computed: [{ occurrenceId: 'a', entityId: 'e', upsert: { fields: { role: { integerValue: '1' }, canEdit: { boolValue: false } } } }],
+    } })
+    assert.equal(handle.data.getSnapshot().value.permission, 1n)
+    assert.equal(handle.data.getSnapshot().value.editable, false)
+    assert.equal(before.value.permission, 2n)
+  } finally { handle.dispose(); client.disconnect() }
+})
+
+test('computed floats preserve canonical values through binary snapshots and commits', () => {
+  const definition = defineProjection({ ...root, computed: ['score'] }, {
+    nodeId: 'root', kind: 'entity', children: {}, fields: [
+      { name: 'score', path: ['score'], type: { kind: 'float' }, computed: true },
+    ],
+  }, [])
+  const { client, handle, socket, scope } = setup(definition)
+  const computed = spelling => [{ occurrenceId: 'a', entityId: 'e', upsert: { fields: { score: { floatValue: spelling } } } }]
+  try {
+    socket.message({ subscriptionId: scope, sequence: '1', modelBatch: { kind: 'KIND_SNAPSHOT',
+      entities: [{ entityId: 'e', upsert: { values: {} } }],
+      projections: [attach('a', 'root', { entityId: 'e' }, '', '', scope)],
+      computed: computed('Infinity'),
+    } })
+    socket.message({ subscriptionId: scope, sequence: '2', ready: {} })
+    const before = handle.data.getSnapshot()
+    assert.equal(before.value.score, Infinity)
+    let sequence = 0n
+    for (const [spelling, expected] of [['-Infinity', -Infinity], ['NaN', NaN], ['0', 0], ['1.5', 1.5]]) {
+      socket.message({ connectionSequence: String(++sequence), modelBatch: { kind: 'KIND_COMMIT', computed: computed(spelling) } })
+      assert.equal(handle.data.getSnapshot().value.score, expected)
+      assert.equal(client.store.getComputed('a', 'e').score.floatValue, spelling)
+    }
+    assert.equal(before.value.score, Infinity)
+  } finally { handle.dispose(); client.disconnect() }
+})
+
 test('allFields publishes whole parents without widening typed readers or child selections', () => {
   const request = { ...root, allFields: true, children: [{ nodeId: 'root.owner', entity: { query: { schema: 'app', table: 'users', columns: [{ segments: ['name'] }] } } }] }
   const definition = defineProjection(request, { nodeId: 'root', kind: 'entity', fields: [], children: {

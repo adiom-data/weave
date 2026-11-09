@@ -8,6 +8,7 @@ scalar StructuredValue
 
 directive @table(schema: String!, name: String!, softDelete: String) on OBJECT
 directive @column(path: [String!]!) on FIELD_DEFINITION
+directive @computed(name: String) on FIELD_DEFINITION
 directive @relation(parent: [String!]!, child: [String!]!) on FIELD_DEFINITION
 directive @bind(argument: String!, field: String!) repeatable on FIELD_DEFINITION
 

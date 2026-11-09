@@ -38,8 +38,8 @@ func (c Config) Validate() error {
 	if c.Workload == "windows" && (c.Rows < 4 || c.ReferenceFetch) {
 		return fmt.Errorf("windows requires at least four rows and no reference-fetch hint")
 	}
-	if c.Backend != "weave" && c.Backend != "electric" && c.Backend != "zero" && c.Backend != "weave-embedded" && c.Backend != "weave-remote" {
-		return fmt.Errorf("backend must be weave, electric, zero, weave-embedded, or weave-remote")
+	if c.Backend != "weave" && c.Backend != "electric" && c.Backend != "drasi" && c.Backend != "weave-embedded" && c.Backend != "weave-remote" {
+		return fmt.Errorf("backend must be weave, electric, drasi, weave-embedded, or weave-remote")
 	}
 	if c.Scenario != "shared" && c.Scenario != "independent" {
 		return fmt.Errorf("scenario must be shared or independent")

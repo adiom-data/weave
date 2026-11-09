@@ -9,9 +9,9 @@ import (
 	"testing"
 
 	"github.com/adiom-data/weave/internal/accesscontrol"
-	"github.com/adiom-data/weave/internal/accesscontrol/policy"
-	"github.com/adiom-data/weave/internal/projection/authorization"
+	"github.com/adiom-data/weave/internal/projection/evaluation"
 	q "github.com/adiom-data/weave/internal/querysubscription/model"
+	relationdef "github.com/adiom-data/weave/internal/relation"
 	"github.com/adiom-data/weave/internal/storage"
 )
 
@@ -48,11 +48,11 @@ func TestInitialQueryCoalescesChangesAndPreservesVersions(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer feed.Close(ctx)
-	evaluator, err := policy.Compile(policy.Map{{Namespace: "app", Name: "projects"}: {Allow: []policy.Rule{{ID: "public", When: "true"}}}}, policyOptions().Policies.Limits)
+	evaluator, err := relationdef.Compile(relationdef.Definitions{{Namespace: "app", Name: "projects"}: {Visibility: "true"}}, policyOptions().Relations.Limits)
 	if err != nil {
 		t.Fatal(err)
 	}
-	access, err := newPolicyAccess(ctx, feed, evaluator, accesscontrol.Claims{}, authorization.Options{MaxQueries: 1, MaxRows: 1, LoadConcurrency: 1})
+	access, err := newRelationAccess(ctx, feed, evaluator, accesscontrol.Claims{}, evaluation.Options{MaxQueries: 1, MaxRows: 1, LoadConcurrency: 1}, false)
 	if err != nil {
 		t.Fatal(err)
 	}

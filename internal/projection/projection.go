@@ -86,6 +86,8 @@ type ProjectionEvent struct {
 	Kind             querysubscription.ChangeKind
 	Key              storage.EntityKey
 	Record           storage.Record
+	// Computed is set only by the outer publication layer, never the query actor.
+	Computed storage.Record
 	Pending          bool
 	Cursor           []byte
 	Bounds           querysubscription.Bounds

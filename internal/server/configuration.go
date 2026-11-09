@@ -1,16 +1,15 @@
 package server
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/adiom-data/weave/internal/server/config"
 	"github.com/adiom-data/weave/internal/server/identity"
-	"github.com/adiom-data/weave/internal/server/policyfile"
+	"github.com/adiom-data/weave/internal/server/relationfile"
 	"github.com/adiom-data/weave/pkg/accesscontrol"
-	"github.com/adiom-data/weave/pkg/accesscontrol/policy"
 	"github.com/adiom-data/weave/pkg/projectionserver"
 	"github.com/adiom-data/weave/pkg/queryserver"
+	relationdef "github.com/adiom-data/weave/pkg/relation"
 	"github.com/adiom-data/weave/pkg/storage"
 	"github.com/adiom-data/weave/pkg/transactionmessage"
 )
@@ -62,26 +61,24 @@ func configuredProjectionOptions(c Config) projectionserver.Options {
 	}
 }
 
-func configuredPolicyOptions(c Config) projectionserver.PolicyOptions {
-	p := c.Visibility
-	return projectionserver.PolicyOptions{
-		Limits: policy.Limits(p.Limits), Cache: policy.CacheOptions(p.Cache),
+func configuredRelationOptions(c Config) projectionserver.RelationOptions {
+	p := c.Relations
+	return projectionserver.RelationOptions{
+		AllowAll:    c.Visibility.Mode == "allow_all",
+		Limits:      relationdef.Limits(p.Limits),
 		MaxFactRows: p.MaxFactRows, MaxFactQueries: p.MaxFactQueries, FactLoadConcurrency: p.FactLoadConcurrency,
 	}
 }
 
-func projectionOptions(c Config, provider policy.Provider) (projectionserver.Options, error) {
+func projectionOptions(c Config, store *relationdef.Store) projectionserver.Options {
 	o := configuredProjectionOptions(c)
 	o.ClaimsProvider = accesscontrol.ClaimsFromContext
-	if c.Visibility.Mode == "policy" {
-		if provider == nil {
-			return o, errors.New("policy mode requires a compiled provider")
-		}
-		p := configuredPolicyOptions(c)
-		p.Provider = provider
-		o.Policies = &p
+	if store != nil {
+		p := configuredRelationOptions(c)
+		p.Store = store
+		o.Relations = &p
 	}
-	return o, nil
+	return o
 }
 
 // ValidateConfig compiles fixed policies and checks configuration without
@@ -99,13 +96,13 @@ func prepareConfig(c Config) (projectionserver.Options, error) {
 	if err := identity.ValidateFixedClaims(c.Auth); err != nil {
 		return empty, fmt.Errorf("fixed claims: %w", err)
 	}
-	var provider policy.Provider
-	if c.Visibility.Mode == "policy" {
+	var store *relationdef.Store
+	if c.Relations.File != "" {
 		var err error
-		provider, err = policyfile.Load(c.Visibility.PolicyFile, policy.Limits(c.Visibility.Limits))
+		store, err = relationfile.Load(c.Relations.File, relationdef.Limits(c.Relations.Limits))
 		if err != nil {
-			return empty, fmt.Errorf("load visibility policies: %w", err)
+			return empty, fmt.Errorf("load relation definitions: %w", err)
 		}
 	}
-	return projectionOptions(c, provider)
+	return projectionOptions(c, store), nil
 }

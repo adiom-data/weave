@@ -225,7 +225,7 @@ Use the public defaults as a base:
 | PostgreSQL | `storage.DefaultPostgresOptions()`: query/message limits, capture buffer, replication retry/status, omission logging |
 | Query service | `queryserver.DefaultOptions()`: windows, cache retention, maintenance, message service and transport |
 | Projection service | `projectionserver.DefaultOptions()`: expansion, connection queues, shared dependencies, message routing |
-| Visibility policy | `projectionserver.DefaultPolicyOptions()`: rule limits, policy cache, fact queries/rows/load concurrency |
+| Relation computations/visibility | `projectionserver.DefaultRelationOptions()`: expression limits, fact queries/rows/load concurrency; definition maps are resident and atomically replaceable |
 | WebSocket bridge | `websocket.DefaultSocketConfig()`: client idle timeout, write timeout, frame size/depth |
 | TypeScript | `ReactiveClient` options: reconnect, request, connection/heartbeat timeouts and decoding bounds |
 

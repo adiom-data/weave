@@ -1,8 +1,8 @@
 # Query-engine benchmark
 
 Self-contained, headless comparison of Weave's production query-subscription
-engine, Electric's HTTP shape service, and Zero's WebSocket service. It does not run the sample app,
-browser runtime, or authorization policy. The optional topology comparison also
+engine, Electric's HTTP shape service, and Drasi's continuous-query service. It
+does not run the sample app, browser runtime, or authorization policy. The optional topology comparison also
 runs the production projection service, with allow-all visibility.
 
 ## Run
@@ -10,8 +10,8 @@ runs the production projection service, with allow-all visibility.
 Requires Docker with Compose v2, Bash, and Git. From the repository root:
 
 ```sh
-# Quick correctness smoke test, both backends run sequentially.
-./benchmarks/query/run.sh both --clients 4 --projects 4 --rows 10 --rate 20 --warmup 0s --duration 3s
+# Quick correctness smoke test, all three backends run sequentially.
+./benchmarks/query/run.sh all --clients 4 --projects 4 --rows 10 --rate 20 --warmup 0s --duration 3s
 
 # Many clients sharing a project/query.
 ./benchmarks/query/run.sh both --scenario shared --clients 100 --projects 1000 --rows 100 --rate 100 --warmup 2s --duration 30s
@@ -20,11 +20,11 @@ Requires Docker with Compose v2, Bash, and Git. From the repository root:
 ./benchmarks/query/run.sh both --scenario independent --clients 100 --projects 1000 --rows 100 --rate 100 --warmup 2s --duration 30s
 ```
 
-Use `weave`, `electric`, or `zero` for one backend, `both` for Weave/Electric,
+Use `weave`, `electric`, or `drasi` for one backend, `both` for Weave/Electric,
 or `all` for all three. For example:
 
 ```sh
-./benchmarks/query/run.sh zero --scenario shared --clients 100 --projects 1000 --rows 100 --rate 100 --warmup 2s --duration 30s
+./benchmarks/query/run.sh drasi --scenario shared --clients 100 --projects 1000 --rows 100 --rate 100 --warmup 2s --duration 30s
 ```
 
 Each invocation builds
@@ -44,9 +44,10 @@ BENCH_ENGINE_CPUS=4 BENCH_ENGINE_MEMORY=4g ./benchmarks/query/run.sh both --clie
 ```
 
 Corresponding prefixes `BENCH_POSTGRES_` and `BENCH_GENERATOR_` control the other
-containers. PostgreSQL, Electric, and Zero image manifests are pinned in
-`compose.yaml`; `BENCH_POSTGRES_IMAGE` / `BENCH_ELECTRIC_IMAGE` / `BENCH_ZERO_IMAGE`
-can override them (the Zero adapter only supports the pinned version's protocol).
+containers. PostgreSQL and Electric image manifests are pinned in
+`compose.yaml`; `BENCH_POSTGRES_IMAGE` / `BENCH_ELECTRIC_IMAGE` can override them.
+Drasi's base image and source/bootstrap/SSE plugins are pinned in `drasi/` and built
+only when selected; see the adapter notes below before updating those pins.
 Weave and Electric use a query pool size of 20. Run on native architecture, without
 emulation, and give Docker enough resources for all three containers. Do not
 run concurrent benchmark invocations (they share local image tags).
@@ -123,7 +124,7 @@ window-extension, or partially warm coverage benchmark.
 
 This mode uses the **public query service**, not the projection service, over
 real container networking. No projection runtime, authorization, browser, or
-Zero instance runs. It measures initial materialization of `links → tasks`:
+Drasi instance runs. It measures initial materialization of `links → tasks`:
 
 - Weave opens a filtered association window, then an entity handle per discovered
   task. With `--reference-fetch`, the parent owns the target interests and returns
@@ -294,7 +295,7 @@ go test ./benchmarks/query/internal/bench -run '^$' \
 
 ## Workload and correctness
 
-The isolated schema is `bench.tasks(id bigint PRIMARY KEY, project_id bigint,
+The isolated database contains `public.tasks(id bigint PRIMARY KEY, project_id bigint,
 revision bigint, payload text)` with `(project_id, id)` indexing. Each client
 subscribes to all columns of `WHERE project_id = X`. Weave uses a real gRPC
 connection/feed per client with default primary-key ordering and a full-project
@@ -345,8 +346,8 @@ capacity. Watch generator and PostgreSQL utilization as well as engine usage.
 
 Application bytes are approximate protocol-payload measurements: Weave counts
 inbound gRPC message bytes including framing, Electric counts uncompressed HTTP
-response bodies; Zero counts received WebSocket payloads, including the chunk tag
-but not WebSocket framing. They exclude HTTP headers and TCP/TLS overhead and are not
+response bodies; Drasi counts REST response bodies and SSE framing/data, including
+query setup. They exclude HTTP headers and TCP/TLS overhead and are not
 precisely comparable on-wire traffic. Docker network statistics include traffic
 to PostgreSQL. Electric's persisted shape log and Weave's in-memory query cache
 also have different persistence costs; resource measurements retain that cost.
@@ -362,41 +363,62 @@ windows, complex predicates, reconnects, projection/auth work, and production
 durability equivalence. Smoke tests validate the harness, not a performance
 winner or maximum sustainable capacity.
 
-## Zero adapter
+## Drasi adapter
 
-Zero is pinned to **1.11.3**, source revision
-`e91e55f05b7a2c631f77238e1dd6fadf1029a538`, WebSocket protocol **53**.
-The adapter follows the upstream
-[protocol definitions](https://github.com/rocicorp/mono/tree/e91e55f05b7a2c631f77238e1dd6fadf1029a538/packages/zero-protocol/src)
-and
-[binary chunk encoder](https://github.com/rocicorp/mono/blob/e91e55f05b7a2c631f77238e1dd6fadf1029a538/packages/zero-cache/src/types/poke-chunk.ts).
-It is not a general Zero SDK and must be reviewed before upgrading the server.
+Drasi Server is pinned to **0.2.4** by image digest. Its PostgreSQL source,
+bootstrap, and SSE reaction plugins are independently pinned by platform-specific
+OCI digests and file hashes in `drasi/plugins-{amd64,arm64}.lock`, taken from the server release.
+The Docker build installs them with `--locked` and signature verification;
+startup does not resolve newer plugins. Only native amd64/arm64 are supported.
 
-Each client has an independent WebSocket, client group, and in-memory row store.
-Query IDs identify both the query name and project argument, preserving Zero's
-cross-client transform-cache semantics. Binary chunks are staged until a matching
-`pokeEnd`; cancelled pokes are discarded, cookie continuity is checked, and
-initialization waits for the committed `gotQueriesPatch` acknowledgment. Partial
-row updates merge into retained rows, including column-constraining semantics.
-Unsupported messages, resnapshots, and disconnects fail the run. Frames and
-assembled pokes are bounded to 64 MiB. No client-side query engine, IndexedDB,
-optimistic mutations, SDK event-loop batching, or TypeScript client runs here.
+This adapter currently supports the **flat live-update workload**. It creates
+one persistent Cypher query per distinct subscribed project using PostgreSQL CDC
+and snapshot bootstrap. Shared viewers attach to the same query; independent
+viewers use separate queries. A standard SSE reaction uses native per-query routes
+and JSON templates to expose each query on its own path. It is configured with
+auto-start disabled and started explicitly once. No custom plugin, client-side
+query engine, TypeScript process, or broadcast-and-discard filtering is involved.
+The server's alternative native `/attach` endpoint was observed delivering the
+same query sequence twice in a four-viewer smoke test; it is not used here.
 
-The standard custom-query transform endpoint is a tiny Go `zero-query` service;
-it returns the AST for this benchmark's one named query. Its separately capped
-0.25 CPU / 128 MiB container is included in resource samples and container
-metadata, so its additional cost is visible. Zero's server still runs its normal
-Node.js implementation; server runtime costs are not removed. It runs one sync
-worker within the engine's two-core cap and persists its SQLite replica in its
-own disposable volume. CVR and change-log databases live in the isolated
-benchmark PostgreSQL instance; their database work is part of the measurements.
+Initialization differs from Weave/Electric: persistent query creation and
+bootstrap run before viewers attach. `backend_setup_seconds` reports that phase;
+`initial_wall_seconds` includes **both** setup and viewer attachment.
+The `initial_sync` distribution measures viewer attachment and snapshot retrieval,
+not cold query creation, so do not compare that distribution alone as equivalent
+cold-read latency. Query setup is sequential and shares the initialization timeout.
+Because Drasi reports its source Running before establishing replication, setup
+also waits for its fresh replication slot to be active with a confirmed WAL
+position. This happens after subscribing queries (capture starts lazily), and
+before allowing writes. No sleep or unmeasured warm-up mutation substitutes for
+this capture readiness check. Logging is set to error to avoid a warning for
+every normal default-replica-identity update in the pinned PostgreSQL plugin.
 
-Our strict oracle still requires **every intermediate update**, not just final
-convergence. A Zero poke is not necessarily a single PostgreSQL transaction;
-the adapter makes no transaction-per-poke claim. If Zero coalesces repeated
-updates under load, the run fails the delivery check rather than silently
-relaxing the contract or claiming database corruption. Successful runs verify
-that every expected revision was observed for that tested configuration.
+The release's separate result-snapshot endpoint and SSE reaction are used only
+under this workload's **quiescent initialization**: no writer starts until all
+clients are ready. Each client opens its stream, reads the already-materialized
+query results, and verifies the entire seed before writes begin. This does not
+claim a general race-free snapshot-plus-stream handoff under concurrent writes.
+Exact revision-zero seed ADDs still queued from bootstrap are ignored; every
+positive-revision duplicate, omission, ordering violation, or stream failure
+still fails the original oracle. There are no update polling/reconnect retries.
+
+The PostgreSQL bootstrap provider is table/label-oriented, not an indexed cursor
+window read. Distinct-query startup may therefore read substantially more source
+data than Weave; that real architecture cost remains in setup time and resource
+samples. Expansion and mutable-window workloads explicitly reject Drasi rather
+than silently implementing different operations.
+
+All backends now use the same `public` fixture tables because the pinned Drasi
+bootstrap plugin only resolves that schema. Earlier recorded runs used `bench`;
+the columns, indexes, data distribution, and write workload are unchanged.
+
+Zero's adapter and deployment have been removed. Historical result directories
+are retained as records of their original versions.
+
+Pinned protocol references:
+[server API implementation](https://github.com/drasi-project/drasi-server/blob/0.2.4/src/api/shared/handlers/query_handlers.rs),
+[SSE reaction implementation](https://github.com/drasi-project/drasi-core/blob/22125bf1d66062533b832a166fe4a51079a23d6e/components/reactions/sse/src/sse.rs).
 
 ## Tests
 
@@ -405,8 +427,8 @@ go test -race ./benchmarks/query/...
 ```
 
 Unit tests cover measurement accounting, validation, latency histogram bounds,
-Electric continuation/partial-update/error handling, and Zero's WebSocket
-handshake, multipart publication, cookie continuity, cancellation, and patches. Docker smoke runs test
+Electric continuation/partial-update/error handling, and Drasi's persistent-query
+setup/routing, SSE framing, exact numeric decoding, cancellation, and failures. Docker smoke runs test
 the real end-to-end services. Electric protocol references:
 [HTTP API](https://electric.ax/docs/sync/api/http) and
 [deployment](https://electric.ax/docs/sync/guides/deployment).

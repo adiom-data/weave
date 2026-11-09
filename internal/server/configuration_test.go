@@ -15,9 +15,9 @@ func TestConfigValidationDoesNotConnectAndNewRejectsInvalidPolicy(t *testing.T) 
 	if err := ValidateConfig(c); err != nil {
 		t.Fatal(err)
 	}
-	c.Visibility.MaxFactRows = 1000
-	c.Visibility.Mode = "policy"
-	c.Visibility.PolicyFile = writeTestFile(t, "invalid-policy.yaml", "relations: [{schema: public, table: things, allow: [{id: bad, when: '!! invalid cel'}]}]")
+	c.Relations.MaxFactRows = 1000
+	c.Visibility.Mode = "definitions"
+	c.Relations.File = writeTestFile(t, "invalid-relations.yaml", "relations: [{schema: public, table: things, visibility: '!! invalid cel'}]\n")
 	if _, err := New(context.Background(), c, Options{}); err == nil {
 		t.Fatal("invalid policy was not rejected before connecting")
 	}
@@ -60,18 +60,17 @@ func TestValidateConfigRejectsInvalidFixedClaimMappingOffline(t *testing.T) {
 
 func TestPolicyFileUsesConfiguredCompilationLimits(t *testing.T) {
 	c := validConfig()
-	c.Visibility.Mode = "policy"
-	c.Visibility.PolicyFile = writeTestFile(t, "policy.yaml", `relations:
+	c.Visibility.Mode = "definitions"
+	c.Relations.File = writeTestFile(t, "relations.yaml", `
+relations:
   - schema: app
     table: projects
-    allow:
-      - id: view
-        when: 'true'
+    visibility: 'true'
 `)
 	if err := ValidateConfig(c); err != nil {
 		t.Fatal(err)
 	}
-	c.Visibility.Limits.MaxExpressionBytes = 3
+	c.Relations.Limits.MaxExpressionBytes = 3
 	if err := ValidateConfig(c); err == nil {
 		t.Fatal("policy-file compilation ignored configured expression budget")
 	}

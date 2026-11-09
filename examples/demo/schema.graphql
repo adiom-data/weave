@@ -4,6 +4,8 @@ type Query {
 }
 
 type Project @table(schema: "tenant_001", name: "projects", softDelete: "deletedAt") {
+  role: Int64! @computed
+  canEdit: Boolean! @computed
   id: UUID!
   organizationId: UUID! @column(path: ["organization_id"])
   title: String!
@@ -23,6 +25,8 @@ type ProjectTask @table(schema: "tenant_001", name: "project_tasks", softDelete:
 }
 
 type Task @table(schema: "tenant_001", name: "tasks", softDelete: "deletedAt") {
+  role: Int64! @computed
+  canEdit: Boolean! @computed
   id: UUID!
   organizationId: UUID! @column(path: ["organization_id"])
   title: String!

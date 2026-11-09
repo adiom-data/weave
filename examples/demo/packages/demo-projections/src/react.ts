@@ -5,3 +5,6 @@ import * as $projections from "./index.js"
 export function useProjectDetails(client: $ReactiveClient, parameters: $projections.ProjectDetailsParameters, options?: $ProjectionOptions) {
   return $useTypedProjection(client, $projections.ProjectDetails, parameters, options)
 }
+export function useProjectPermissions(client: $ReactiveClient, parameters: $projections.ProjectPermissionsParameters, options?: $ProjectionOptions) {
+  return $useTypedProjection(client, $projections.ProjectPermissions, parameters, options)
+}

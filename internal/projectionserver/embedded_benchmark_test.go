@@ -67,7 +67,7 @@ func embeddedBenchmarkMask(kind string, size int, mode string) *fieldSelection {
 		}
 		selected = selection.Object(fields)
 	}
-	return selection.Object([]selection.Field{{Path: storage.MustFieldPath("metadata"), Value: selected}})
+	return &fieldSelection{stored: selection.Object([]selection.Field{{Path: storage.MustFieldPath("metadata"), Value: selected}})}
 }
 
 type embeddedBenchmarkMode struct {
@@ -122,7 +122,7 @@ func embeddedBenchmarkCases(b *testing.B, run func(*testing.B, string, storage.R
 func BenchmarkEmbeddedPublication(b *testing.B) {
 	embeddedBenchmarkCases(b, func(b *testing.B, _ string, record storage.Record, mode embeddedBenchmarkMode) {
 		var union selection.Union
-		union.Add(mode.mask, 1)
+		union.Add(storedSelection(mode.mask), 1)
 		var bytes uint64
 		b.ReportAllocs()
 		for b.Loop() {
@@ -208,12 +208,12 @@ func BenchmarkEmbeddedSelectionReferences(b *testing.B) {
 		b.Run(fmt.Sprintf("references=%d", references), func(b *testing.B) {
 			var union selection.Union
 			for i := 0; i < references; i++ {
-				union.Add(mask, 1)
+				union.Add(storedSelection(mask), 1)
 			}
 			b.ReportAllocs()
 			for b.Loop() {
-				union.Add(mask, 1)
-				union.Add(mask, -1)
+				union.Add(storedSelection(mask), 1)
+				union.Add(storedSelection(mask), -1)
 			}
 		})
 	}
@@ -225,7 +225,7 @@ func TestEmbeddedBenchmarkFixtures(t *testing.T) {
 		for _, mode := range embeddedBenchmarkModes(kind, 8, narrow) {
 			t.Run(kind+"/"+mode.name, func(t *testing.T) {
 				var union selection.Union
-				union.Add(mode.mask, 1)
+				union.Add(storedSelection(mode.mask), 1)
 				entity := &modelEntity{hasImage: true, record: record}
 				initial, err := entity.prepare("entity", union.View)
 				if err != nil || initial == nil {

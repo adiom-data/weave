@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"github.com/adiom-data/weave/internal/accesscontrol"
-	"github.com/adiom-data/weave/internal/accesscontrol/policy"
 	proj "github.com/adiom-data/weave/internal/projection"
-	"github.com/adiom-data/weave/internal/projection/authorization"
+	"github.com/adiom-data/weave/internal/projection/evaluation"
 	q "github.com/adiom-data/weave/internal/querysubscription/model"
+	relationdef "github.com/adiom-data/weave/internal/relation"
 	"github.com/adiom-data/weave/internal/storage"
 )
 
@@ -46,15 +46,14 @@ func testInitialPolicyImage(t *testing.T, direct bool) {
 		t.Fatal(err)
 	}
 	defer feed.Close(ctx)
-	definitions := policy.Map{{Namespace: "app", Name: "projects"}: {
-		Facts: []policy.Fact{testPolicyFact("grant", storage.RelationName{Namespace: "app", Name: "grants"}, false)},
-		Allow: []policy.Rule{{ID: "grant", When: `facts.grant.exists(g,true)`}},
+	definitions := relationdef.Definitions{{Namespace: "app", Name: "projects"}: {
+		Facts: []relationdef.Fact{testPolicyFact("grant", storage.RelationName{Namespace: "app", Name: "grants"}, false)}, Visibility: `facts.grant.exists(g,true)`,
 	}}
-	evaluator, err := policy.Compile(definitions, policyOptions().Policies.Limits)
+	evaluator, err := relationdef.Compile(definitions, policyOptions().Relations.Limits)
 	if err != nil {
 		t.Fatal(err)
 	}
-	access, err := newPolicyAccess(ctx, feed, evaluator, accesscontrol.Claims{}, authorization.Options{MaxQueries: 10, MaxRows: 10, LoadConcurrency: 1})
+	access, err := newRelationAccess(ctx, feed, evaluator, accesscontrol.Claims{}, evaluation.Options{MaxQueries: 10, MaxRows: 10, LoadConcurrency: 1}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +63,7 @@ func testInitialPolicyImage(t *testing.T, direct bool) {
 		t.Fatal(err)
 	}
 	counter := &countedPolicy{Prepared: prepared}
-	s := &server{access: access, policyAccess: access}
+	s := &server{access: access, relationAccess: access}
 	image := newInitialPolicyImage()
 	defer image.release(ctx, prepared)
 	previous := uint64(0)

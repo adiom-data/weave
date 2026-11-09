@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 	"github.com/adiom-data/weave/pkg/accesscontrol"
-	"github.com/adiom-data/weave/pkg/accesscontrol/policy"
 	"github.com/adiom-data/weave/pkg/projectionserver"
 	querygrpc "github.com/adiom-data/weave/pkg/querysubscription/grpc"
+	relationdef "github.com/adiom-data/weave/pkg/relation"
 	"github.com/adiom-data/weave/pkg/storage"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -39,22 +39,23 @@ func ExampleServer_Register() {
 	// Output: 1
 }
 
-// Providers may load definitions from application storage. Return a new version
-// whenever content changes, without mutating previously returned definitions.
-func ExamplePolicyOptions() {
+// A Store owns one complete definition set and can atomically replace it while
+// existing evaluations retain their old immutable snapshot.
+func ExampleRelationOptions() {
 	projects := storage.RelationName{Namespace: "app", Name: "projects"}
-	definition := &policy.Relation{Allow: []policy.Rule{{
-		ID: "organization", When: `claims.organization_id != null && item.organization_id == claims.organization_id`,
-	}}}
-	provider := policy.ProviderFunc(func(_ context.Context, key policy.Key) (policy.Snapshot, error) {
-		if key == projects {
-			return policy.Snapshot{Version: "projects-v1", Policy: definition}, nil
-		}
-		return policy.Snapshot{Version: "missing-v1"}, nil // deny by default
-	})
-	options := projectionserver.DefaultPolicyOptions()
-	options.Provider = provider
+	definition := relationdef.Relation{Visibility: `claims.organization_id != null && item.organization_id == claims.organization_id`}
+	store, err := relationdef.NewStore(relationdef.Definitions{projects: definition}, relationdef.DefaultLimits())
+	if err != nil {
+		panic(err)
+	}
+	options := projectionserver.DefaultRelationOptions()
+	options.Store = store
 	options.MaxFactRows = 100
+	// A complete replacement validates before publication and automatically
+	// invalidates dependents. Omitted relations deny by default.
+	if err := store.Replace(relationdef.Definitions{projects: definition}); err != nil {
+		panic(err)
+	}
 	fmt.Println(options.MaxFactRows)
 	// Output: 100
 }

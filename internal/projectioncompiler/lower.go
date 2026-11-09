@@ -202,6 +202,21 @@ func (c *Compiler) node(field *ast.Field, parent *ast.Definition, id string, dep
 				return nil, nil, err
 			}
 			segments := column(stored)
+			if computed := stored.Directives.ForName("computed"); computed != nil {
+				name := text(argument(computed, "name"))
+				if name == "" {
+					name = stored.Name
+				}
+				shape.Fields = append(shape.Fields, Field{Name: selected.Alias, Path: []string{name}, Type: typ, Computed: true})
+				found := false
+				for _, existing := range node.Computed {
+					found = found || existing == name
+				}
+				if !found {
+					node.Computed = append(node.Computed, name)
+				}
+				continue
+			}
 			shape.Fields = append(shape.Fields, Field{Name: selected.Alias, Path: segments, Type: typ})
 			if allFields {
 				continue // No column or nested output mask is needed for ALL.
@@ -223,7 +238,7 @@ func (c *Compiler) node(field *ast.Field, parent *ast.Definition, id string, dep
 	}
 	// Publication is independent from the client shape. Only an explicit
 	// directive may request all stored fields; empty columns alone never do.
-	if len(query.Columns) == 0 && !allFields {
+	if len(query.Columns) == 0 && len(node.Computed) == 0 && !allFields {
 		return nil, nil, fmt.Errorf("%s: select at least one stored field (for example id); relationship-only selections are not supported", id)
 	}
 	if hasNestedSelection {

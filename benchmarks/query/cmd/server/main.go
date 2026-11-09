@@ -149,7 +149,7 @@ func openLocalQueries(parent context.Context) (querysubscription.Client, func(),
 	}
 	go replicator.Run(ctx)
 	source := postgres.NewPostgresDataSourceWithOptions(pool, broker, postgres.DataSourceOptions{
-		AllowedTables: []string{"bench.tasks", "bench.links"}, Publication: "bench_publication",
+		AllowedTables: []string{"public.tasks", "public.links"}, Publication: "bench_publication",
 	})
 	coordinator, err := engine.StartCoordinatorWithOptions(ctx, source, engine.CoordinatorOptions{
 		ProgressBarrierDelay: 50 * time.Millisecond, MaxWindowRows: 1000, SnapshotPageRows: 1000,

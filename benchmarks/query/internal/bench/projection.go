@@ -71,7 +71,7 @@ func projectionRequest(project int64, rows int) *reactivev1.ClientMessage {
 	return &reactivev1.ClientMessage{SubscriptionId: "project", RequestId: "project", Operation: &reactivev1.ClientMessage_SubscribeProjection{SubscribeProjection: &reactivev1.SubscribeProjection{
 		WaitForSync: true,
 		Root: &reactivev1.ProjectionNode{NodeId: "tasks", Selection: &reactivev1.ProjectionNode_List{List: &reactivev1.ProjectionList{
-			Query:  &reactivev1.Query{Schema: "bench", Table: "tasks", Columns: []*reactivev1.FieldPath{field("id"), field("project_id"), field("revision"), field("payload")}, Filter: &reactivev1.Predicate{Expression: &reactivev1.Predicate_Comparison{Comparison: &reactivev1.Comparison{Column: field("project_id"), Operator: reactivev1.Comparison_OPERATOR_EQUAL, Value: &reactivev1.Value{Kind: &reactivev1.Value_IntegerValue{IntegerValue: strconv.FormatInt(project, 10)}}}}}},
+			Query:  &reactivev1.Query{Schema: "public", Table: "tasks", Columns: []*reactivev1.FieldPath{field("id"), field("project_id"), field("revision"), field("payload")}, Filter: &reactivev1.Predicate{Expression: &reactivev1.Predicate_Comparison{Comparison: &reactivev1.Comparison{Column: field("project_id"), Operator: reactivev1.Comparison_OPERATOR_EQUAL, Value: &reactivev1.Value{Kind: &reactivev1.Value_IntegerValue{IntegerValue: strconv.FormatInt(project, 10)}}}}}},
 			Window: &reactivev1.InitialWindow{From: reactivev1.InitialWindow_FROM_START, Count: uint32(rows + 1)},
 		}}},
 	}}}

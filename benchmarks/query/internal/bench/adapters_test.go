@@ -24,7 +24,7 @@ func TestElectricLongPollingMergesPartialUpdatesAndContinuesOffsets(t *testing.T
 	defer cancel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
 		q := request.URL.Query()
-		if q.Get("table") != "bench.tasks" || q.Get("where") != "project_id = 1" {
+		if q.Get("table") != "public.tasks" || q.Get("where") != "project_id = 1" {
 			t.Error("incorrect Electric shape")
 		}
 		w.Header().Set("electric-handle", "shape-1")

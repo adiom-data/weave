@@ -18,5 +18,6 @@ auth:
     organization_id: "00000000-0000-4000-8000-000000000001"
     team_ids: ["30000000-0000-4000-8000-000000000001"]
 visibility:
-  mode: policy
-  policy_file: policy.yaml
+  mode: definitions
+relations:
+  file: relations.yaml

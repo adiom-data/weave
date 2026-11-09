@@ -150,6 +150,7 @@ func (w *projectionAuthorizationWork) evaluate(ctx context.Context, prepared acc
 	}
 	for index, target := range w.targets {
 		target.visible = visible[index]
+		target.event.Computed = computedValues(prepared, target.key.instance, target.key.key)
 		if target.changed {
 			// Only the final raw image can be published under this decision.
 			// Earlier same-occurrence images may not satisfy its policy.

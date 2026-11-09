@@ -59,32 +59,14 @@ services:
     cpus: ${BENCH_ENGINE_CPUS:-2}
     mem_limit: ${BENCH_ENGINE_MEMORY:-2g}
     depends_on: {postgres: {condition: service_healthy}}
-  zero:
-    profiles: [zero]
-    image: ${BENCH_ZERO_IMAGE:-rocicorp/zero@sha256:d1ad384ea14eee10e0a3180a281ef8b943924993c06d8e47a36017b9bdcc7c55}
-    environment:
-      ZERO_UPSTREAM_DB: postgres://postgres:isolated-benchmark-only@postgres:5432/weave_query_benchmark?sslmode=disable
-      ZERO_CVR_DB: postgres://postgres:isolated-benchmark-only@postgres:5432/weave_query_benchmark?sslmode=disable
-      ZERO_CHANGE_DB: postgres://postgres:isolated-benchmark-only@postgres:5432/weave_query_benchmark?sslmode=disable
-      ZERO_APP_ID: benchmark
-      ZERO_APP_PUBLICATIONS: bench_publication
-      ZERO_REPLICA_FILE: /data/replica.db
-      ZERO_QUERY_URL: http://zero-query:8082/query
-      ZERO_NUM_SYNC_WORKERS: "1"
-      ZERO_ADMIN_PASSWORD: isolated-benchmark-only
-    volumes: [zero-data:/data]
+  drasi:
+    profiles: [drasi]
+    build: {context: ../.., dockerfile: benchmarks/query/drasi/Dockerfile}
+    image: weave-query-benchmark-drasi:local
+    pull_policy: never
     cpus: ${BENCH_ENGINE_CPUS:-2}
     mem_limit: ${BENCH_ENGINE_MEMORY:-2g}
-    depends_on:
-      postgres: {condition: service_healthy}
-      zero-query: {condition: service_started}
-  zero-query:
-    profiles: [zero]
-    image: weave-query-benchmark-runner:local
-    pull_policy: never
-    entrypoint: [/bench-runner, zero-query-server]
-    cpus: 0.25
-    mem_limit: 128m
+    depends_on: {postgres: {condition: service_healthy}}
   runner:
     profiles: [tools]
     build: {context: ../.., dockerfile: benchmarks/query/Dockerfile, target: runner}
@@ -97,4 +79,3 @@ services:
 volumes:
   postgres-data:
   electric-data:
-  zero-data:

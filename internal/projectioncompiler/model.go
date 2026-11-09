@@ -6,6 +6,7 @@ package projectioncompiler
 import (
 	_ "embed"
 	"fmt"
+	"strings"
 
 	"github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
@@ -24,9 +25,10 @@ type Type struct {
 	Fields   []Field `json:"fields,omitempty"`
 }
 type Field struct {
-	Name string   `json:"name"`
-	Path []string `json:"path"`
-	Type Type     `json:"type"`
+	Name     string   `json:"name"`
+	Path     []string `json:"path"`
+	Type     Type     `json:"type"`
+	Computed bool     `json:"computed,omitempty"`
 }
 type Shape struct {
 	NodeID   string            `json:"nodeId"`
@@ -152,7 +154,7 @@ func column(field *ast.FieldDefinition) []string {
 
 func (c *Compiler) mappedField(def *ast.Definition, name string) (*ast.FieldDefinition, error) {
 	field := def.Fields.ForName(name)
-	if field == nil || field.Directives.ForName("relation") != nil {
+	if field == nil || field.Directives.ForName("relation") != nil || field.Directives.ForName("computed") != nil {
 		return nil, fmt.Errorf("%s.%s is not a stored field", def.Name, name)
 	}
 	return field, nil
@@ -178,6 +180,21 @@ func (c *Compiler) validateMappings() error {
 			}
 		}
 		for _, field := range def.Fields {
+			if computed := field.Directives.ForName("computed"); computed != nil {
+				if def.Directives.ForName("table") == nil || field.Directives.ForName("column") != nil || field.Directives.ForName("relation") != nil || len(field.Arguments) > 0 {
+					return fmt.Errorf("%s.%s: computed fields require a table parent and cannot be columns, relations, or parameterized", def.Name, field.Name)
+				}
+				if name := argument(computed, "name"); name != nil && (name.Kind != ast.StringValue || name.Raw == "") {
+					return fmt.Errorf("%s.%s: computed name must be a nonempty string", def.Name, field.Name)
+				}
+				name := field.Name
+				if explicit := argument(computed, "name"); explicit != nil {
+					name = explicit.Raw
+				}
+				if strings.HasPrefix(name, "_") || name == "$visibility" {
+					return fmt.Errorf("%s.%s: private computed value %q cannot be exposed", def.Name, field.Name, name)
+				}
+			}
 			for _, segment := range column(field) {
 				if segment == "" {
 					return fmt.Errorf("%s.%s: empty column path segment", def.Name, field.Name)

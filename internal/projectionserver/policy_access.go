@@ -6,34 +6,34 @@ import (
 	"sync"
 
 	"github.com/adiom-data/weave/internal/accesscontrol"
-	"github.com/adiom-data/weave/internal/accesscontrol/policy"
-	"github.com/adiom-data/weave/internal/projection/authorization"
+	"github.com/adiom-data/weave/internal/projection/evaluation"
 	q "github.com/adiom-data/weave/internal/querysubscription/model"
+	relationdef "github.com/adiom-data/weave/internal/relation"
 	"github.com/adiom-data/weave/internal/storage"
 )
 
 func (s *server) prepareAccess(ctx context.Context, feed q.Feed, id accesscontrol.PreparedID, claims accesscontrol.Claims) (*server, accesscontrol.Prepared, error) {
-	if s.policy != nil {
-		configuration := s.options.Policies
-		access, err := newPolicyAccess(ctx, feed, s.policy, claims, authorization.Options{MaxQueries: configuration.MaxFactQueries, MaxRows: configuration.MaxFactRows, LoadConcurrency: configuration.FactLoadConcurrency})
+	if s.evaluator != nil {
+		configuration := s.options.Relations
+		access, err := newRelationAccess(ctx, feed, s.evaluator, claims, evaluation.Options{MaxQueries: configuration.MaxFactQueries, MaxRows: configuration.MaxFactRows, LoadConcurrency: configuration.FactLoadConcurrency}, configuration.AllowAll)
 		if err != nil {
 			return nil, nil, err
 		}
 		copy := *s
 		copy.access = access
-		copy.policyAccess = access
+		copy.relationAccess = access
 		s = &copy
 	}
 	prepared, err := s.access.Prepare(ctx, accesscontrol.PrepareRequest{ID: id, Claims: claims})
-	if err != nil && s.policyAccess != nil {
-		_ = s.policyAccess.Close()
+	if err != nil && s.relationAccess != nil {
+		_ = s.relationAccess.Close()
 	}
 	return s, prepared, err
 }
 
 // runProgress is the only worker that can block on requesting a source report.
 // Fact/policy wakeups are consumed directly by the publication owner instead.
-func (p *policyAccess) runProgress(ctx context.Context) error {
+func (p *relationAccess) runProgress(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
@@ -48,7 +48,7 @@ func (p *policyAccess) runProgress(ctx context.Context) error {
 	}
 }
 
-func (p *policyAccess) observe(event q.Event) ([]authorization.Occurrence, error) {
+func (p *relationAccess) observe(event q.Event) ([]evaluation.Occurrence, error) {
 	affected, err := p.session.Observe(event)
 	if err == nil {
 		if event.Progress != nil {
@@ -62,35 +62,35 @@ func (p *policyAccess) observe(event q.Event) ([]authorization.Occurrence, error
 
 // refresh runs only on the serialized publication consumer. Local evidence
 // changes wake evaluation independently of source progress and never advance it.
-func (p *policyAccess) refresh() {
+func (p *relationAccess) refresh() {
 	p.session.Refresh()
 	p.progress.require(p.session.ProgressTargets()...)
 }
 
-func (p *policyAccess) requestProgress(targets ...*q.Position) {
+func (p *relationAccess) requestProgress(targets ...*q.Position) {
 	p.progress.require(targets...)
 }
 
-// policyAccess is a connection-owned adapter for the existing publication
+// relationAccess is a connection-owned adapter for the existing publication
 // gate. Views carry partial, immutable evidence at an explicit source position;
 // an unresolved decision withholds output and keeps its dependency ownership.
 // No historical datastore read is fabricated to satisfy an older snapshot.
-type policyAccess struct {
+type relationAccess struct {
 	mu       sync.Mutex
-	session  *authorization.Session
+	session  *evaluation.Session
 	id       accesscontrol.PreparedID
 	prepared bool
 	progress *policyProgress
 }
 
-func newPolicyAccess(ctx context.Context, feed q.Feed, evaluator *policy.Evaluator, claims accesscontrol.Claims, options authorization.Options) (*policyAccess, error) {
-	session, err := authorization.NewSession(ctx, feed, evaluator, claims, options)
+func newRelationAccess(ctx context.Context, feed q.Feed, evaluator *relationdef.Evaluator, claims accesscontrol.Claims, options evaluation.Options, allowAll bool) (*relationAccess, error) {
+	session, err := evaluation.NewSession(ctx, feed, evaluator, claims, options, allowAll)
 	if err != nil {
 		return nil, err
 	}
-	return &policyAccess{session: session, progress: newPolicyProgress()}, nil
+	return &relationAccess{session: session, progress: newPolicyProgress()}, nil
 }
-func (p *policyAccess) Prepare(_ context.Context, request accesscontrol.PrepareRequest) (accesscontrol.Prepared, error) {
+func (p *relationAccess) Prepare(_ context.Context, request accesscontrol.PrepareRequest) (accesscontrol.Prepared, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	if p.prepared || request.ID == "" {
@@ -100,8 +100,8 @@ func (p *policyAccess) Prepare(_ context.Context, request accesscontrol.PrepareR
 	p.prepared = true
 	return p, nil
 }
-func (p *policyAccess) ID() accesscontrol.PreparedID { return p.id }
-func (p *policyAccess) Synchronize(_ context.Context, id accesscontrol.PreparedID, position storage.Checkpoint) (accesscontrol.Checkpoint, error) {
+func (p *relationAccess) ID() accesscontrol.PreparedID { return p.id }
+func (p *relationAccess) Synchronize(_ context.Context, id accesscontrol.PreparedID, position storage.Checkpoint) (accesscontrol.Checkpoint, error) {
 	if id != p.id || position == nil {
 		return accesscontrol.Checkpoint{}, errors.New("policy checkpoint has an invalid context or position")
 	}
@@ -115,21 +115,21 @@ func (p *policyAccess) Synchronize(_ context.Context, id accesscontrol.PreparedI
 	}
 	return accesscontrol.Checkpoint{Position: position, View: view, Invalidation: accesscontrol.Invalidation{Targets: targets}}, nil
 }
-func (p *policyAccess) AcquireSnapshot(_ context.Context, fence storage.Fence) (accesscontrol.SnapshotCheckpoint, error) {
+func (p *relationAccess) AcquireSnapshot(_ context.Context, fence storage.Fence) (accesscontrol.SnapshotCheckpoint, error) {
 	if fence == nil {
 		return accesscontrol.SnapshotCheckpoint{}, errors.New("policy snapshot has no fence")
 	}
 	view, err := p.session.OpenView(&q.Position{SourceID: fence.Source(), Value: fence.Order()})
 	return accesscontrol.SnapshotCheckpoint{Fence: fence, View: view}, err
 }
-func (p *policyAccess) Evaluate(ctx context.Context, view accesscontrol.View, candidates []accesscontrol.Candidate) ([]bool, error) {
-	evidence, ok := view.(*authorization.View)
+func (p *relationAccess) Evaluate(ctx context.Context, view accesscontrol.View, candidates []accesscontrol.Candidate) ([]bool, error) {
+	evidence, ok := view.(*evaluation.View)
 	if !ok {
 		return nil, errors.New("policy evaluation requires its session's evidence view")
 	}
 	visible := make([]bool, len(candidates))
 	for i, candidate := range candidates {
-		decision, err := p.session.Evaluate(ctx, authorization.Occurrence{Scope: candidate.Context.InstanceID, Key: candidate.Key}, candidate, evidence)
+		decision, err := p.session.Evaluate(ctx, evaluation.Occurrence{Scope: candidate.Context.InstanceID, Key: candidate.Key}, candidate, evidence)
 		if err != nil {
 			return nil, err
 		}
@@ -137,17 +137,36 @@ func (p *policyAccess) Evaluate(ctx context.Context, view accesscontrol.View, ca
 	}
 	return visible, nil
 }
-func (p *policyAccess) Release(ctx context.Context, instance string, keys []storage.EntityKey) error {
+func (p *relationAccess) Release(ctx context.Context, instance string, keys []storage.EntityKey) error {
 	if keys == nil {
 		return p.session.ForgetScope(ctx, instance)
 	}
 	var err error
 	for _, key := range keys {
-		err = errors.Join(err, p.session.Forget(ctx, authorization.Occurrence{Scope: instance, Key: key}))
+		err = errors.Join(err, p.session.Forget(ctx, evaluation.Occurrence{Scope: instance, Key: key}))
 	}
 	return err
 }
-func (p *policyAccess) Close() error { return p.session.Close() }
+func (p *relationAccess) Close() error { return p.session.Close() }
 
-var _ accesscontrol.Controller = (*policyAccess)(nil)
-var _ accesscontrol.Prepared = (*policyAccess)(nil)
+var _ accesscontrol.Controller = (*relationAccess)(nil)
+var _ accesscontrol.Prepared = (*relationAccess)(nil)
+
+func (p *relationAccess) ComputedValues(instance string, key storage.EntityKey) storage.Record {
+	return p.session.ComputedValues(evaluation.Occurrence{Scope: instance, Key: key})
+}
+
+// computedResults is an internal capability of the built-in relation evaluator.
+// Custom visibility controllers have no computations; they need not expose or
+// manage them through the public authorization contract. The publication owner
+// reads these immutable results immediately after evaluating the same candidates.
+type computedResults interface {
+	ComputedValues(string, storage.EntityKey) storage.Record
+}
+
+func computedValues(prepared accesscontrol.Prepared, instance string, key storage.EntityKey) storage.Record {
+	if values, ok := prepared.(computedResults); ok {
+		return values.ComputedValues(instance, key)
+	}
+	return nil
+}

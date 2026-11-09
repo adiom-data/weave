@@ -76,6 +76,13 @@ func ParseScalar(valueType ValueType, data []byte) (Value, error) {
 	return Value{Type: valueType, State: ValuePresent, Data: canonical}, nil
 }
 
+// NewFloat constructs a canonical float from its native representation, using
+// the same encoding as textual scalar parsing (including nonfinite values and
+// signed zero). Adapters and evaluators must not choose their own spellings.
+func NewFloat(value float64) Value {
+	return Value{Type: TypeFloat, State: ValuePresent, Data: canonicalFloatData(value)}
+}
+
 // ParseDateTime accepts the source-neutral textual forms used by tests and
 // non-protobuf callers. The public protobuf API uses google.protobuf.Timestamp.
 func ParseDateTime(text string) (time.Time, error) {
@@ -529,19 +536,23 @@ func canonicalFloat(text string) ([]byte, error) {
 	if !ok {
 		return nil, fmt.Errorf("invalid float %q", text)
 	}
+	return canonicalFloatData(value), nil
+}
+
+func canonicalFloatData(value float64) []byte {
 	if math.IsNaN(value) {
-		return []byte("NaN"), nil
+		return []byte("NaN")
 	}
 	if math.IsInf(value, 1) {
-		return []byte("Infinity"), nil
+		return []byte("Infinity")
 	}
 	if math.IsInf(value, -1) {
-		return []byte("-Infinity"), nil
+		return []byte("-Infinity")
 	}
 	if value == 0 {
-		return []byte("0"), nil
+		return []byte("0")
 	}
-	return []byte(strconv.FormatFloat(value, 'g', -1, 64)), nil
+	return strconv.AppendFloat(nil, value, 'g', -1, 64)
 }
 
 func parseFloat(value string) (float64, bool) {

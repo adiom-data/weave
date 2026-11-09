@@ -1,0 +1,30 @@
+# Server and plugins are pinned independently. No runtime plugin downloads.
+apiVersion: drasi.io/v1
+id: benchmark
+host: 0.0.0.0
+port: 8080
+logLevel: error
+persistConfig: false
+persistIndex: false
+autoInstallPlugins: false
+plugins:
+  - ref: source/postgres
+  - ref: bootstrap/postgres
+  - ref: reaction/sse
+sources:
+  - kind: postgres
+    id: db
+    autoStart: true
+    host: postgres
+    port: 5432
+    database: weave_query_benchmark
+    user: postgres
+    password: isolated-benchmark-only
+    sslMode: disable
+    tables: [public.tasks]
+    publicationName: bench_publication
+    slotName: bench_drasi
+    bootstrapProvider:
+      kind: postgres
+queries: []
+reactions: []

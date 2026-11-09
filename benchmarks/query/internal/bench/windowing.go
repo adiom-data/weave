@@ -143,7 +143,7 @@ func readWeaveWindows(ctx context.Context, address string, c Config, project int
 		before := meter.Bytes()
 		start := time.Now()
 		if index == 0 {
-			err = feed.SubscribeQuery(ctx, q.QuerySubscribeRequest{ID: "window", Query: storage.QuerySpec{Relation: storage.RelationName{Namespace: "bench", Name: "tasks"}, Filter: integerEqual("project_id", project)}, Window: q.InitialWindow{Count: step.right}}, func(s q.QuerySubscription, snapshot q.QuerySnapshot) error {
+			err = feed.SubscribeQuery(ctx, q.QuerySubscribeRequest{ID: "window", Query: storage.QuerySpec{Relation: storage.RelationName{Namespace: "public", Name: "tasks"}, Filter: integerEqual("project_id", project)}, Window: q.InitialWindow{Count: step.right}}, func(s q.QuerySubscription, snapshot q.QuerySnapshot) error {
 				subscription = s
 				for _, row := range snapshot.Rows {
 					if row.Pending {
@@ -243,7 +243,7 @@ func readElectricWindows(ctx context.Context, endpoint string, c Config, project
 		start := time.Now()
 		base := (project - 1) * int64(c.Rows)
 		where := fmt.Sprintf("project_id = %d AND id > %d AND id <= %d", project, base+int64(step.left), base+int64(step.right))
-		rows, bytes, err := electricInitialShape(ctx, client, endpoint, "bench.tasks", where)
+		rows, bytes, err := electricInitialShape(ctx, client, endpoint, "public.tasks", where)
 		if err != nil {
 			return nil, err
 		}

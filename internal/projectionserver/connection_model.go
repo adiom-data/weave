@@ -36,6 +36,7 @@ type modelOccurrence struct {
 }
 
 type connectionModel struct {
+	computed         map[string]map[string]storage.Record
 	queries          map[string]*modelQuery
 	occurrences      map[string]modelOccurrence
 	entityRefs       map[string]int
@@ -48,7 +49,8 @@ type connectionModel struct {
 
 func newConnectionModel() *connectionModel {
 	return &connectionModel{
-		queries: make(map[string]*modelQuery), occurrences: make(map[string]modelOccurrence),
+		computed: make(map[string]map[string]storage.Record),
+		queries:  make(map[string]*modelQuery), occurrences: make(map[string]modelOccurrence),
 		entityRefs: make(map[string]int), entityKeys: make(map[string]storage.EntityKey),
 		entities:         make(map[string]*modelEntity),
 		entitySelections: make(map[string]*selection.Union),
@@ -289,6 +291,20 @@ func (m *connectionModel) applyProjection(scope string, batch proj.ProjectionBat
 			if !exists {
 				return nil, fmt.Errorf("projection row belongs to unknown instance %q", event.InstanceID)
 			}
+			if event.Kind == querysubscription.Removed {
+				id := publicEntityID(event.Key)
+				if event.EntityNode && occurrence.entityID != "" {
+					id = occurrence.entityID
+				}
+				m.releaseComputed(result, event.InstanceID, id)
+			} else {
+				if event.EntityNode && occurrence.entityID != "" && occurrence.entityID != publicEntityID(event.Key) {
+					m.releaseComputed(result, event.InstanceID, occurrence.entityID)
+				}
+				if err := m.acceptComputed(result, event.InstanceID, publicEntityID(event.Key), event.Computed); err != nil {
+					return nil, err
+				}
+			}
 			if event.EntityNode {
 				if event.Kind == querysubscription.Removed {
 					if occurrence.entityID != "" {
@@ -346,6 +362,7 @@ func (m *connectionModel) applyProjection(scope string, batch proj.ProjectionBat
 				}
 			}
 		case proj.ProjectionInstanceClosed:
+			m.closeComputed(result, event.InstanceID)
 			occurrence, exists := m.occurrences[event.InstanceID]
 			if !exists {
 				continue
@@ -391,6 +408,7 @@ func (m *connectionModel) closeScope(scope string) (_ *reactivev1.ModelBatch, er
 		if occurrence.scope != scope {
 			continue
 		}
+		m.closeComputed(result, id)
 		if occurrence.queryID != "" {
 			m.closeQuery(result, occurrence.queryID)
 		} else if occurrence.entityID != "" {
@@ -493,7 +511,7 @@ func (m *connectionModel) addSelection(id string, selected *fieldSelection, delt
 		union = &selection.Union{}
 		m.entitySelections[id] = union
 	}
-	union.Add(selected, delta)
+	union.Add(storedSelection(selected), delta)
 }
 
 // selectRecordView owns its outer map and any selection-path scaffolding, but

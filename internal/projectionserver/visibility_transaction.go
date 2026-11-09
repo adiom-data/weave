@@ -4,6 +4,7 @@ import (
 	"container/heap"
 	"errors"
 	"fmt"
+	"reflect"
 
 	"github.com/adiom-data/weave/internal/projection"
 	q "github.com/adiom-data/weave/internal/querysubscription/model"
@@ -190,7 +191,13 @@ func (t *visibilityTransaction) stageAuthorization(targets []*projectionAuthoriz
 		}
 		if row := update.instance.rows[target.key.key]; row != nil {
 			row.allowed = target.visible
-			update.row(target.key.key)
+			change := update.row(target.key.key)
+			if !reflect.DeepEqual(row.event.Computed, target.event.Computed) {
+				// Results belong to an immutable evaluation view. Borrow them until
+				// connection-model publication takes ownership, as for row records.
+				row.event.Computed = target.event.Computed
+				change.changed = true
+			}
 		}
 	}
 }
@@ -348,6 +355,9 @@ func (t *visibilityTransaction) publishRow(update *visibilityInstanceUpdate, key
 		t.removes = append(t.removes, removedProjectionRow(row.event))
 	}
 	if effective && (!before || change != nil && change.changed) {
+		if err := t.v.selected[row.event.Node].validateComputedOutput(row.event.Node, row.event.Record, row.event.Computed); err != nil {
+			return err
+		}
 		event := cloneProjectionEvent(row.event)
 		event.Kind = q.Added
 		if before {

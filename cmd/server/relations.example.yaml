@@ -1,0 +1,60 @@
+# Application example: projects -> project_tasks -> tasks. Tables are not created
+# by this file. Claims use text IDs here; auth.claim_types can map UUID claims.
+# Underscore-prefixed computations are private and cannot be selected by clients.
+relations:
+  - schema: app
+    table: projects
+    receive: []
+    computed:
+      _canView:
+        type: bool
+        expression: claims.organization_id != null && item.organization_id == claims.organization_id
+        propagate:
+          - to: {schema: app, table: project_tasks}
+            when: parent.id == item.project_id
+    visibility: computed._canView
+  - schema: app
+    table: project_tasks
+    receive:
+      - from: {schema: app, table: projects}
+        field: _canView
+    computed:
+      _canView:
+        type: bool
+        expression: has(inherited._canView) && inherited._canView
+        propagate:
+          - to: {schema: app, table: tasks}
+            when: parent.task_id == item.id
+    visibility: computed._canView
+  - schema: app
+    table: tasks
+    receive:
+      - from: {schema: app, table: project_tasks}
+        field: _canView
+    facts:
+      - id: direct_grants
+        projection:
+          name: direct_grants
+          kind: list
+          relation: {schema: app, table: task_user_grants}
+          filter: {field: [deleted_at], operator: is_null}
+          bindings:
+            - field: [task_id]
+              operator: eq
+              parameter: [item, id]
+            - field: [user_id]
+              operator: eq
+              parameter: [claims, user_id]
+    computed:
+      _canView:
+        type: bool
+        # Propagated access skips independent fact discovery.
+        expression: >-
+          (has(inherited._canView) && inherited._canView) ||
+          facts.direct_grants.exists(grant, true)
+    # Local checks short-circuit. Restricted items require a private grant even
+    # when access is inherited. Facts are shared/memoized within the evaluation.
+    visibility: >-
+      item.hidden != true &&
+      (item.restricted != true || facts.direct_grants.exists(grant, true)) &&
+      computed._canView

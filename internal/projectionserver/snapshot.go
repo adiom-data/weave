@@ -36,6 +36,13 @@ func (s *server) GetProjectionSnapshot(ctx context.Context, request *reactivev1.
 	if err := validateSnapshotLayout(request.Root, selected); err != nil {
 		return nil, err
 	}
+	if s.evaluator == nil {
+		for _, fields := range selected {
+			if len(computedSelection(fields)) > 0 {
+				return nil, status.Error(codes.InvalidArgument, "computed fields require relation definitions")
+			}
+		}
+	}
 
 	claims, err := s.resolveClaims(ctx)
 	if err != nil {
@@ -63,14 +70,14 @@ func (s *server) GetProjectionSnapshot(ctx context.Context, request *reactivev1.
 		Prefix: prefix, QueueLimit: s.options.SubscriptionQueueLimit, Limits: proj.Limits(s.options.ProjectionLimits),
 		ExpansionLimiter:      s.expansionLimiter,
 		WaitForSync:           request.WaitForSync,
-		CurrentImageAdmission: s.policyAccess != nil,
+		CurrentImageAdmission: s.relationAccess != nil,
 	})
 	if err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "start projection: %v", err)
 	}
 	defer projection.Close()
-	if s.policyAccess != nil {
-		events, positions, err := s.policySnapshot(ctx, feed, projection, prepared)
+	if s.relationAccess != nil {
+		events, positions, err := s.policySnapshot(ctx, feed, projection, prepared, selected)
 		if err != nil {
 			return nil, snapshotStatus("materialize authorized projection", err)
 		}
@@ -91,7 +98,7 @@ func (s *server) GetProjectionSnapshot(ctx context.Context, request *reactivev1.
 		return nil, snapshotStatus("materialize projection", err)
 	}
 
-	visibility := newProjectionVisibility()
+	visibility := newProjectionVisibility(selected)
 	events, err = visibility.filterInitial(ctx, s.access, prepared, events)
 	if err != nil {
 		return nil, snapshotStatus("evaluate access control", err)
@@ -121,6 +128,9 @@ func snapshotStatus(operation string, err error) error {
 		return nil
 	}
 	code := codes.Internal
+	if failure, ok := status.FromError(err); ok {
+		code = failure.Code()
+	}
 	switch {
 	case errors.Is(err, context.Canceled):
 		code = codes.Canceled

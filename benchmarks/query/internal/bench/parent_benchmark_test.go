@@ -208,9 +208,9 @@ func benchmarkWarmQueryParent(b *testing.B, remote bool, count int, hint bool, m
 		b.Cleanup(func() { _ = connection.Close() })
 		client = querygrpc.NewClient(connection)
 	}
-	request := querysubscription.QuerySubscribeRequest{ID: "links", Query: storage.QuerySpec{Relation: storage.RelationName{Namespace: "bench", Name: "links"}, Filter: &storage.Predicate{Junction: &storage.Junction{Operator: storage.JunctionAnd, Operands: []*storage.Predicate{integerEqual("project_id", 1), {Comparison: &storage.Comparison{Field: storage.MustFieldPath("id"), Operator: storage.ComparisonLessOrEqual, Value: storage.Literal{Type: storage.TypeInteger, Data: []byte(strconv.Itoa(count))}}}}}}}, Window: querysubscription.InitialWindow{Count: count + 1}}
+	request := querysubscription.QuerySubscribeRequest{ID: "links", Query: storage.QuerySpec{Relation: storage.RelationName{Namespace: "public", Name: "links"}, Filter: &storage.Predicate{Junction: &storage.Junction{Operator: storage.JunctionAnd, Operands: []*storage.Predicate{integerEqual("project_id", 1), {Comparison: &storage.Comparison{Field: storage.MustFieldPath("id"), Operator: storage.ComparisonLessOrEqual, Value: storage.Literal{Type: storage.TypeInteger, Data: []byte(strconv.Itoa(count))}}}}}}}, Window: querysubscription.InitialWindow{Count: count + 1}}
 	if hint {
-		request.Reference = &storage.ReferenceFetch{Query: storage.QuerySpec{Relation: storage.RelationName{Namespace: "bench", Name: "tasks"}}, Bindings: []storage.ReferenceBinding{{Source: storage.MustFieldPath("task_id"), Target: storage.MustFieldPath("id")}}}
+		request.Reference = &storage.ReferenceFetch{Query: storage.QuerySpec{Relation: storage.RelationName{Namespace: "public", Name: "tasks"}}, Bindings: []storage.ReferenceBinding{{Source: storage.MustFieldPath("task_id"), Target: storage.MustFieldPath("id")}}}
 	}
 	var lastParent time.Duration
 	open := func() querysubscription.Feed {
@@ -240,7 +240,7 @@ func benchmarkWarmQueryParent(b *testing.B, remote bool, count int, hint bool, m
 		lastParent = time.Since(start)
 		if mode == warmBatchExpansion {
 			query := request.Query
-			query.Relation = storage.RelationName{Namespace: "bench", Name: "tasks"}
+			query.Relation = storage.RelationName{Namespace: "public", Name: "tasks"}
 			if err := feed.SubscribeQuery(ctx, querysubscription.QuerySubscribeRequest{ID: "tasks", Query: query, Window: request.Window}, func(_ querysubscription.QuerySubscription, snapshot querysubscription.QuerySnapshot) error {
 				if len(snapshot.Rows) != count {
 					return fmt.Errorf("incomplete batched task image")
@@ -263,7 +263,7 @@ func benchmarkWarmQueryParent(b *testing.B, remote bool, count int, hint bool, m
 		for index, link := range links {
 			child := querysubscription.EntitySubscribeRequest{
 				ID:        fmt.Sprintf("task-%d", index+1),
-				Query:     storage.QuerySpec{Relation: storage.RelationName{Namespace: "bench", Name: "tasks"}, Filter: integerEqual("id", int64(index+1))},
+				Query:     storage.QuerySpec{Relation: storage.RelationName{Namespace: "public", Name: "tasks"}, Filter: integerEqual("id", int64(index+1))},
 				FetchFrom: &querysubscription.ReferenceSource{SubscriptionID: "links", ParentKey: link.Key},
 			}
 			if err := feed.SubscribeEntity(ctx, child, func(_ querysubscription.EntitySubscription, snapshot querysubscription.EntitySnapshot) error {

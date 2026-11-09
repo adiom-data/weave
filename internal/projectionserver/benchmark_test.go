@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/adiom-data/weave/internal/accesscontrol"
-	"github.com/adiom-data/weave/internal/accesscontrol/policy"
 	proj "github.com/adiom-data/weave/internal/projection"
 	q "github.com/adiom-data/weave/internal/querysubscription/model"
+	relationdef "github.com/adiom-data/weave/internal/relation"
 	"github.com/adiom-data/weave/internal/storage"
 	reactivev1 "github.com/adiom-data/weave/pkg/gen/reactive/v1"
 	"google.golang.org/protobuf/proto"
@@ -262,15 +262,16 @@ func benchmarkProjectionOptions(facts bool) Options {
 	options.ClaimsProvider = func(context.Context) (accesscontrol.Claims, error) {
 		return accesscontrol.Claims{"user_id": {Type: storage.TypeText, State: storage.ValuePresent, Data: []byte("u1")}}, nil
 	}
-	options.Policies = &PolicyOptions{Limits: policy.DefaultLimits(), MaxFactQueries: 1000, MaxFactRows: 100, FactLoadConcurrency: 8, Definitions: policy.Map{
-		projects: {Facts: []policy.Fact{testPolicyFact("grant", storage.RelationName{Namespace: "app", Name: "grants"}, true)}, Allow: []policy.Rule{{ID: "grant", When: `facts.grant.exists(g,g.item.user_id == claims.user_id)`}}, Propagate: []policy.Edge{{ID: "project-links", To: links, When: `parent.id == item.project_id`}}},
-		links:    {Propagate: []policy.Edge{{ID: "link-task", To: tasks, When: `parent.task_id == item.id`}}}, tasks: {},
+	options.Relations = &RelationOptions{Limits: relationdef.DefaultLimits(), MaxFactQueries: 1000, MaxFactRows: 100, FactLoadConcurrency: 8, Definitions: relationdef.Definitions{
+		projects: {Facts: []relationdef.Fact{testPolicyFact("grant", storage.RelationName{Namespace: "app", Name: "grants"}, true)}, Computed: map[string]relationdef.Computed{"_visible": {Type: storage.TypeBool, Expression: `facts.grant.exists(g,g.item.user_id == claims.user_id)`, Propagate: []relationdef.Propagation{{To: links, When: `parent.id == item.project_id`}}}}, Visibility: `computed._visible`},
+		links:    {Computed: map[string]relationdef.Computed{"_visible": {Type: storage.TypeBool, Expression: `has(inherited._visible) && inherited._visible`, Propagate: []relationdef.Propagation{{To: tasks, When: `parent.task_id == item.id`}}}}, Visibility: `computed._visible`},
+		tasks:    {Visibility: `has(inherited._visible) && inherited._visible`},
 	}}
 	return options
 }
 
-// Compare one-shot first-image and synchronized capture with identical warm
-// dependencies. Synchronization must not materialize a second complete image.
+// Compare first-image and synchronized capture with identical warm dependencies.
+// Synchronization must not materialize a second complete image.
 func BenchmarkProjectionSnapshotSynchronization(b *testing.B) {
 	for _, synchronize := range []bool{false, true} {
 		b.Run(fmt.Sprintf("wait=%t", synchronize), func(b *testing.B) {
@@ -315,20 +316,21 @@ func BenchmarkProjectionInitialization(b *testing.B) {
 					source := &projectionBenchmarkSource{count: count}
 					options := benchmarkProjectionOptions(mode != "allow-all")
 					if mode != "allow-all" && mode != "facts" {
-						for relation, definition := range options.Policies.Definitions {
+						for relation, definition := range options.Relations.Definitions {
 							definition.Facts = nil
-							definition.Allow = nil
 							if mode == "item-only" {
-								definition.Propagate = nil
-								definition.Allow = []policy.Rule{{ID: "nonempty-id", When: `item.id != ""`}}
+								definition.Computed = nil
+								definition.Visibility = `item.id != ""`
 							} else if relation.Name == "projects" {
 								when := `item.id == "p1"`
 								if mode == "propagation-only" {
 									when = `true`
 								}
-								definition.Allow = []policy.Rule{{ID: "root", When: when}}
+								value := definition.Computed["_visible"]
+								value.Expression = when
+								definition.Computed["_visible"] = value
 							}
-							options.Policies.Definitions[relation] = definition
+							options.Relations.Definitions[relation] = definition
 						}
 					}
 					request := benchmarkProjectionRequest(count)

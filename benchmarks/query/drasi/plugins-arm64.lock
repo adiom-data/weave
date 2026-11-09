@@ -1,0 +1,52 @@
+# Pinned from drasi-server 0.2.4; core revision 22125bf1d66062533b832a166fe4a51079a23d6e.
+version = 1
+
+[plugins."reaction/sse"]
+reference = "ghcr.io/drasi-project/reaction/sse@sha256:a6a6c7f669d718e44edf7f49afc350c9785933b4d686ead756ee1fb2819a06ce"
+version = "0.3.8"
+digest = "sha256:a6a6c7f669d718e44edf7f49afc350c9785933b4d686ead756ee1fb2819a06ce"
+sdk_version = "0.11.3"
+core_version = "0.5.10"
+lib_version = "0.9.3"
+platform = "linux/arm64"
+filename = "libdrasi_reaction_sse.so"
+file_hash = "7a836bc38428620743dbb0bcbaf2c8fdcece0ff6eb3e473a132d90af89e251c7"
+
+[plugins."reaction/sse".signature]
+verified = true
+issuer = "https://token.actions.githubusercontent.com"
+subject = "https://github.com/drasi-project/drasi-core/.github/workflows/publish-plugins.yml@refs/heads/main"
+
+
+[plugins."source/postgres"]
+reference = "ghcr.io/drasi-project/source/postgres@sha256:1925af236d11bacd30b1d733c15050d85ef2d47d7894c2334c432f5699afef8f"
+version = "0.2.12"
+digest = "sha256:1925af236d11bacd30b1d733c15050d85ef2d47d7894c2334c432f5699afef8f"
+sdk_version = "0.11.3"
+core_version = "0.5.10"
+lib_version = "0.9.3"
+platform = "linux/arm64"
+filename = "libdrasi_source_postgres.so"
+file_hash = "9b3851ec52ff32813e92036131d548d8f2d2f2986fcd7271ce6689a8545191c7"
+
+[plugins."source/postgres".signature]
+verified = true
+issuer = "https://token.actions.githubusercontent.com"
+subject = "https://github.com/drasi-project/drasi-core/.github/workflows/publish-plugins.yml@refs/heads/main"
+
+[plugins."bootstrap/postgres"]
+reference = "ghcr.io/drasi-project/bootstrap/postgres@sha256:57a26d88d4d177651f7e9a435a47caaf8335f3627acf4e9fc8851a74b9ccdec4"
+version = "0.2.15"
+digest = "sha256:57a26d88d4d177651f7e9a435a47caaf8335f3627acf4e9fc8851a74b9ccdec4"
+sdk_version = "0.11.3"
+core_version = "0.5.10"
+lib_version = "0.9.3"
+platform = "linux/arm64"
+filename = "libdrasi_bootstrap_postgres.so"
+file_hash = "950d64b421258a0120bf829813ef0bc26598a6dd30ad2034ba0a3fd90a4079e0"
+
+[plugins."bootstrap/postgres".signature]
+verified = true
+issuer = "https://token.actions.githubusercontent.com"
+subject = "https://github.com/drasi-project/drasi-core/.github/workflows/publish-plugins.yml@refs/heads/main"
+

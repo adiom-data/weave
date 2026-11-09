@@ -105,13 +105,11 @@ func TestStandalonePostgres(t *testing.T) {
 	c.Storage.Postgres.AllowedTables = []string{"public." + name}
 	c.Auth.FixedClaims = config.JSONClaims{"organization_id": "one"}
 	c.Address = "127.0.0.1:0"
-	c.Visibility.Mode = "policy"
-	c.Visibility.PolicyFile = writeTestFile(t, "policy.yaml", fmt.Sprintf(`relations:
+	c.Visibility.Mode = "definitions"
+	c.Relations.File = writeTestFile(t, "relations.yaml", fmt.Sprintf(`relations:
   - schema: public
     table: %s
-    allow:
-      - id: organization
-        when: facts.organization_grant.exists(grant, true)
+    visibility: facts.organization_grant.exists(grant, true)
     facts:
       - id: organization_grant
         projection:

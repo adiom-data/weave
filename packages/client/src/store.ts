@@ -35,6 +35,8 @@ const unavailable: EntitySnapshot = Object.freeze({ status: 'unavailable' })
 const pending: EntitySnapshot = Object.freeze({ status: 'pending' })
 const loading: SubscriptionSnapshot = Object.freeze({ status: 'loading' })
 const noOccurrences: readonly Occurrence[] = Object.freeze([])
+const noComputed: RecordData = Object.freeze(Object.create(null))
+const computedKey = (occurrence: string, entity: string) => JSON.stringify(['computed', occurrence, entity])
 const entityKey = (id: string) => JSON.stringify(['entity', id])
 const authoritativeEntityKey = (id: string) => JSON.stringify(['authoritativeEntity', id])
 const queryKey = (id: string) => JSON.stringify(['query', id])
@@ -102,6 +104,10 @@ class StoreSelection<T> implements Selection<T> {
 // Owns the connection's read model, not datastore query evaluation. Every batch
 // is staged in touched-key overlays, validated, then committed before notifying.
 export class ModelStore {
+  private computed = new Map<string, Map<string, RecordData>>()
+  // Immutable list images share a lazily built membership index. Scalar-only
+  // updates reuse it; retired images/indexes are collected together.
+  private queryMembers = new WeakMap<readonly string[], ReadonlySet<string>>()
   private entities = new Map<string, EntitySnapshot>()
   private availableEntities = 0
   private pendingEntities = 0
@@ -162,6 +168,10 @@ export class ModelStore {
   }
   private optimisticKeys(changes: OptimisticChanges): Set<string> { return new Set([...changes.entities.map(entityKey), ...changes.targets]) }
   getQuery(id: string): QuerySnapshot | undefined { this.read(queryKey(id)); return this.queries.get(id) }
+  getComputed(occurrenceId: string, entityId: string): RecordData {
+    this.read(computedKey(occurrenceId, entityId))
+    return this.computed.get(occurrenceId)?.get(entityId) ?? noComputed
+  }
   getOccurrences(scope: string, node: string, parent = '', entity = ''): readonly Occurrence[] {
     const key = occurrenceKey(scope, node, parent, entity)
     this.read(key)
@@ -187,6 +197,8 @@ export class ModelStore {
   reset(connection: ConnectionSnapshot = { status: 'disconnected' }): void {
     this.optimistic.clear()
     this.entities.clear(); this.queries.clear(); this.occurrences.clear(); this.buckets.clear()
+    this.computed.clear()
+    this.queryMembers = new WeakMap()
     this.availableEntities = 0; this.pendingEntities = 0
     this.connectionSequence = 0n; this.sequences.clear()
     this.statuses.clear()
@@ -219,6 +231,11 @@ export class ModelStore {
     const queries = new Map<string, QuerySnapshot | null>()
     const occurrences = new Map<string, Occurrence | null>()
     const getQuery = (id: string) => queries.has(id) ? queries.get(id) ?? undefined : this.queries.get(id)
+    const membersOf = (ids: readonly string[]): ReadonlySet<string> => {
+      let members = this.queryMembers.get(ids)
+      if (!members) { members = new Set(ids); this.queryMembers.set(ids, members) }
+      return members
+    }
     for (const change of batch.entities) {
       entities.set(change.id, change.type === 'released' ? null : change.type === 'pending' ? pending : immutable({ status: 'available', values: change.values }))
     }
@@ -234,7 +251,7 @@ export class ModelStore {
       if (change.type === 'window') { queries.set(change.id, immutable({ ...previous, bounds: change.bounds })); continue }
       if (previous.version !== change.base || change.version !== change.base + 1n) throw new ProtocolError('Query version mismatch')
       const removed = new Set(change.removed)
-      const members = new Set(previous.ids)
+      const members = membersOf(previous.ids)
       if (removed.size !== change.removed.length || [...removed].some(id => !members.has(id))) throw new ProtocolError('Invalid query removal')
       const retained = previous.ids.filter(id => !removed.has(id))
       const present = new Set(retained)
@@ -273,6 +290,36 @@ export class ModelStore {
     }
     for (const value of buckets.values()) if (value.length > 1) throw new ProtocolError('Ambiguous projection edge')
     const changed = new Set<string>()
+    // Stage sparse row patches. Updating one computed value must not copy the
+    // whole list occurrence's computed map. Live maps change only after every
+    // event in this batch has passed validation.
+    const computed = new Map<string, Map<string, RecordData | undefined>>()
+    const retiredComputed = new Set<string>()
+    const valuesFor = (id: string): Map<string, RecordData | undefined> => {
+      let values = computed.get(id)
+      if (!values) { values = new Map(); computed.set(id, values) }
+      return values
+    }
+    for (const change of batch.computed) {
+      if (change.type === 'upsert') {
+        const occurrence = occurrences.has(change.occurrenceId) ? occurrences.get(change.occurrenceId) : this.occurrences.get(change.occurrenceId)
+        if (!occurrence) throw new ProtocolError('Computed values for an unknown occurrence')
+        if (occurrence.target.type === 'entity') {
+          if (occurrence.target.id !== change.entityId) throw new ProtocolError('Computed values for another entity')
+        } else {
+          const id = occurrence.target.id
+          const query = getQuery(id)
+          if (!query || !membersOf(query.ids).has(change.entityId)) throw new ProtocolError('Computed values for a nonmember')
+        }
+        valuesFor(change.occurrenceId).set(change.entityId, immutable(change.values))
+      } else valuesFor(change.occurrenceId).set(change.entityId, undefined)
+      changed.add(computedKey(change.occurrenceId, change.entityId))
+    }
+    for (const [id, occurrence] of occurrences) if (!occurrence) {
+      for (const entity of this.computed.get(id)?.keys() ?? []) changed.add(computedKey(id, entity))
+      for (const entity of valuesFor(id).keys()) changed.add(computedKey(id, entity))
+      retiredComputed.add(id)
+    }
     for (const [id, value] of entities) {
       const previous = this.entities.get(id)
       if (previous?.status === 'available') this.availableEntities--
@@ -286,6 +333,12 @@ export class ModelStore {
     for (const [id, value] of queries) { if (value) this.queries.set(id, value); else this.queries.delete(id); changed.add(queryKey(id)) }
     for (const [id, value] of occurrences) { if (value) this.occurrences.set(id, immutable(value)); else this.occurrences.delete(id) }
     for (const [key, value] of buckets) { if (value.length) this.buckets.set(key, value); else this.buckets.delete(key); changed.add(key) }
+    for (const [id, patches] of computed) {
+      if (retiredComputed.has(id)) { this.computed.delete(id); continue }
+      const values = this.computed.get(id) ?? new Map<string, RecordData>()
+      for (const [entity, value] of patches) { if (value) values.set(entity, value); else values.delete(entity) }
+      if (values.size) this.computed.set(id, values); else this.computed.delete(id)
+    }
     return changed
   }
 

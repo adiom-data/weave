@@ -17,14 +17,20 @@ import (
 )
 
 func TestRemovedProjectionRowOwnsMetadataWithoutPayload(t *testing.T) {
-	event := projection.ProjectionEvent{Type: projection.ProjectionRowChanged, Node: "tasks", InstanceID: "tasks", Kind: querysubscription.Updated, Path: []string{"project", "tasks"}, Lineage: []projection.PathStep{{Node: "project"}}, Record: modelRecord("one", "1", "Task"), Cursor: []byte("cursor"), Pending: true, Version: querysubscription.RecordVersion{Revision: 7}}
+	event := projection.ProjectionEvent{
+		Type: projection.ProjectionRowChanged, Node: "tasks", InstanceID: "tasks", Kind: querysubscription.Updated,
+		Path: []string{"project", "tasks"}, Lineage: []projection.PathStep{{Node: "project"}},
+		Record:   modelRecord("one", "1", "Task"),
+		Computed: storage.Record{"canEdit": {Type: storage.TypeBool, State: storage.ValuePresent, Data: []byte("true")}},
+		Cursor:   []byte("cursor"), Pending: true, Version: querysubscription.RecordVersion{Revision: 7},
+	}
 	removed := removedProjectionRow(event)
-	if removed.Kind != querysubscription.Removed || removed.Record != nil || removed.Cursor != nil || removed.Pending || removed.Version != event.Version {
+	if removed.Kind != querysubscription.Removed || removed.Record != nil || removed.Computed != nil || removed.Cursor != nil || removed.Pending || removed.Version != event.Version {
 		t.Fatalf("removal=%+v", removed)
 	}
 	removed.Path[0] = "changed"
 	removed.Lineage[0].Node = "changed"
-	if event.Path[0] != "project" || event.Lineage[0].Node != "project" || event.Record == nil || string(event.Cursor) != "cursor" {
+	if event.Path[0] != "project" || event.Lineage[0].Node != "project" || event.Record == nil || string(event.Computed["canEdit"].Data) != "true" || string(event.Cursor) != "cursor" {
 		t.Fatal("removal modified source event")
 	}
 }

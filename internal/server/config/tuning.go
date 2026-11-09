@@ -109,18 +109,11 @@ type DependencyConfig struct {
 	CleanupBatchSize    int           `yaml:"cleanup_batch_size"`
 }
 
-type PolicyLimits struct {
+type RelationLimits struct {
 	MaxNodes           int `yaml:"max_nodes"`
 	MaxDepth           int `yaml:"max_depth"`
 	MaxEvaluationSteps int `yaml:"max_evaluation_steps"`
 	MaxExpressionBytes int `yaml:"max_expression_bytes"`
-}
-
-type PolicyCacheConfig struct {
-	IdleTTL           time.Duration `yaml:"idle_ttl"`
-	MaintenancePeriod time.Duration `yaml:"maintenance_period"`
-	EvictionBatchSize int           `yaml:"eviction_batch_size"`
-	LoadConcurrency   int           `yaml:"load_concurrency"`
 }
 
 func (c *Config) setTuningDefaults() {
@@ -146,10 +139,10 @@ func (c *Config) setTuningDefaults() {
 		ProjectionLimits: ProjectionLimits(p.ProjectionLimits), MaxConcurrentProjectionExpansions: p.MaxConcurrentProjectionExpansions,
 		Dependencies: DependencyConfig(p.Dependencies),
 	}
-	a := projectionserver.DefaultPolicyOptions()
-	c.Visibility.Limits, c.Visibility.Cache = PolicyLimits(a.Limits), PolicyCacheConfig(a.Cache)
-	c.Visibility.MaxFactRows, c.Visibility.MaxFactQueries = a.MaxFactRows, a.MaxFactQueries
-	c.Visibility.FactLoadConcurrency = a.FactLoadConcurrency
+	a := projectionserver.DefaultRelationOptions()
+	c.Relations.Limits = RelationLimits(a.Limits)
+	c.Relations.MaxFactRows, c.Relations.MaxFactQueries = a.MaxFactRows, a.MaxFactQueries
+	c.Relations.FactLoadConcurrency = a.FactLoadConcurrency
 }
 
 // Validate numeric tuning consistently at the config boundary, including fields
@@ -188,7 +181,7 @@ func (c Config) validateTuning() error {
 		value any
 	}{
 		{"query", c.Query}, {"projection", c.Projection},
-		{"visibility.limits", c.Visibility.Limits}, {"visibility.cache", c.Visibility.Cache},
+		{"relations.limits", c.Relations.Limits},
 		{"storage.postgres.query_limits", pg.QueryLimits}, {"storage.postgres.message_limits", pg.MessageLimits},
 		{"storage.postgres.replication", pg.Replication},
 	} {
@@ -212,11 +205,11 @@ func (c Config) validateTuning() error {
 	}); err != nil {
 		return fmt.Errorf("query.messages: %w", err)
 	}
-	if c.Visibility.MaxFactRows <= 0 || c.Visibility.MaxFactQueries <= 0 || c.Visibility.FactLoadConcurrency <= 0 {
-		return fmt.Errorf("visibility fact limits and concurrency must be positive")
+	if c.Relations.MaxFactRows <= 0 || c.Relations.MaxFactQueries <= 0 || c.Relations.FactLoadConcurrency <= 0 {
+		return fmt.Errorf("relations fact limits and concurrency must be positive")
 	}
-	if c.Visibility.Mode == "policy" && c.Visibility.MaxFactRows >= c.Query.Limits.MaxWindowRows {
-		return fmt.Errorf("visibility.max_fact_rows + 1 must fit within query.limits.max_window_rows")
+	if c.Relations.File != "" && c.Relations.MaxFactRows >= c.Query.Limits.MaxWindowRows {
+		return fmt.Errorf("relations.max_fact_rows + 1 must fit within query.limits.max_window_rows")
 	}
 	return nil
 }

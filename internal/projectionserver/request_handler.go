@@ -37,7 +37,7 @@ func (s *server) handleSharedMessage(ctx context.Context, stream Stream, prefix 
 		queryID := "query:" + internalID
 		externalID, requestID := message.SubscriptionId, message.RequestId
 		initialWindow := querysubscription.InitialWindow{FromEnd: window.From == reactivev1.InitialWindow_FROM_END, Count: int(window.Count)}
-		if s.policyAccess != nil {
+		if s.relationAccess != nil {
 			return admissions.query(externalID, requestID, internalID, queryID, spec, selected, initialWindow)
 		}
 		loadCtx, loadCancel := context.WithCancel(ctx)
@@ -145,8 +145,15 @@ func (s *server) handleSharedMessage(ctx context.Context, stream Stream, prefix 
 		if err != nil {
 			return sendSharedError(stream, message.SubscriptionId, message.RequestId, "INVALID_PROJECTION", err.Error())
 		}
+		if s.relationAccess == nil {
+			for _, fields := range selected {
+				if len(computedSelection(fields)) > 0 {
+					return sendSharedError(stream, message.SubscriptionId, message.RequestId, "INVALID_PROJECTION", "computed fields require relation definitions")
+				}
+			}
+		}
 		externalID, requestID := message.SubscriptionId, message.RequestId
-		if s.policyAccess != nil {
+		if s.relationAccess != nil {
 			return admissions.projection(externalID, requestID, prefix, root, selected, operation.SubscribeProjection.WaitForSync)
 		}
 		generation := prefix + "projection:" + strconv.FormatUint(streamSequence.Add(1), 10)
@@ -168,7 +175,7 @@ func (s *server) handleSharedMessage(ctx context.Context, stream Stream, prefix 
 		loaders.Add(1)
 		go func() {
 			defer loaders.Done()
-			visibility := newProjectionVisibility()
+			visibility := newProjectionVisibility(selected)
 			initial, _, subscribeErr := projection.TakeInitial(loadCtx)
 			if subscribeErr == nil {
 				initial, subscribeErr = visibility.filterInitial(loadCtx, s.access, prepared, initial)

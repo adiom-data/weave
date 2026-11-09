@@ -226,9 +226,9 @@ func readWeaveExpansion(ctx context.Context, address string, c Config, project i
 		_ = feed.Close(cleanup)
 		_ = connection.Close()
 	}
-	request := querysubscription.QuerySubscribeRequest{ID: "links", Query: storage.QuerySpec{Relation: storage.RelationName{Namespace: "bench", Name: "links"}, Filter: integerEqual("project_id", project)}, Window: querysubscription.InitialWindow{Count: c.Rows + 1}}
+	request := querysubscription.QuerySubscribeRequest{ID: "links", Query: storage.QuerySpec{Relation: storage.RelationName{Namespace: "public", Name: "links"}, Filter: integerEqual("project_id", project)}, Window: querysubscription.InitialWindow{Count: c.Rows + 1}}
 	if c.ReferenceFetch {
-		request.Reference = &storage.ReferenceFetch{Query: storage.QuerySpec{Relation: storage.RelationName{Namespace: "bench", Name: "tasks"}}, Bindings: []storage.ReferenceBinding{{Source: storage.MustFieldPath("task_id"), Target: storage.MustFieldPath("id")}}}
+		request.Reference = &storage.ReferenceFetch{Query: storage.QuerySpec{Relation: storage.RelationName{Namespace: "public", Name: "tasks"}}, Bindings: []storage.ReferenceBinding{{Source: storage.MustFieldPath("task_id"), Target: storage.MustFieldPath("id")}}}
 	}
 	var links []expansionLink
 	err = feed.SubscribeQuery(ctx, request, func(_ querysubscription.QuerySubscription, snapshot querysubscription.QuerySnapshot) error {
@@ -263,7 +263,7 @@ func readWeaveExpansion(ctx context.Context, address string, c Config, project i
 	}
 	var tasks []Task
 	for _, link := range links {
-		child := querysubscription.EntitySubscribeRequest{ID: fmt.Sprintf("task-%d", link.id), Query: storage.QuerySpec{Relation: storage.RelationName{Namespace: "bench", Name: "tasks"}, Filter: integerEqual("id", link.task)}}
+		child := querysubscription.EntitySubscribeRequest{ID: fmt.Sprintf("task-%d", link.id), Query: storage.QuerySpec{Relation: storage.RelationName{Namespace: "public", Name: "tasks"}, Filter: integerEqual("id", link.task)}}
 		if c.ReferenceFetch {
 			child.FetchFrom = &querysubscription.ReferenceSource{SubscriptionID: "links", ParentKey: link.key}
 		}
@@ -299,7 +299,7 @@ func readElectricExpansion(ctx context.Context, endpoint string, c Config, proje
 	transport := &http.Transport{DisableCompression: true, MaxIdleConnsPerHost: 1, MaxConnsPerHost: 1, ResponseHeaderTimeout: 70 * time.Second}
 	defer transport.CloseIdleConnections()
 	client := &http.Client{Transport: transport}
-	linkRows, bytes, err := electricInitialShape(ctx, client, endpoint, "bench.links", fmt.Sprintf("project_id = %d", project))
+	linkRows, bytes, err := electricInitialShape(ctx, client, endpoint, "public.links", fmt.Sprintf("project_id = %d", project))
 	if err != nil {
 		return nil, bytes, err
 	}
@@ -335,7 +335,7 @@ func readElectricExpansion(ctx context.Context, endpoint string, c Config, proje
 	// A single typed array keeps the filter AST compact for large expansions,
 	// rather than constructing hundreds of scalar IN operands. IDs were parsed
 	// as int64 above; no application-provided SQL is interpolated here.
-	rows, taskBytes, err := electricInitialShape(ctx, client, endpoint, "bench.tasks", "id = ANY('{"+strings.Join(ids, ",")+"}'::bigint[])")
+	rows, taskBytes, err := electricInitialShape(ctx, client, endpoint, "public.tasks", "id = ANY('{"+strings.Join(ids, ",")+"}'::bigint[])")
 	bytes += taskBytes
 	if err != nil {
 		return nil, bytes, err

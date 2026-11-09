@@ -55,19 +55,19 @@ func TestAllComponentTuningIsExposedAndForwarded(t *testing.T) {
 		if changed {
 			changeTuning(reflect.ValueOf(&c.Query).Elem())
 			changeTuning(reflect.ValueOf(&c.Projection).Elem())
-			changeTuning(reflect.ValueOf(&c.Visibility).Elem())
+			changeTuning(reflect.ValueOf(&c.Relations).Elem())
 			changeTuning(reflect.ValueOf(&c.Storage.Postgres).Elem())
 		}
-		pg, q, p, ac := postgresOptions(c), queryOptions(c), configuredProjectionOptions(c), configuredPolicyOptions(c)
+		pg, q, p, ac := postgresOptions(c), queryOptions(c), configuredProjectionOptions(c), configuredRelationOptions(c)
 		assertTuning(t, c.Storage.Postgres, pg, "postgres", nil)
 		assertTuning(t, c.Query, q, "query", map[string]bool{"query.Transport": true})
 		assertTuning(t, c.Projection, p, "projection", nil)
-		assertTuning(t, c.Visibility, ac, "visibility", nil)
+		assertTuning(t, c.Relations, ac, "relations", nil)
 		if !changed {
 			assertTuning(t, pg, storage.DefaultPostgresOptions(), "postgres", nil)
 			assertTuning(t, q, queryserver.DefaultOptions(), "query", map[string]bool{"query.Transport": true})
 			assertTuning(t, p, projectionserver.DefaultOptions(), "projection", nil)
-			assertTuning(t, ac, projectionserver.DefaultPolicyOptions(), "visibility", nil)
+			assertTuning(t, ac, projectionserver.DefaultRelationOptions(), "relations", nil)
 		}
 	}
 }

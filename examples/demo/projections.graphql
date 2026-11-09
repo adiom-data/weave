@@ -21,3 +21,12 @@ fragment TaskDetails on Task {
   createdAt
   updatedAt
 }
+
+# Computations are selected explicitly; ProjectDetails remains a stored-data view.
+query ProjectPermissions($projectId: UUID!) {
+  project(id: $projectId) {
+    id
+    role
+    canEdit
+  }
+}

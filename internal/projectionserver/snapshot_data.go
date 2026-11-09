@@ -48,17 +48,13 @@ func validateSnapshotLayout(root *pb.ProjectionNode, selected map[string]*fieldS
 	fields := selected[root.NodeId].Names()
 	for _, child := range root.Children {
 		if _, exists := fields[child.NodeId]; exists {
-			return snapshotNameCollision(root.NodeId, child.NodeId)
+			return projectionOutputCollision(root.NodeId, child.NodeId)
 		}
 		if err := validateSnapshotLayout(child, selected); err != nil {
 			return err
 		}
 	}
 	return nil
-}
-
-func snapshotNameCollision(node, child string) error {
-	return status.Errorf(codes.InvalidArgument, "snapshot node %q: child node %q collides with a selected field", node, child)
 }
 
 func snapshotData(m *connectionModel, root *pb.ProjectionNode) (*structpb.Struct, error) {
@@ -81,6 +77,12 @@ func snapshotData(m *connectionModel, root *pb.ProjectionNode) (*structpb.Struct
 				return nil, fmt.Errorf("node %q has an unresolved entity", node.NodeId)
 			}
 			record := selected.View(image.record)
+			for name, value := range m.computed[id][entityID] {
+				if _, collision := record[name]; collision {
+					return nil, projectionOutputCollision(node.NodeId, name)
+				}
+				record[name] = value
+			}
 			values, err := protoAllValues(record)
 			if err != nil {
 				return nil, err
@@ -94,7 +96,7 @@ func snapshotData(m *connectionModel, root *pb.ProjectionNode) (*structpb.Struct
 			}
 			for _, child := range node.Children {
 				if _, exists := fields[child.NodeId]; exists {
-					return nil, snapshotNameCollision(node.NodeId, child.NodeId)
+					return nil, projectionOutputCollision(node.NodeId, child.NodeId)
 				}
 				fields[child.NodeId], err = visit(child, id, entityID)
 				if err != nil {

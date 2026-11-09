@@ -78,7 +78,7 @@ func (p *policyPublications) withhold(raw deliveryPayload) bool {
 		if s == nil {
 			return true
 		}
-		if p.service.policyAccess.session.Pending([]string{s.visibility.id}) {
+		if p.service.relationAccess.session.Pending([]string{s.visibility.id}) {
 			s.publication.held = true
 		}
 		return s.publication.held
@@ -87,7 +87,7 @@ func (p *policyPublications) withhold(raw deliveryPayload) bool {
 		if s == nil {
 			return true
 		}
-		if p.service.policyAccess.session.PendingIn(func(id string) bool { return s.visibility.instances[id] != nil }) {
+		if p.service.relationAccess.session.PendingIn(func(id string) bool { return s.visibility.instances[id] != nil }) {
 			s.publication.held = true
 		}
 		return s.publication.held
@@ -122,7 +122,7 @@ func (p *policyPublications) send(id string, sequence *uint64, h *publicationHol
 	batch.Kind = reactivev1.ModelBatch_KIND_HYDRATION
 	batch.Checkpoint = checkpointString(p.position)
 	coalesceEntityEvents(batch)
-	if len(batch.Entities)+len(batch.Queries)+len(batch.Projections) > 0 {
+	if len(batch.Entities)+len(batch.Queries)+len(batch.Projections)+len(batch.Computed) > 0 {
 		*sequence++
 		if err := p.stream.Send(&reactivev1.ServerMessage{SubscriptionId: id, Sequence: *sequence, Event: &reactivev1.ServerMessage_ModelBatch{ModelBatch: batch}}); err != nil {
 			return err
@@ -157,11 +157,11 @@ func (p *policyPublications) retry() error {
 		return nil
 	}
 	for _, s := range p.subscriptions {
-		if !s.publication.held || p.service.policyAccess.session.Pending([]string{s.visibility.id}) {
+		if !s.publication.held || p.service.relationAccess.session.Pending([]string{s.visibility.id}) {
 			continue
 		}
 		if baseline := s.visibility.checkpoint; baseline != nil && (baseline.SourceID != p.position.SourceID || baseline.Value > p.position.Value) {
-			p.service.policyAccess.requestProgress(baseline)
+			p.service.relationAccess.requestProgress(baseline)
 			continue
 		}
 		view, err := acquireVisibilityAt(p.ctx, p.service.access, p.prepared, p.position, nil)
@@ -188,7 +188,7 @@ func (p *policyPublications) retry() error {
 			row.version = s.visibility.rows[key].version
 			fresh.rows[key] = row
 		}
-		if p.service.policyAccess.session.Pending([]string{fresh.id}) {
+		if p.service.relationAccess.session.Pending([]string{fresh.id}) {
 			continue
 		}
 		batch, err := p.model.reconcileSubscription(s.queryID, fresh, q.DeliveryMetadata{Kind: q.DeliveryHydration, Checkpoint: p.position, Revision: p.revision})
@@ -207,7 +207,7 @@ func (p *policyPublications) retry() error {
 		if !s.publication.held {
 			continue
 		}
-		if p.service.policyAccess.session.PendingIn(func(id string) bool { return s.visibility.instances[id] != nil }) {
+		if p.service.relationAccess.session.PendingIn(func(id string) bool { return s.visibility.instances[id] != nil }) {
 			continue
 		}
 		var fresh *projectionVisibility
@@ -216,13 +216,13 @@ func (p *policyPublications) retry() error {
 			if err := s.policyOwnership.capture(p.ctx, p.prepared, s.visibility, events); err != nil {
 				return false, err
 			}
-			fresh = newProjectionVisibility()
+			fresh = newProjectionVisibility(s.selected)
 			var err error
 			visible, err = fresh.filterInitial(p.ctx, p.service.access, p.prepared, events)
 			if err != nil {
 				return false, err
 			}
-			return !p.service.policyAccess.session.PendingIn(func(id string) bool { return fresh.instances[id] != nil }), nil
+			return !p.service.relationAccess.session.PendingIn(func(id string) bool { return fresh.instances[id] != nil }), nil
 		})
 		if err != nil {
 			if err := p.closeProjection(s, err); err != nil {
@@ -231,7 +231,7 @@ func (p *policyPublications) retry() error {
 			continue
 		}
 		if !wait.Accepted {
-			p.service.policyAccess.requestProgress(wait.Progress...)
+			p.service.relationAccess.requestProgress(wait.Progress...)
 			p.wait(&s.publication, wait.Wait)
 			continue
 		}

@@ -30,14 +30,6 @@ func mainCommand() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	command := os.Args[1]
-	if command == "zero-query-server" {
-		server := &http.Server{Addr: ":8082", Handler: http.HandlerFunc(bench.ZeroQueryHandler), ReadHeaderTimeout: 5 * time.Second}
-		go func() { <-ctx.Done(); server.Close() }()
-		if err := server.ListenAndServe(); err != http.ErrServerClosed {
-			return err
-		}
-		return nil
-	}
 	if command == "wait" {
 		flags := flag.NewFlagSet("wait", flag.ContinueOnError)
 		endpoint := flags.String("url", "", "readiness URL")
@@ -61,7 +53,7 @@ func mainCommand() error {
 	c := bench.Config{}
 	flags.StringVar(&c.Workload, "workload", "flat", "flat (live writes), expansion, or windows (read only)")
 	flags.BoolVar(&c.ReferenceFetch, "reference-fetch", false, "use Weave's joined loading hint for expansion")
-	flags.StringVar(&c.Backend, "backend", "weave", "weave, electric, zero, weave-embedded, or weave-remote")
+	flags.StringVar(&c.Backend, "backend", "weave", "weave, electric, drasi, weave-embedded, or weave-remote")
 	flags.StringVar(&c.Scenario, "scenario", "shared", "shared or independent")
 	flags.IntVar(&c.Clients, "clients", 100, "independent network clients")
 	flags.IntVar(&c.Projects, "projects", 1000, "seeded projects (>=clients for independent)")
@@ -75,7 +67,8 @@ func mainCommand() error {
 	flags.DurationVar(&c.DrainTimeout, "drain-timeout", 30*time.Second, "deadline to receive every committed update")
 	grpcAddress := flags.String("grpc", "weave:9090", "query service address")
 	electricURL := flags.String("electric", "http://electric:3000/v1/shape", "shape endpoint")
-	zeroURL := flags.String("zero", "ws://zero:4848", "Zero 1.11.3 service endpoint")
+	drasiURL := flags.String("drasi", "http://drasi:8080", "Drasi management endpoint")
+	drasiEvents := flags.String("drasi-events", "http://drasi:8081", "Drasi SSE reaction endpoint")
 	if err := flags.Parse(os.Args[2:]); err != nil {
 		return err
 	}
@@ -125,8 +118,8 @@ func mainCommand() error {
 	if c.Backend == "electric" {
 		adapter = &bench.Electric{URL: *electricURL}
 	}
-	if c.Backend == "zero" {
-		adapter = &bench.Zero{URL: *zeroURL}
+	if c.Backend == "drasi" {
+		adapter = &bench.Drasi{URL: *drasiURL, EventsURL: *drasiEvents, Rows: c.Rows, CaptureReady: func(ctx context.Context) error { return bench.WaitDrasiCapture(ctx, pool) }}
 	}
 	report, runErr := bench.Run(ctx, pool, c, adapter)
 	if runErr != nil {

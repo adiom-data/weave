@@ -37,26 +37,25 @@ func Seed(ctx context.Context, pool *pgxpool.Pool, c Config) error {
 	}
 	defer tx.Rollback(context.Background())
 	for _, sql := range []string{
-		"CREATE SCHEMA bench",
-		"CREATE TABLE bench.tasks (id bigint PRIMARY KEY, project_id bigint NOT NULL, revision bigint NOT NULL, payload text NOT NULL)",
-		"CREATE INDEX tasks_project_id_id ON bench.tasks(project_id,id)",
-		"CREATE PUBLICATION bench_publication FOR TABLE bench.tasks",
+		"CREATE TABLE public.tasks (id bigint PRIMARY KEY, project_id bigint NOT NULL, revision bigint NOT NULL, payload text NOT NULL)",
+		"CREATE INDEX tasks_project_id_id ON public.tasks(project_id,id)",
+		"CREATE PUBLICATION bench_publication FOR TABLE public.tasks",
 	} {
 		if _, err := tx.Exec(ctx, sql); err != nil {
 			return err
 		}
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO bench.tasks SELECT (p-1)*$2+r,p,0,repeat('x',$3) FROM generate_series(1,$1::bigint) p CROSS JOIN generate_series(1,$2::bigint) r`, c.Projects, c.Rows, c.PayloadBytes)
+	_, err = tx.Exec(ctx, `INSERT INTO public.tasks SELECT (p-1)*$2+r,p,0,repeat('x',$3) FROM generate_series(1,$1::bigint) p CROSS JOIN generate_series(1,$2::bigint) r`, c.Projects, c.Rows, c.PayloadBytes)
 	if err != nil {
 		return err
 	}
 	if c.Workload == "expansion" {
 		for _, sql := range []string{
-			"CREATE TABLE bench.links(id bigint PRIMARY KEY, project_id bigint NOT NULL, task_id bigint NOT NULL)",
-			"CREATE INDEX links_project_id_id ON bench.links(project_id,id)",
-			"INSERT INTO bench.links SELECT id,project_id,id FROM bench.tasks",
-			"ALTER PUBLICATION bench_publication ADD TABLE bench.links",
-			"ANALYZE bench.links",
+			"CREATE TABLE public.links(id bigint PRIMARY KEY, project_id bigint NOT NULL, task_id bigint NOT NULL)",
+			"CREATE INDEX links_project_id_id ON public.links(project_id,id)",
+			"INSERT INTO public.links SELECT id,project_id,id FROM public.tasks",
+			"ALTER PUBLICATION bench_publication ADD TABLE public.links",
+			"ANALYZE public.links",
 		} {
 			if _, err := tx.Exec(ctx, sql); err != nil {
 				return err
@@ -66,7 +65,7 @@ func Seed(ctx context.Context, pool *pgxpool.Pool, c Config) error {
 	if err := tx.Commit(ctx); err != nil {
 		return err
 	}
-	_, err = pool.Exec(ctx, "ANALYZE bench.tasks")
+	_, err = pool.Exec(ctx, "ANALYZE public.tasks")
 	return err
 }
 
@@ -80,6 +79,7 @@ type Report struct {
 	WritesFinishedAt      time.Time    `json:"writes_finished_at"`
 	FinishedAt            time.Time    `json:"finished_at"`
 	InitialWallSeconds    float64      `json:"initial_wall_seconds"`
+	BackendSetupSeconds   float64      `json:"backend_setup_seconds,omitempty"`
 	Initialization        Distribution `json:"initial_sync"`
 	Latency               Distribution `json:"write_start_to_client_apply"`
 	First                 Distribution `json:"write_start_to_first_client"`
@@ -141,6 +141,19 @@ func Run(parent context.Context, pool *pgxpool.Pool, c Config, adapter Adapter) 
 	semaphore := make(chan struct{}, c.InitConcurrency)
 	initCtx, stopInit := context.WithTimeout(ctx, c.InitTimeout)
 	defer stopInit()
+	// Persistent-query backends may need setup before individual viewers attach.
+	// Include it in total initialization wall time, but report it separately from
+	// per-viewer attachment distributions. It shares the initialization deadline.
+	if setup, ok := adapter.(interface {
+		Setup(context.Context, Config) error
+	}); ok {
+		started := time.Now()
+		err := setup.Setup(initCtx, c)
+		report.BackendSetupSeconds = time.Since(started).Seconds()
+		if err != nil {
+			return report, fmt.Errorf("backend setup: %w", err)
+		}
+	}
 	for i := range c.Clients {
 		o := NewObserver(i, recorder)
 		observers[i] = o
@@ -218,7 +231,7 @@ func Run(parent context.Context, pool *pgxpool.Pool, c Config, adapter Adapter) 
 			}
 			recorder.Register(sequence, begin, measured)
 			_, id := c.Mutation(sequence)
-			command, err := pool.Exec(ctx, "UPDATE bench.tasks SET revision=$1 WHERE id=$2", sequence, id)
+			command, err := pool.Exec(ctx, "UPDATE public.tasks SET revision=$1 WHERE id=$2", sequence, id)
 			if err != nil {
 				return err
 			}
@@ -275,7 +288,7 @@ func Run(parent context.Context, pool *pgxpool.Pool, c Config, adapter Adapter) 
 }
 
 func readOracle(ctx context.Context, pool *pgxpool.Pool) (map[int64]map[int64]Task, error) {
-	rows, err := pool.Query(ctx, "SELECT id,project_id,revision,payload FROM bench.tasks")
+	rows, err := pool.Query(ctx, "SELECT id,project_id,revision,payload FROM public.tasks")
 	if err != nil {
 		return nil, err
 	}
@@ -297,7 +310,7 @@ func readOracle(ctx context.Context, pool *pgxpool.Pool) (map[int64]map[int64]Ta
 // VerifySeed refuses runs against an already mutated/incompatible dataset.
 func VerifySeed(ctx context.Context, pool *pgxpool.Pool, c Config) error {
 	var total, invalid int64
-	err := pool.QueryRow(ctx, `SELECT count(*), count(*) FILTER (WHERE revision<>0 OR octet_length(payload)<>$1 OR payload<>$2 OR project_id<1 OR project_id>$3 OR id<((project_id-1)*$4+1) OR id>project_id*$4) FROM bench.tasks`, c.PayloadBytes, strings.Repeat("x", c.PayloadBytes), c.Projects, c.Rows).Scan(&total, &invalid)
+	err := pool.QueryRow(ctx, `SELECT count(*), count(*) FILTER (WHERE revision<>0 OR octet_length(payload)<>$1 OR payload<>$2 OR project_id<1 OR project_id>$3 OR id<((project_id-1)*$4+1) OR id>project_id*$4) FROM public.tasks`, c.PayloadBytes, strings.Repeat("x", c.PayloadBytes), c.Projects, c.Rows).Scan(&total, &invalid)
 	if err != nil {
 		return err
 	}
@@ -305,7 +318,7 @@ func VerifySeed(ctx context.Context, pool *pgxpool.Pool, c Config) error {
 		return fmt.Errorf("dataset is not a fresh seed for this configuration: rows=%d invalid=%d", total, invalid)
 	}
 	if c.Workload == "expansion" {
-		if err := pool.QueryRow(ctx, `SELECT count(*),count(*) FILTER (WHERE l.id<>l.task_id OR t.id IS NULL OR l.project_id<>t.project_id) FROM bench.links l LEFT JOIN bench.tasks t ON t.id=l.task_id`).Scan(&total, &invalid); err != nil {
+		if err := pool.QueryRow(ctx, `SELECT count(*),count(*) FILTER (WHERE l.id<>l.task_id OR t.id IS NULL OR l.project_id<>t.project_id) FROM public.links l LEFT JOIN public.tasks t ON t.id=l.task_id`).Scan(&total, &invalid); err != nil {
 			return err
 		}
 		if total != int64(c.Projects)*int64(c.Rows) || invalid != 0 {

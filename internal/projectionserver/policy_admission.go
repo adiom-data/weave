@@ -68,7 +68,7 @@ func (a *policyAdmissions) retry() error {
 		if wait.Accepted {
 			continue
 		}
-		a.service.policyAccess.requestProgress(wait.Progress...)
+		a.service.relationAccess.requestProgress(wait.Progress...)
 		if wait.Wait != nil && loading.wait != wait.Wait {
 			loading.wait = wait.Wait
 			signal := wait.Wait
@@ -115,7 +115,7 @@ func (a *policyAdmissions) query(external, request, internal, queryID string, sp
 					return nil
 				}
 				loading.direct = image
-				position, revision := a.service.policyAccess.progress.position(target.SourceID)
+				position, revision := a.service.relationAccess.progress.position(target.SourceID)
 				image.observe(position, revision)
 				visibilityID = image.visibility.id
 				loading.cancel = func() {
@@ -138,7 +138,7 @@ func (a *policyAdmissions) query(external, request, internal, queryID string, sp
 						}
 						return proj.AdmissionWait{Progress: []*q.Position{target}}, err
 					}
-					resolved, err := image.authorize(ctx, a.service.policyAccess.session, a.prepared)
+					resolved, err := image.authorize(ctx, a.service.relationAccess.session, a.prepared)
 					if err != nil {
 						return proj.AdmissionWait{}, err
 					}
@@ -195,7 +195,7 @@ func (a *policyAdmissions) projection(external, request, prefix string, root *pr
 	owns := func(id string) bool { return strings.HasPrefix(id, generation+":") }
 	loading := &pendingSharedSubscription{context: ctx, cancel: cancel, generation: generation, owns: owns, policyOwns: owns, requestID: request}
 	a.pending[external] = loading
-	position, revision := a.service.policyAccess.progress.current()
+	position, revision := a.service.relationAccess.progress.current()
 	p, err := proj.BeginProjection(ctx, a.queries, root, proj.StartOptions{Prefix: generation, QueueLimit: a.service.options.SubscriptionQueueLimit, Limits: proj.Limits(a.service.options.ProjectionLimits), ExpansionLimiter: a.service.expansionLimiter, WaitForSync: waitForSync, CurrentImageAdmission: true, ConsumedCheckpoint: position, ConsumedRevision: revision})
 	if err != nil {
 		delete(a.pending, external)
@@ -204,7 +204,7 @@ func (a *policyAdmissions) projection(external, request, prefix string, root *pr
 	}
 	loading.projection = p
 	go forwardProjection(ctx, external, generation, p, a.outbound)
-	image := newInitialPolicyImage()
+	image := newInitialPolicyImage(selected)
 	loading.cancel = func() {
 		cancel()
 		p.Close()

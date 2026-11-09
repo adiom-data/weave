@@ -2,6 +2,7 @@ package storage
 
 import (
 	"cmp"
+	"math"
 	"strconv"
 	"testing"
 )
@@ -64,6 +65,38 @@ func TestCanonicalEquivalentValuesHaveIdenticalRepresentations(t *testing.T) {
 				t.Errorf("canonical %s %q = %+v, want %+v", test.valueType, input, got, want)
 			}
 		}
+	}
+}
+
+func TestNativeFloatConstructionMatchesScalarParsing(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		value float64
+		want  string
+	}{
+		{"positive infinity", math.Inf(1), "Infinity"},
+		{"negative infinity", math.Inf(-1), "-Infinity"},
+		{"NaN", math.NaN(), "NaN"},
+		{"negative zero", math.Copysign(0, -1), "0"},
+		{"zero", 0, "0"},
+		{"fraction", 1.5, "1.5"},
+		{"subnormal", math.SmallestNonzeroFloat64, "5e-324"},
+		{"maximum", math.MaxFloat64, "1.7976931348623157e+308"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			got := NewFloat(test.value)
+			if string(got.Data) != test.want {
+				t.Fatalf("encoding = %q, want %q", got.Data, test.want)
+			}
+			if err := got.ValidateComplete(); err != nil {
+				t.Fatal(err)
+			}
+			// The textual path must agree even when Go uses another spelling.
+			parsed, err := ParseScalar(TypeFloat, []byte(strconv.FormatFloat(test.value, 'g', -1, 64)))
+			if err != nil || !EqualValues(got, parsed) {
+				t.Fatalf("native=%+v parsed=%+v error=%v", got, parsed, err)
+			}
+		})
 	}
 }
 

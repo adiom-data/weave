@@ -18,6 +18,7 @@ import (
 // projection. Keeping decisions per occurrence (rather than per entity) makes
 // diamonds correct: one path may be pruned while another remains visible.
 type projectionVisibility struct {
+	selected  map[string]*fieldSelection
 	instances map[string]*projectionVisibilityInstance
 	// Indexed against consumer state, which can intentionally lag the raw
 	// projection actor while an initial image is being authorized.
@@ -75,8 +76,8 @@ func (c *visibilityChanges) markRaw(instanceID string, instance *projectionVisib
 	c.byInstance[instanceID].raw[key] = true
 }
 
-func newProjectionVisibility() *projectionVisibility {
-	return &projectionVisibility{instances: make(map[string]*projectionVisibilityInstance), occurrences: make(map[storage.EntityKey]map[string]*projectionVisibilityRow)}
+func newProjectionVisibility(selected ...map[string]*fieldSelection) *projectionVisibility {
+	return &projectionVisibility{selected: optionalProjectionSelections(selected), instances: make(map[string]*projectionVisibilityInstance), occurrences: make(map[storage.EntityKey]map[string]*projectionVisibilityRow)}
 }
 
 func requiresProjectionDecision(event projection.ProjectionEvent) bool {
@@ -208,6 +209,7 @@ func (v *projectionVisibility) filterInitial(ctx context.Context, controller acc
 		}
 		for decision, eventIndex := range indexes {
 			decisions[eventIndex] = projectionRowAuthorization(visible[decision])
+			events[eventIndex].Computed = computedValues(prepared, events[eventIndex].InstanceID, events[eventIndex].Key)
 		}
 	}
 	transition, err := v.stageVisibility(events, decisions, nil, nil)
@@ -304,14 +306,16 @@ func cloneProjectionEvent(event projection.ProjectionEvent) projection.Projectio
 	event.Path = append([]string(nil), event.Path...)
 	event.Lineage = append([]projection.PathStep(nil), event.Lineage...)
 	event.Record = storage.CloneRecord(event.Record)
+	event.Computed = storage.CloneRecord(event.Computed)
 	event.Cursor = append([]byte(nil), event.Cursor...)
 	return event
 }
 
 func removedProjectionRow(event projection.ProjectionEvent) projection.ProjectionEvent {
-	// Removal owns only metadata; do not deep-copy a payload/cursor that is
-	// immediately discarded. Clear the local value before cloning its slices.
+	// Removal owns only metadata; do not deep-copy stored/computed payloads or
+	// a cursor that is immediately discarded. Clear them before cloning slices.
 	event.Record = nil
+	event.Computed = nil
 	event.Cursor = nil
 	event = cloneProjectionEvent(event)
 	event.Kind = querysubscription.Removed

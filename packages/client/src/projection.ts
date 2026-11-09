@@ -1,7 +1,9 @@
 import type { ProjectionNode, ProjectionRequest } from './protocol.js'
 import type { EntitySnapshot, ModelStore, QuerySnapshot, SubscriptionSnapshot } from './store.js'
+import type { RecordData } from './protocol.js'
 
 export interface ProjectionRow {
+  readonly computed?: RecordData
   readonly entityId: string
   readonly entity: EntitySnapshot
   readonly children: Readonly<Record<string, NodeView | undefined>>
@@ -37,7 +39,7 @@ export function readProjection(store: ModelStore, subscriptionId: string, reques
       if (authoritative || !store.isOptimisticallyDeleted(entityId)) {
         for (const child of node.children ?? []) children[child.nodeId] = visit(child, occurrence?.id, entityId, [...ancestors, entityId])
       }
-      return Object.freeze({ entityId, entity: authoritative ? store.getAuthoritativeEntity(entityId) : store.getEntity(entityId), children: Object.freeze(children) })
+      return Object.freeze({ entityId, entity: authoritative ? store.getAuthoritativeEntity(entityId) : store.getEntity(entityId), computed: node.computed?.length && occurrence ? store.getComputed(occurrence.id, entityId) : undefined, children: Object.freeze(children) })
     }
     if (node.entity) {
       if (!ids.length) return undefined

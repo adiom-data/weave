@@ -384,7 +384,7 @@ func (x Boundary_Sentinel) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Boundary_Sentinel.Descriptor instead.
 func (Boundary_Sentinel) EnumDescriptor() ([]byte, []int) {
-	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{47, 0}
+	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{49, 0}
 }
 
 // ProjectionSnapshotRequest materializes a projection without retaining live
@@ -845,7 +845,9 @@ type ProjectionNode struct {
 	// Publish every stored field, including whole embedded values. Mutually
 	// exclusive with fields and query.columns; never inferred from empty columns.
 	// Does not automatically expand relationships or change their selections.
-	AllFields     bool `protobuf:"varint,6,opt,name=all_fields,json=allFields,proto3" json:"all_fields,omitempty"`
+	AllFields bool `protobuf:"varint,6,opt,name=all_fields,json=allFields,proto3" json:"all_fields,omitempty"`
+	// Explicit server-defined computed names; all_fields selects stored fields only.
+	Computed      []string `protobuf:"bytes,7,rep,name=computed,proto3" json:"computed,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -931,6 +933,13 @@ func (x *ProjectionNode) GetAllFields() bool {
 		return x.AllFields
 	}
 	return false
+}
+
+func (x *ProjectionNode) GetComputed() []string {
+	if x != nil {
+		return x.Computed
+	}
+	return nil
 }
 
 type isProjectionNode_Selection interface {
@@ -2778,6 +2787,7 @@ type ModelBatch struct {
 	// Addressed messages are delivered once, alongside the visible effects of
 	// their source transaction. A message-only COMMIT may have no model effects.
 	Messages      []*TransactionMessage `protobuf:"bytes,7,rep,name=messages,proto3" json:"messages,omitempty"`
+	Computed      []*ComputedEvent      `protobuf:"bytes,8,rep,name=computed,proto3" json:"computed,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2857,6 +2867,13 @@ func (x *ModelBatch) GetAtomic() bool {
 func (x *ModelBatch) GetMessages() []*TransactionMessage {
 	if x != nil {
 		return x.Messages
+	}
+	return nil
+}
+
+func (x *ModelBatch) GetComputed() []*ComputedEvent {
+	if x != nil {
+		return x.Computed
 	}
 	return nil
 }
@@ -2967,6 +2984,141 @@ func (*EntityEvent_Released) isEntityEvent_Event() {}
 
 func (*EntityEvent_Pending) isEntityEvent_Event() {}
 
+// Authoritative occurrence-relative values, separate from the shared entity.
+type ComputedEvent struct {
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	OccurrenceId string                 `protobuf:"bytes,1,opt,name=occurrence_id,json=occurrenceId,proto3" json:"occurrence_id,omitempty"`
+	EntityId     string                 `protobuf:"bytes,2,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"`
+	// Types that are valid to be assigned to Event:
+	//
+	//	*ComputedEvent_Upsert
+	//	*ComputedEvent_Released
+	Event         isComputedEvent_Event `protobuf_oneof:"event"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ComputedEvent) Reset() {
+	*x = ComputedEvent{}
+	mi := &file_reactive_v1_reactive_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ComputedEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ComputedEvent) ProtoMessage() {}
+
+func (x *ComputedEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_reactive_v1_reactive_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ComputedEvent.ProtoReflect.Descriptor instead.
+func (*ComputedEvent) Descriptor() ([]byte, []int) {
+	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *ComputedEvent) GetOccurrenceId() string {
+	if x != nil {
+		return x.OccurrenceId
+	}
+	return ""
+}
+
+func (x *ComputedEvent) GetEntityId() string {
+	if x != nil {
+		return x.EntityId
+	}
+	return ""
+}
+
+func (x *ComputedEvent) GetEvent() isComputedEvent_Event {
+	if x != nil {
+		return x.Event
+	}
+	return nil
+}
+
+func (x *ComputedEvent) GetUpsert() *ValueObject {
+	if x != nil {
+		if x, ok := x.Event.(*ComputedEvent_Upsert); ok {
+			return x.Upsert
+		}
+	}
+	return nil
+}
+
+func (x *ComputedEvent) GetReleased() *ComputedReleased {
+	if x != nil {
+		if x, ok := x.Event.(*ComputedEvent_Released); ok {
+			return x.Released
+		}
+	}
+	return nil
+}
+
+type isComputedEvent_Event interface {
+	isComputedEvent_Event()
+}
+
+type ComputedEvent_Upsert struct {
+	Upsert *ValueObject `protobuf:"bytes,3,opt,name=upsert,proto3,oneof"`
+}
+
+type ComputedEvent_Released struct {
+	Released *ComputedReleased `protobuf:"bytes,4,opt,name=released,proto3,oneof"`
+}
+
+func (*ComputedEvent_Upsert) isComputedEvent_Event() {}
+
+func (*ComputedEvent_Released) isComputedEvent_Event() {}
+
+type ComputedReleased struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ComputedReleased) Reset() {
+	*x = ComputedReleased{}
+	mi := &file_reactive_v1_reactive_proto_msgTypes[36]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ComputedReleased) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ComputedReleased) ProtoMessage() {}
+
+func (x *ComputedReleased) ProtoReflect() protoreflect.Message {
+	mi := &file_reactive_v1_reactive_proto_msgTypes[36]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ComputedReleased.ProtoReflect.Descriptor instead.
+func (*ComputedReleased) Descriptor() ([]byte, []int) {
+	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{36}
+}
+
 type EntityUpsert struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Authoritative replacement, not a map patch. A field absent from values
@@ -2978,7 +3130,7 @@ type EntityUpsert struct {
 
 func (x *EntityUpsert) Reset() {
 	*x = EntityUpsert{}
-	mi := &file_reactive_v1_reactive_proto_msgTypes[35]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2990,7 +3142,7 @@ func (x *EntityUpsert) String() string {
 func (*EntityUpsert) ProtoMessage() {}
 
 func (x *EntityUpsert) ProtoReflect() protoreflect.Message {
-	mi := &file_reactive_v1_reactive_proto_msgTypes[35]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3003,7 +3155,7 @@ func (x *EntityUpsert) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EntityUpsert.ProtoReflect.Descriptor instead.
 func (*EntityUpsert) Descriptor() ([]byte, []int) {
-	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{35}
+	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *EntityUpsert) GetValues() map[string]*Value {
@@ -3021,7 +3173,7 @@ type EntityReleased struct {
 
 func (x *EntityReleased) Reset() {
 	*x = EntityReleased{}
-	mi := &file_reactive_v1_reactive_proto_msgTypes[36]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3033,7 +3185,7 @@ func (x *EntityReleased) String() string {
 func (*EntityReleased) ProtoMessage() {}
 
 func (x *EntityReleased) ProtoReflect() protoreflect.Message {
-	mi := &file_reactive_v1_reactive_proto_msgTypes[36]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3046,7 +3198,7 @@ func (x *EntityReleased) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EntityReleased.ProtoReflect.Descriptor instead.
 func (*EntityReleased) Descriptor() ([]byte, []int) {
-	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{36}
+	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{38}
 }
 
 // EntityPending makes a normalized reference explicit before its complete
@@ -3059,7 +3211,7 @@ type EntityPending struct {
 
 func (x *EntityPending) Reset() {
 	*x = EntityPending{}
-	mi := &file_reactive_v1_reactive_proto_msgTypes[37]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3071,7 +3223,7 @@ func (x *EntityPending) String() string {
 func (*EntityPending) ProtoMessage() {}
 
 func (x *EntityPending) ProtoReflect() protoreflect.Message {
-	mi := &file_reactive_v1_reactive_proto_msgTypes[37]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3084,7 +3236,7 @@ func (x *EntityPending) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EntityPending.ProtoReflect.Descriptor instead.
 func (*EntityPending) Descriptor() ([]byte, []int) {
-	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{37}
+	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{39}
 }
 
 type QueryEvent struct {
@@ -3104,7 +3256,7 @@ type QueryEvent struct {
 
 func (x *QueryEvent) Reset() {
 	*x = QueryEvent{}
-	mi := &file_reactive_v1_reactive_proto_msgTypes[38]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3116,7 +3268,7 @@ func (x *QueryEvent) String() string {
 func (*QueryEvent) ProtoMessage() {}
 
 func (x *QueryEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_reactive_v1_reactive_proto_msgTypes[38]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3129,7 +3281,7 @@ func (x *QueryEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryEvent.ProtoReflect.Descriptor instead.
 func (*QueryEvent) Descriptor() ([]byte, []int) {
-	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{38}
+	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *QueryEvent) GetQuerySubscriptionId() string {
@@ -3229,7 +3381,7 @@ type QueryReset struct {
 
 func (x *QueryReset) Reset() {
 	*x = QueryReset{}
-	mi := &file_reactive_v1_reactive_proto_msgTypes[39]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3241,7 +3393,7 @@ func (x *QueryReset) String() string {
 func (*QueryReset) ProtoMessage() {}
 
 func (x *QueryReset) ProtoReflect() protoreflect.Message {
-	mi := &file_reactive_v1_reactive_proto_msgTypes[39]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3254,7 +3406,7 @@ func (x *QueryReset) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryReset.ProtoReflect.Descriptor instead.
 func (*QueryReset) Descriptor() ([]byte, []int) {
-	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{39}
+	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *QueryReset) GetLeft() *Boundary {
@@ -3299,7 +3451,7 @@ type QueryDelta struct {
 
 func (x *QueryDelta) Reset() {
 	*x = QueryDelta{}
-	mi := &file_reactive_v1_reactive_proto_msgTypes[40]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3311,7 +3463,7 @@ func (x *QueryDelta) String() string {
 func (*QueryDelta) ProtoMessage() {}
 
 func (x *QueryDelta) ProtoReflect() protoreflect.Message {
-	mi := &file_reactive_v1_reactive_proto_msgTypes[40]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3324,7 +3476,7 @@ func (x *QueryDelta) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryDelta.ProtoReflect.Descriptor instead.
 func (*QueryDelta) Descriptor() ([]byte, []int) {
-	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{40}
+	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *QueryDelta) GetBaseVersion() uint64 {
@@ -3365,7 +3517,7 @@ type QueryInsertion struct {
 
 func (x *QueryInsertion) Reset() {
 	*x = QueryInsertion{}
-	mi := &file_reactive_v1_reactive_proto_msgTypes[41]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3377,7 +3529,7 @@ func (x *QueryInsertion) String() string {
 func (*QueryInsertion) ProtoMessage() {}
 
 func (x *QueryInsertion) ProtoReflect() protoreflect.Message {
-	mi := &file_reactive_v1_reactive_proto_msgTypes[41]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3390,7 +3542,7 @@ func (x *QueryInsertion) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryInsertion.ProtoReflect.Descriptor instead.
 func (*QueryInsertion) Descriptor() ([]byte, []int) {
-	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{41}
+	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *QueryInsertion) GetEntityId() string {
@@ -3417,7 +3569,7 @@ type QueryWindowChanged struct {
 
 func (x *QueryWindowChanged) Reset() {
 	*x = QueryWindowChanged{}
-	mi := &file_reactive_v1_reactive_proto_msgTypes[42]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3429,7 +3581,7 @@ func (x *QueryWindowChanged) String() string {
 func (*QueryWindowChanged) ProtoMessage() {}
 
 func (x *QueryWindowChanged) ProtoReflect() protoreflect.Message {
-	mi := &file_reactive_v1_reactive_proto_msgTypes[42]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3442,7 +3594,7 @@ func (x *QueryWindowChanged) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryWindowChanged.ProtoReflect.Descriptor instead.
 func (*QueryWindowChanged) Descriptor() ([]byte, []int) {
-	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{42}
+	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *QueryWindowChanged) GetLeft() *Boundary {
@@ -3467,7 +3619,7 @@ type QueryClosed struct {
 
 func (x *QueryClosed) Reset() {
 	*x = QueryClosed{}
-	mi := &file_reactive_v1_reactive_proto_msgTypes[43]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3479,7 +3631,7 @@ func (x *QueryClosed) String() string {
 func (*QueryClosed) ProtoMessage() {}
 
 func (x *QueryClosed) ProtoReflect() protoreflect.Message {
-	mi := &file_reactive_v1_reactive_proto_msgTypes[43]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3492,7 +3644,7 @@ func (x *QueryClosed) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryClosed.ProtoReflect.Descriptor instead.
 func (*QueryClosed) Descriptor() ([]byte, []int) {
-	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{43}
+	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{45}
 }
 
 type ProjectionReference struct {
@@ -3514,7 +3666,7 @@ type ProjectionReference struct {
 
 func (x *ProjectionReference) Reset() {
 	*x = ProjectionReference{}
-	mi := &file_reactive_v1_reactive_proto_msgTypes[44]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3526,7 +3678,7 @@ func (x *ProjectionReference) String() string {
 func (*ProjectionReference) ProtoMessage() {}
 
 func (x *ProjectionReference) ProtoReflect() protoreflect.Message {
-	mi := &file_reactive_v1_reactive_proto_msgTypes[44]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3539,7 +3691,7 @@ func (x *ProjectionReference) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProjectionReference.ProtoReflect.Descriptor instead.
 func (*ProjectionReference) Descriptor() ([]byte, []int) {
-	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{44}
+	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *ProjectionReference) GetOccurrenceId() string {
@@ -3631,7 +3783,7 @@ type ProjectionTarget struct {
 
 func (x *ProjectionTarget) Reset() {
 	*x = ProjectionTarget{}
-	mi := &file_reactive_v1_reactive_proto_msgTypes[45]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3643,7 +3795,7 @@ func (x *ProjectionTarget) String() string {
 func (*ProjectionTarget) ProtoMessage() {}
 
 func (x *ProjectionTarget) ProtoReflect() protoreflect.Message {
-	mi := &file_reactive_v1_reactive_proto_msgTypes[45]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3656,7 +3808,7 @@ func (x *ProjectionTarget) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProjectionTarget.ProtoReflect.Descriptor instead.
 func (*ProjectionTarget) Descriptor() ([]byte, []int) {
-	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{45}
+	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *ProjectionTarget) GetTarget() isProjectionTarget_Target {
@@ -3708,7 +3860,7 @@ type ProjectionDetached struct {
 
 func (x *ProjectionDetached) Reset() {
 	*x = ProjectionDetached{}
-	mi := &file_reactive_v1_reactive_proto_msgTypes[46]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3720,7 +3872,7 @@ func (x *ProjectionDetached) String() string {
 func (*ProjectionDetached) ProtoMessage() {}
 
 func (x *ProjectionDetached) ProtoReflect() protoreflect.Message {
-	mi := &file_reactive_v1_reactive_proto_msgTypes[46]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3733,7 +3885,7 @@ func (x *ProjectionDetached) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ProjectionDetached.ProtoReflect.Descriptor instead.
 func (*ProjectionDetached) Descriptor() ([]byte, []int) {
-	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{46}
+	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{48}
 }
 
 type Boundary struct {
@@ -3749,7 +3901,7 @@ type Boundary struct {
 
 func (x *Boundary) Reset() {
 	*x = Boundary{}
-	mi := &file_reactive_v1_reactive_proto_msgTypes[47]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3761,7 +3913,7 @@ func (x *Boundary) String() string {
 func (*Boundary) ProtoMessage() {}
 
 func (x *Boundary) ProtoReflect() protoreflect.Message {
-	mi := &file_reactive_v1_reactive_proto_msgTypes[47]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3774,7 +3926,7 @@ func (x *Boundary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Boundary.ProtoReflect.Descriptor instead.
 func (*Boundary) Descriptor() ([]byte, []int) {
-	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{47}
+	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *Boundary) GetValue() isBoundary_Value {
@@ -3826,7 +3978,7 @@ type Ready struct {
 
 func (x *Ready) Reset() {
 	*x = Ready{}
-	mi := &file_reactive_v1_reactive_proto_msgTypes[48]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3838,7 +3990,7 @@ func (x *Ready) String() string {
 func (*Ready) ProtoMessage() {}
 
 func (x *Ready) ProtoReflect() protoreflect.Message {
-	mi := &file_reactive_v1_reactive_proto_msgTypes[48]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3851,7 +4003,7 @@ func (x *Ready) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Ready.ProtoReflect.Descriptor instead.
 func (*Ready) Descriptor() ([]byte, []int) {
-	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{48}
+	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{50}
 }
 
 type SubscriptionError struct {
@@ -3864,7 +4016,7 @@ type SubscriptionError struct {
 
 func (x *SubscriptionError) Reset() {
 	*x = SubscriptionError{}
-	mi := &file_reactive_v1_reactive_proto_msgTypes[49]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[51]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3876,7 +4028,7 @@ func (x *SubscriptionError) String() string {
 func (*SubscriptionError) ProtoMessage() {}
 
 func (x *SubscriptionError) ProtoReflect() protoreflect.Message {
-	mi := &file_reactive_v1_reactive_proto_msgTypes[49]
+	mi := &file_reactive_v1_reactive_proto_msgTypes[51]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3889,7 +4041,7 @@ func (x *SubscriptionError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubscriptionError.ProtoReflect.Descriptor instead.
 func (*SubscriptionError) Descriptor() ([]byte, []int) {
-	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{49}
+	return file_reactive_v1_reactive_proto_rawDescGZIP(), []int{51}
 }
 
 func (x *SubscriptionError) GetCode() string {
@@ -3951,7 +4103,7 @@ const file_reactive_v1_reactive_proto_rawDesc = "" +
 	"\rwait_for_sync\x18\x03 \x01(\bR\vwaitForSync\x1aQ\n" +
 	"\x0fParametersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12(\n" +
-	"\x05value\x18\x02 \x01(\v2\x12.reactive.v1.ValueR\x05value:\x028\x01\"\xb0\x02\n" +
+	"\x05value\x18\x02 \x01(\v2\x12.reactive.v1.ValueR\x05value:\x028\x01\"\xcc\x02\n" +
 	"\x0eProjectionNode\x12\x17\n" +
 	"\anode_id\x18\x01 \x01(\tR\x06nodeId\x127\n" +
 	"\x06entity\x18\x02 \x01(\v2\x1d.reactive.v1.ProjectionEntityH\x00R\x06entity\x121\n" +
@@ -3959,7 +4111,8 @@ const file_reactive_v1_reactive_proto_rawDesc = "" +
 	"\bchildren\x18\x04 \x03(\v2\x1b.reactive.v1.ProjectionNodeR\bchildren\x124\n" +
 	"\x06fields\x18\x05 \x01(\v2\x1c.reactive.v1.ObjectSelectionR\x06fields\x12\x1d\n" +
 	"\n" +
-	"all_fields\x18\x06 \x01(\bR\tallFieldsB\v\n" +
+	"all_fields\x18\x06 \x01(\bR\tallFields\x12\x1a\n" +
+	"\bcomputed\x18\a \x03(\tR\bcomputedB\v\n" +
 	"\tselection\"E\n" +
 	"\x0fObjectSelection\x122\n" +
 	"\x06fields\x18\x01 \x03(\v2\x1a.reactive.v1.SelectedFieldR\x06fields\"v\n" +
@@ -4113,7 +4266,7 @@ const file_reactive_v1_reactive_proto_rawDesc = "" +
 	"\x06fields\x18\x01 \x03(\v2$.reactive.v1.ValueObject.FieldsEntryR\x06fields\x1aM\n" +
 	"\vFieldsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12(\n" +
-	"\x05value\x18\x02 \x01(\v2\x12.reactive.v1.ValueR\x05value:\x028\x01\"\xc7\x03\n" +
+	"\x05value\x18\x02 \x01(\v2\x12.reactive.v1.ValueR\x05value:\x028\x01\"\xff\x03\n" +
 	"\n" +
 	"ModelBatch\x12\x1e\n" +
 	"\n" +
@@ -4124,7 +4277,8 @@ const file_reactive_v1_reactive_proto_rawDesc = "" +
 	"\vprojections\x18\x04 \x03(\v2 .reactive.v1.ProjectionReferenceR\vprojections\x120\n" +
 	"\x04kind\x18\x05 \x01(\x0e2\x1c.reactive.v1.ModelBatch.KindR\x04kind\x12\x16\n" +
 	"\x06atomic\x18\x06 \x01(\bR\x06atomic\x12;\n" +
-	"\bmessages\x18\a \x03(\v2\x1f.reactive.v1.TransactionMessageR\bmessages\"e\n" +
+	"\bmessages\x18\a \x03(\v2\x1f.reactive.v1.TransactionMessageR\bmessages\x126\n" +
+	"\bcomputed\x18\b \x03(\v2\x1a.reactive.v1.ComputedEventR\bcomputed\"e\n" +
 	"\x04Kind\x12\x14\n" +
 	"\x10KIND_UNSPECIFIED\x10\x00\x12\x11\n" +
 	"\rKIND_SNAPSHOT\x10\x01\x12\x0f\n" +
@@ -4136,7 +4290,14 @@ const file_reactive_v1_reactive_proto_rawDesc = "" +
 	"\x06upsert\x18\x02 \x01(\v2\x19.reactive.v1.EntityUpsertH\x00R\x06upsert\x129\n" +
 	"\breleased\x18\x03 \x01(\v2\x1b.reactive.v1.EntityReleasedH\x00R\breleased\x126\n" +
 	"\apending\x18\x04 \x01(\v2\x1a.reactive.v1.EntityPendingH\x00R\apendingB\a\n" +
-	"\x05event\"\x9c\x01\n" +
+	"\x05event\"\xcb\x01\n" +
+	"\rComputedEvent\x12#\n" +
+	"\roccurrence_id\x18\x01 \x01(\tR\foccurrenceId\x12\x1b\n" +
+	"\tentity_id\x18\x02 \x01(\tR\bentityId\x122\n" +
+	"\x06upsert\x18\x03 \x01(\v2\x18.reactive.v1.ValueObjectH\x00R\x06upsert\x12;\n" +
+	"\breleased\x18\x04 \x01(\v2\x1d.reactive.v1.ComputedReleasedH\x00R\breleasedB\a\n" +
+	"\x05event\"\x12\n" +
+	"\x10ComputedReleased\"\x9c\x01\n" +
 	"\fEntityUpsert\x12=\n" +
 	"\x06values\x18\x01 \x03(\v2%.reactive.v1.EntityUpsert.ValuesEntryR\x06values\x1aM\n" +
 	"\vValuesEntry\x12\x10\n" +
@@ -4219,7 +4380,7 @@ func file_reactive_v1_reactive_proto_rawDescGZIP() []byte {
 }
 
 var file_reactive_v1_reactive_proto_enumTypes = make([]protoimpl.EnumInfo, 7)
-var file_reactive_v1_reactive_proto_msgTypes = make([]protoimpl.MessageInfo, 54)
+var file_reactive_v1_reactive_proto_msgTypes = make([]protoimpl.MessageInfo, 56)
 var file_reactive_v1_reactive_proto_goTypes = []any{
 	(Comparison_Operator)(0),             // 0: reactive.v1.Comparison.Operator
 	(Junction_Operator)(0),               // 1: reactive.v1.Junction.Operator
@@ -4263,32 +4424,34 @@ var file_reactive_v1_reactive_proto_goTypes = []any{
 	(*ValueObject)(nil),                  // 39: reactive.v1.ValueObject
 	(*ModelBatch)(nil),                   // 40: reactive.v1.ModelBatch
 	(*EntityEvent)(nil),                  // 41: reactive.v1.EntityEvent
-	(*EntityUpsert)(nil),                 // 42: reactive.v1.EntityUpsert
-	(*EntityReleased)(nil),               // 43: reactive.v1.EntityReleased
-	(*EntityPending)(nil),                // 44: reactive.v1.EntityPending
-	(*QueryEvent)(nil),                   // 45: reactive.v1.QueryEvent
-	(*QueryReset)(nil),                   // 46: reactive.v1.QueryReset
-	(*QueryDelta)(nil),                   // 47: reactive.v1.QueryDelta
-	(*QueryInsertion)(nil),               // 48: reactive.v1.QueryInsertion
-	(*QueryWindowChanged)(nil),           // 49: reactive.v1.QueryWindowChanged
-	(*QueryClosed)(nil),                  // 50: reactive.v1.QueryClosed
-	(*ProjectionReference)(nil),          // 51: reactive.v1.ProjectionReference
-	(*ProjectionTarget)(nil),             // 52: reactive.v1.ProjectionTarget
-	(*ProjectionDetached)(nil),           // 53: reactive.v1.ProjectionDetached
-	(*Boundary)(nil),                     // 54: reactive.v1.Boundary
-	(*Ready)(nil),                        // 55: reactive.v1.Ready
-	(*SubscriptionError)(nil),            // 56: reactive.v1.SubscriptionError
-	nil,                                  // 57: reactive.v1.ProjectionSnapshotRequest.ParametersEntry
-	nil,                                  // 58: reactive.v1.SubscribeProjection.ParametersEntry
-	nil,                                  // 59: reactive.v1.ValueObject.FieldsEntry
-	nil,                                  // 60: reactive.v1.EntityUpsert.ValuesEntry
-	(*structpb.Struct)(nil),              // 61: google.protobuf.Struct
-	(*timestamppb.Timestamp)(nil),        // 62: google.protobuf.Timestamp
+	(*ComputedEvent)(nil),                // 42: reactive.v1.ComputedEvent
+	(*ComputedReleased)(nil),             // 43: reactive.v1.ComputedReleased
+	(*EntityUpsert)(nil),                 // 44: reactive.v1.EntityUpsert
+	(*EntityReleased)(nil),               // 45: reactive.v1.EntityReleased
+	(*EntityPending)(nil),                // 46: reactive.v1.EntityPending
+	(*QueryEvent)(nil),                   // 47: reactive.v1.QueryEvent
+	(*QueryReset)(nil),                   // 48: reactive.v1.QueryReset
+	(*QueryDelta)(nil),                   // 49: reactive.v1.QueryDelta
+	(*QueryInsertion)(nil),               // 50: reactive.v1.QueryInsertion
+	(*QueryWindowChanged)(nil),           // 51: reactive.v1.QueryWindowChanged
+	(*QueryClosed)(nil),                  // 52: reactive.v1.QueryClosed
+	(*ProjectionReference)(nil),          // 53: reactive.v1.ProjectionReference
+	(*ProjectionTarget)(nil),             // 54: reactive.v1.ProjectionTarget
+	(*ProjectionDetached)(nil),           // 55: reactive.v1.ProjectionDetached
+	(*Boundary)(nil),                     // 56: reactive.v1.Boundary
+	(*Ready)(nil),                        // 57: reactive.v1.Ready
+	(*SubscriptionError)(nil),            // 58: reactive.v1.SubscriptionError
+	nil,                                  // 59: reactive.v1.ProjectionSnapshotRequest.ParametersEntry
+	nil,                                  // 60: reactive.v1.SubscribeProjection.ParametersEntry
+	nil,                                  // 61: reactive.v1.ValueObject.FieldsEntry
+	nil,                                  // 62: reactive.v1.EntityUpsert.ValuesEntry
+	(*structpb.Struct)(nil),              // 63: google.protobuf.Struct
+	(*timestamppb.Timestamp)(nil),        // 64: google.protobuf.Timestamp
 }
 var file_reactive_v1_reactive_proto_depIdxs = []int32{
 	13, // 0: reactive.v1.ProjectionSnapshotRequest.root:type_name -> reactive.v1.ProjectionNode
-	57, // 1: reactive.v1.ProjectionSnapshotRequest.parameters:type_name -> reactive.v1.ProjectionSnapshotRequest.ParametersEntry
-	61, // 2: reactive.v1.ProjectionSnapshotResponse.data:type_name -> google.protobuf.Struct
+	59, // 1: reactive.v1.ProjectionSnapshotRequest.parameters:type_name -> reactive.v1.ProjectionSnapshotRequest.ParametersEntry
+	63, // 2: reactive.v1.ProjectionSnapshotResponse.data:type_name -> google.protobuf.Struct
 	9,  // 3: reactive.v1.ProjectionSnapshotResponse.extensions:type_name -> reactive.v1.ProjectionSnapshotExtensions
 	11, // 4: reactive.v1.ClientMessage.subscribe:type_name -> reactive.v1.Subscribe
 	30, // 5: reactive.v1.ClientMessage.update_window:type_name -> reactive.v1.UpdateWindow
@@ -4298,7 +4461,7 @@ var file_reactive_v1_reactive_proto_depIdxs = []int32{
 	21, // 9: reactive.v1.Subscribe.query:type_name -> reactive.v1.Query
 	29, // 10: reactive.v1.Subscribe.window:type_name -> reactive.v1.InitialWindow
 	13, // 11: reactive.v1.SubscribeProjection.root:type_name -> reactive.v1.ProjectionNode
-	58, // 12: reactive.v1.SubscribeProjection.parameters:type_name -> reactive.v1.SubscribeProjection.ParametersEntry
+	60, // 12: reactive.v1.SubscribeProjection.parameters:type_name -> reactive.v1.SubscribeProjection.ParametersEntry
 	17, // 13: reactive.v1.ProjectionNode.entity:type_name -> reactive.v1.ProjectionEntity
 	18, // 14: reactive.v1.ProjectionNode.list:type_name -> reactive.v1.ProjectionList
 	13, // 15: reactive.v1.ProjectionNode.children:type_name -> reactive.v1.ProjectionNode
@@ -4337,49 +4500,52 @@ var file_reactive_v1_reactive_proto_depIdxs = []int32{
 	31, // 48: reactive.v1.UpdateWindow.updates:type_name -> reactive.v1.BoundaryUpdate
 	3,  // 49: reactive.v1.BoundaryUpdate.side:type_name -> reactive.v1.BoundaryUpdate.Side
 	4,  // 50: reactive.v1.BoundaryUpdate.operation:type_name -> reactive.v1.BoundaryUpdate.Operation
-	55, // 51: reactive.v1.ServerMessage.ready:type_name -> reactive.v1.Ready
-	56, // 52: reactive.v1.ServerMessage.error:type_name -> reactive.v1.SubscriptionError
+	57, // 51: reactive.v1.ServerMessage.ready:type_name -> reactive.v1.Ready
+	58, // 52: reactive.v1.ServerMessage.error:type_name -> reactive.v1.SubscriptionError
 	40, // 53: reactive.v1.ServerMessage.model_batch:type_name -> reactive.v1.ModelBatch
 	34, // 54: reactive.v1.ServerMessage.connection_opened:type_name -> reactive.v1.ConnectionOpened
-	62, // 55: reactive.v1.Value.datetime_value:type_name -> google.protobuf.Timestamp
+	64, // 55: reactive.v1.Value.datetime_value:type_name -> google.protobuf.Timestamp
 	38, // 56: reactive.v1.Value.list_value:type_name -> reactive.v1.ValueList
 	39, // 57: reactive.v1.Value.object_value:type_name -> reactive.v1.ValueObject
 	37, // 58: reactive.v1.ValueList.values:type_name -> reactive.v1.Value
-	59, // 59: reactive.v1.ValueObject.fields:type_name -> reactive.v1.ValueObject.FieldsEntry
+	61, // 59: reactive.v1.ValueObject.fields:type_name -> reactive.v1.ValueObject.FieldsEntry
 	41, // 60: reactive.v1.ModelBatch.entities:type_name -> reactive.v1.EntityEvent
-	45, // 61: reactive.v1.ModelBatch.queries:type_name -> reactive.v1.QueryEvent
-	51, // 62: reactive.v1.ModelBatch.projections:type_name -> reactive.v1.ProjectionReference
+	47, // 61: reactive.v1.ModelBatch.queries:type_name -> reactive.v1.QueryEvent
+	53, // 62: reactive.v1.ModelBatch.projections:type_name -> reactive.v1.ProjectionReference
 	5,  // 63: reactive.v1.ModelBatch.kind:type_name -> reactive.v1.ModelBatch.Kind
 	36, // 64: reactive.v1.ModelBatch.messages:type_name -> reactive.v1.TransactionMessage
-	42, // 65: reactive.v1.EntityEvent.upsert:type_name -> reactive.v1.EntityUpsert
-	43, // 66: reactive.v1.EntityEvent.released:type_name -> reactive.v1.EntityReleased
-	44, // 67: reactive.v1.EntityEvent.pending:type_name -> reactive.v1.EntityPending
-	60, // 68: reactive.v1.EntityUpsert.values:type_name -> reactive.v1.EntityUpsert.ValuesEntry
-	46, // 69: reactive.v1.QueryEvent.reset:type_name -> reactive.v1.QueryReset
-	50, // 70: reactive.v1.QueryEvent.closed:type_name -> reactive.v1.QueryClosed
-	47, // 71: reactive.v1.QueryEvent.delta:type_name -> reactive.v1.QueryDelta
-	49, // 72: reactive.v1.QueryEvent.window_changed:type_name -> reactive.v1.QueryWindowChanged
-	54, // 73: reactive.v1.QueryReset.left:type_name -> reactive.v1.Boundary
-	54, // 74: reactive.v1.QueryReset.right:type_name -> reactive.v1.Boundary
-	48, // 75: reactive.v1.QueryDelta.insertions:type_name -> reactive.v1.QueryInsertion
-	54, // 76: reactive.v1.QueryWindowChanged.left:type_name -> reactive.v1.Boundary
-	54, // 77: reactive.v1.QueryWindowChanged.right:type_name -> reactive.v1.Boundary
-	52, // 78: reactive.v1.ProjectionReference.attached:type_name -> reactive.v1.ProjectionTarget
-	53, // 79: reactive.v1.ProjectionReference.detached:type_name -> reactive.v1.ProjectionDetached
-	6,  // 80: reactive.v1.Boundary.sentinel:type_name -> reactive.v1.Boundary.Sentinel
-	37, // 81: reactive.v1.ProjectionSnapshotRequest.ParametersEntry.value:type_name -> reactive.v1.Value
-	37, // 82: reactive.v1.SubscribeProjection.ParametersEntry.value:type_name -> reactive.v1.Value
-	37, // 83: reactive.v1.ValueObject.FieldsEntry.value:type_name -> reactive.v1.Value
-	37, // 84: reactive.v1.EntityUpsert.ValuesEntry.value:type_name -> reactive.v1.Value
-	10, // 85: reactive.v1.ReactiveQueries.Open:input_type -> reactive.v1.ClientMessage
-	7,  // 86: reactive.v1.ReactiveQueries.GetProjectionSnapshot:input_type -> reactive.v1.ProjectionSnapshotRequest
-	33, // 87: reactive.v1.ReactiveQueries.Open:output_type -> reactive.v1.ServerMessage
-	8,  // 88: reactive.v1.ReactiveQueries.GetProjectionSnapshot:output_type -> reactive.v1.ProjectionSnapshotResponse
-	87, // [87:89] is the sub-list for method output_type
-	85, // [85:87] is the sub-list for method input_type
-	85, // [85:85] is the sub-list for extension type_name
-	85, // [85:85] is the sub-list for extension extendee
-	0,  // [0:85] is the sub-list for field type_name
+	42, // 65: reactive.v1.ModelBatch.computed:type_name -> reactive.v1.ComputedEvent
+	44, // 66: reactive.v1.EntityEvent.upsert:type_name -> reactive.v1.EntityUpsert
+	45, // 67: reactive.v1.EntityEvent.released:type_name -> reactive.v1.EntityReleased
+	46, // 68: reactive.v1.EntityEvent.pending:type_name -> reactive.v1.EntityPending
+	39, // 69: reactive.v1.ComputedEvent.upsert:type_name -> reactive.v1.ValueObject
+	43, // 70: reactive.v1.ComputedEvent.released:type_name -> reactive.v1.ComputedReleased
+	62, // 71: reactive.v1.EntityUpsert.values:type_name -> reactive.v1.EntityUpsert.ValuesEntry
+	48, // 72: reactive.v1.QueryEvent.reset:type_name -> reactive.v1.QueryReset
+	52, // 73: reactive.v1.QueryEvent.closed:type_name -> reactive.v1.QueryClosed
+	49, // 74: reactive.v1.QueryEvent.delta:type_name -> reactive.v1.QueryDelta
+	51, // 75: reactive.v1.QueryEvent.window_changed:type_name -> reactive.v1.QueryWindowChanged
+	56, // 76: reactive.v1.QueryReset.left:type_name -> reactive.v1.Boundary
+	56, // 77: reactive.v1.QueryReset.right:type_name -> reactive.v1.Boundary
+	50, // 78: reactive.v1.QueryDelta.insertions:type_name -> reactive.v1.QueryInsertion
+	56, // 79: reactive.v1.QueryWindowChanged.left:type_name -> reactive.v1.Boundary
+	56, // 80: reactive.v1.QueryWindowChanged.right:type_name -> reactive.v1.Boundary
+	54, // 81: reactive.v1.ProjectionReference.attached:type_name -> reactive.v1.ProjectionTarget
+	55, // 82: reactive.v1.ProjectionReference.detached:type_name -> reactive.v1.ProjectionDetached
+	6,  // 83: reactive.v1.Boundary.sentinel:type_name -> reactive.v1.Boundary.Sentinel
+	37, // 84: reactive.v1.ProjectionSnapshotRequest.ParametersEntry.value:type_name -> reactive.v1.Value
+	37, // 85: reactive.v1.SubscribeProjection.ParametersEntry.value:type_name -> reactive.v1.Value
+	37, // 86: reactive.v1.ValueObject.FieldsEntry.value:type_name -> reactive.v1.Value
+	37, // 87: reactive.v1.EntityUpsert.ValuesEntry.value:type_name -> reactive.v1.Value
+	10, // 88: reactive.v1.ReactiveQueries.Open:input_type -> reactive.v1.ClientMessage
+	7,  // 89: reactive.v1.ReactiveQueries.GetProjectionSnapshot:input_type -> reactive.v1.ProjectionSnapshotRequest
+	33, // 90: reactive.v1.ReactiveQueries.Open:output_type -> reactive.v1.ServerMessage
+	8,  // 91: reactive.v1.ReactiveQueries.GetProjectionSnapshot:output_type -> reactive.v1.ProjectionSnapshotResponse
+	90, // [90:92] is the sub-list for method output_type
+	88, // [88:90] is the sub-list for method input_type
+	88, // [88:88] is the sub-list for extension type_name
+	88, // [88:88] is the sub-list for extension extendee
+	0,  // [0:88] is the sub-list for field type_name
 }
 
 func init() { file_reactive_v1_reactive_proto_init() }
@@ -4438,21 +4604,25 @@ func file_reactive_v1_reactive_proto_init() {
 		(*EntityEvent_Released)(nil),
 		(*EntityEvent_Pending)(nil),
 	}
-	file_reactive_v1_reactive_proto_msgTypes[38].OneofWrappers = []any{
+	file_reactive_v1_reactive_proto_msgTypes[35].OneofWrappers = []any{
+		(*ComputedEvent_Upsert)(nil),
+		(*ComputedEvent_Released)(nil),
+	}
+	file_reactive_v1_reactive_proto_msgTypes[40].OneofWrappers = []any{
 		(*QueryEvent_Reset_)(nil),
 		(*QueryEvent_Closed)(nil),
 		(*QueryEvent_Delta)(nil),
 		(*QueryEvent_WindowChanged)(nil),
 	}
-	file_reactive_v1_reactive_proto_msgTypes[44].OneofWrappers = []any{
+	file_reactive_v1_reactive_proto_msgTypes[46].OneofWrappers = []any{
 		(*ProjectionReference_Attached)(nil),
 		(*ProjectionReference_Detached)(nil),
 	}
-	file_reactive_v1_reactive_proto_msgTypes[45].OneofWrappers = []any{
+	file_reactive_v1_reactive_proto_msgTypes[47].OneofWrappers = []any{
 		(*ProjectionTarget_EntityId)(nil),
 		(*ProjectionTarget_QuerySubscriptionId)(nil),
 	}
-	file_reactive_v1_reactive_proto_msgTypes[47].OneofWrappers = []any{
+	file_reactive_v1_reactive_proto_msgTypes[49].OneofWrappers = []any{
 		(*Boundary_Sentinel_)(nil),
 		(*Boundary_Cursor)(nil),
 	}
@@ -4462,7 +4632,7 @@ func file_reactive_v1_reactive_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_reactive_v1_reactive_proto_rawDesc), len(file_reactive_v1_reactive_proto_rawDesc)),
 			NumEnums:      7,
-			NumMessages:   54,
+			NumMessages:   56,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

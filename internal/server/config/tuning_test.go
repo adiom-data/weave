@@ -16,7 +16,7 @@ func TestTuningYAMLRoundTrip(t *testing.T) {
 	c.Query.Limits.EntityIdleTTL = 7 * time.Minute
 	c.Storage.Postgres.Replication.StatusInterval = 3 * time.Second
 	c.Projection.Dependencies.CleanupBatchSize = 27
-	c.Visibility.Limits.MaxNodes = 1234
+	c.Relations.Limits.MaxNodes = 1234
 	raw, err := yaml.Marshal(c)
 	if err != nil {
 		t.Fatal(err)
@@ -74,9 +74,9 @@ func TestTuningCrossFieldValidation(t *testing.T) {
 		"message framing":   func(c *Config) { c.Query.Messages.MaxBatchBytes = 1 },
 		"capture framing":   func(c *Config) { c.Storage.Postgres.MessageLimits.MaxTransactionBytes = 1 },
 		"fact window": func(c *Config) {
-			c.Visibility.Mode = "policy"
-			c.Visibility.PolicyFile = "policy.yaml"
-			c.Visibility.MaxFactRows = c.Query.Limits.MaxWindowRows
+			c.Visibility.Mode = "definitions"
+			c.Relations.File = "relations.yaml"
+			c.Relations.MaxFactRows = c.Query.Limits.MaxWindowRows
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -84,6 +84,32 @@ func TestTuningCrossFieldValidation(t *testing.T) {
 			mutate(&c)
 			if c.Validate() == nil {
 				t.Fatal("accepted inconsistent tuning")
+			}
+		})
+	}
+}
+
+func TestFactCoverageLimitsFollowRelationEvaluation(t *testing.T) {
+	for _, test := range []struct {
+		name, mode, file     string
+		factRows, windowRows int
+		invalid              bool
+	}{
+		{"visibility facts", "definitions", "relations.yaml", 20, 20, true},
+		{"computed facts without visibility", "allow_all", "relations.yaml", 20, 20, true},
+		{"computed facts with probe room", "allow_all", "relations.yaml", 19, 20, false},
+		{"no relation evaluator", "allow_all", "", 20, 20, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			c := validConfig()
+			c.Visibility.Mode, c.Relations.File = test.mode, test.file
+			c.Relations.MaxFactRows, c.Query.Limits.MaxWindowRows = test.factRows, test.windowRows
+			err := c.Validate()
+			if (err != nil) != test.invalid {
+				t.Fatalf("validation: %v", err)
+			}
+			if err != nil && !strings.Contains(err.Error(), "relations.max_fact_rows") {
+				t.Fatalf("wrong config field: %v", err)
 			}
 		})
 	}
@@ -130,7 +156,7 @@ func TestExampleEnumeratesEveryTuningSetting(t *testing.T) {
 		for i := 0; i < typ.NumField(); i++ {
 			field := typ.Field(i)
 			name := field.Tag.Get("yaml")
-			if path == "" && name != "query" && name != "projection" && name != "visibility" && name != "storage" && name != "websocket" {
+			if path == "" && name != "query" && name != "projection" && name != "visibility" && name != "relations" && name != "storage" && name != "websocket" {
 				continue
 			}
 			if field.Type.Kind() != reflect.Struct && field.Type.Kind() != reflect.Int && field.Type.Kind() != reflect.Int64 {

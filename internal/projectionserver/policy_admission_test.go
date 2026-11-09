@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/adiom-data/weave/internal/accesscontrol/policy"
 	q "github.com/adiom-data/weave/internal/querysubscription/model"
+	relationdef "github.com/adiom-data/weave/internal/relation"
 	"github.com/adiom-data/weave/internal/storage"
 	reactivev1 "github.com/adiom-data/weave/pkg/gen/reactive/v1"
 )
@@ -41,7 +41,7 @@ func testInitialVisibilityWaitDoesNotRetainProcessedTransactions(t *testing.T, s
 	})
 	options := policyOptions()
 	options.SubscriptionQueueLimit = 2
-	options.Policies.Definitions[storage.RelationName{Namespace: "app", Name: "notes"}] = policy.Relation{Allow: []policy.Rule{{ID: "public", When: "true"}}}
+	options.Relations.Definitions[storage.RelationName{Namespace: "app", Name: "notes"}] = relationdef.Relation{Visibility: "true"}
 	service, err := New(ctx, backend, options)
 	if err != nil {
 		t.Fatal(err)

@@ -106,3 +106,49 @@ export const ProjectDetails = $runtime.defineProjection<ProjectDetailsParameters
   [{"name":"projectId","type":{"kind":"uuid"}}],
 )
 
+export interface ProjectPermissionsParameters {
+  readonly "projectId": string
+}
+export type ProjectPermissionsData = $runtime.ProjectedEntity<{ readonly "id": string; readonly "role": bigint; readonly "canEdit": boolean }>
+
+export const ProjectPermissions = $runtime.defineProjection<ProjectPermissionsParameters, ProjectPermissionsData>(
+  {"nodeId":"project","entity":{"query":{"schema":"tenant_001","table":"projects","columns":[{"segments":["id"]}],"filter":{"nullTest":{"column":{"segments":["deleted_at"]},"isNull":true}}},"bindings":[{"column":{"segments":["id"]},"operator":"OPERATOR_EQUAL","parameter":"projectId"}]},"computed":["role","canEdit"]},
+  {
+  "nodeId": "project",
+  "kind": "entity",
+  "fields": [
+    {
+      "name": "id",
+      "path": [
+        "id"
+      ],
+      "type": {
+        "kind": "uuid"
+      }
+    },
+    {
+      "name": "role",
+      "path": [
+        "role"
+      ],
+      "type": {
+        "kind": "integer"
+      },
+      "computed": true
+    },
+    {
+      "name": "canEdit",
+      "path": [
+        "canEdit"
+      ],
+      "type": {
+        "kind": "bool"
+      },
+      "computed": true
+    }
+  ],
+  "children": {}
+},
+  [{"name":"projectId","type":{"kind":"uuid"}}],
+)
+

@@ -17,7 +17,7 @@ func TestWindowConfigAndOracle(t *testing.T) {
 	for _, edit := range []func(*Config){
 		func(c *Config) { c.Rows = 3 },
 		func(c *Config) { c.ReferenceFetch = true },
-		func(c *Config) { c.Backend = "zero" },
+		func(c *Config) { c.Backend = "drasi" },
 		func(c *Config) { c.InitConcurrency = 2 },
 		func(c *Config) { c.Clients = 3 },
 	} {
@@ -52,7 +52,7 @@ func TestElectricWindowReplacementRequestsAndMeasurements(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requests++
 		var project, left, right int64
-		if r.URL.Query().Get("table") != "bench.tasks" {
+		if r.URL.Query().Get("table") != "public.tasks" {
 			t.Error("wrong table")
 		}
 		if _, err := fmt.Sscanf(r.URL.Query().Get("where"), "project_id = %d AND id > %d AND id <= %d", &project, &left, &right); err != nil {

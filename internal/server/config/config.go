@@ -48,14 +48,15 @@ type Config struct {
 	} `yaml:"storage"`
 	Auth       AuthConfig `yaml:"auth"`
 	Visibility struct {
-		Mode                string            `yaml:"mode"`
-		PolicyFile          string            `yaml:"policy_file"`
-		Limits              PolicyLimits      `yaml:"limits"`
-		Cache               PolicyCacheConfig `yaml:"cache"`
-		MaxFactRows         int               `yaml:"max_fact_rows"`
-		MaxFactQueries      int               `yaml:"max_fact_queries"`
-		FactLoadConcurrency int               `yaml:"fact_load_concurrency"`
+		Mode string `yaml:"mode"`
 	} `yaml:"visibility"`
+	Relations struct {
+		File                string         `yaml:"file"`
+		Limits              RelationLimits `yaml:"limits"`
+		MaxFactRows         int            `yaml:"max_fact_rows"`
+		MaxFactQueries      int            `yaml:"max_fact_queries"`
+		FactLoadConcurrency int            `yaml:"fact_load_concurrency"`
+	} `yaml:"relations"`
 	Query      QueryConfig      `yaml:"query"`
 	Projection ProjectionConfig `yaml:"projection"`
 }
@@ -142,7 +143,7 @@ func Load(path string, lookup func(string) (string, bool)) (Config, error) {
 		"WEAVE_SLOT":         &c.Storage.Postgres.Slot,
 		"WEAVE_AUTH_MODE":    &c.Auth.Mode,
 		"WEAVE_JWT_ISSUER":   &c.Auth.Issuer, "WEAVE_JWT_AUDIENCE": &c.Auth.Audience,
-		"WEAVE_VISIBILITY_MODE": &c.Visibility.Mode, "WEAVE_POLICY_FILE": &c.Visibility.PolicyFile,
+		"WEAVE_VISIBILITY_MODE": &c.Visibility.Mode, "WEAVE_RELATIONS_FILE": &c.Relations.File,
 	} {
 		if override, ok := lookup(name); ok {
 			*value = override
@@ -153,8 +154,8 @@ func Load(path string, lookup func(string) (string, bool)) (Config, error) {
 			return c, fmt.Errorf("WEAVE_FIXED_CLAIMS: %w", err)
 		}
 	}
-	if c.Visibility.PolicyFile != "" && !filepath.IsAbs(c.Visibility.PolicyFile) && path != "" {
-		c.Visibility.PolicyFile = filepath.Join(filepath.Dir(path), c.Visibility.PolicyFile)
+	if c.Relations.File != "" && !filepath.IsAbs(c.Relations.File) && path != "" {
+		c.Relations.File = filepath.Join(filepath.Dir(path), c.Relations.File)
 	}
 	return c, c.Validate()
 }
@@ -167,11 +168,11 @@ func (c Config) Validate() error {
 	if pg.URL == "" || pg.Publication == "" || pg.Slot == "" {
 		return errors.New("postgres requires url, publication, and slot")
 	}
-	if c.Visibility.Mode != "allow_all" && c.Visibility.Mode != "policy" {
-		return errors.New("visibility.mode must be explicitly set to allow_all or policy")
+	if c.Visibility.Mode != "allow_all" && c.Visibility.Mode != "definitions" {
+		return errors.New("visibility.mode must be explicitly set to allow_all or definitions")
 	}
-	if (c.Visibility.Mode == "policy") != (c.Visibility.PolicyFile != "") {
-		return errors.New("visibility.policy_file is required only in policy mode")
+	if c.Visibility.Mode == "definitions" && c.Relations.File == "" {
+		return errors.New("relations.file is required in definitions visibility mode")
 	}
 	if err := c.Auth.Validate(); err != nil {
 		return err

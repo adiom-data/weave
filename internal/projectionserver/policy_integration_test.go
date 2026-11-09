@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/adiom-data/weave/internal/accesscontrol"
-	"github.com/adiom-data/weave/internal/accesscontrol/policy"
 	q "github.com/adiom-data/weave/internal/querysubscription/model"
+	relationdef "github.com/adiom-data/weave/internal/relation"
 	"github.com/adiom-data/weave/internal/storage"
 	reactivev1 "github.com/adiom-data/weave/pkg/gen/reactive/v1"
 )
@@ -130,7 +130,7 @@ func policySnapshot(point uint64, rows ...q.Row) q.QuerySnapshot {
 	return snapshot
 }
 func policyOptions() Options {
-	return Options{Policies: &PolicyOptions{Definitions: policy.Map{{Namespace: "app", Name: "projects"}: {Facts: []policy.Fact{testPolicyFact("grant", storage.RelationName{Namespace: "app", Name: "grants"}, true)}, Allow: []policy.Rule{{ID: "grant", When: `facts.grant.exists(g,true)`}}}}, Limits: policy.Limits{MaxNodes: 1000, MaxDepth: 30, MaxEvaluationSteps: 10000}, MaxFactQueries: 100, MaxFactRows: 10, FactLoadConcurrency: 2}, ClaimsProvider: func(context.Context) (accesscontrol.Claims, error) { return accesscontrol.Claims{}, nil }}
+	return Options{Relations: &RelationOptions{Definitions: relationdef.Definitions{{Namespace: "app", Name: "projects"}: {Facts: []relationdef.Fact{testPolicyFact("grant", storage.RelationName{Namespace: "app", Name: "grants"}, true)}, Visibility: `facts.grant.exists(g,true)`}}, Limits: relationdef.Limits{MaxNodes: 1000, MaxDepth: 30, MaxEvaluationSteps: 10000}, MaxFactQueries: 100, MaxFactRows: 10, FactLoadConcurrency: 2}, ClaimsProvider: func(context.Context) (accesscontrol.Claims, error) { return accesscontrol.Claims{}, nil }}
 }
 func openPolicyStream(t *testing.T, ctx context.Context, backend *policyBackend) (*authorizationCommitStream, chan error) {
 	t.Helper()
@@ -155,17 +155,15 @@ func TestDynamicPolicyInvalidationReevaluatesIdleProjection(t *testing.T) {
 	backend := newPolicyBackend(func(context.Context, q.QuerySubscribeRequest) q.QuerySnapshot {
 		return policySnapshot(10, policyRow("projects", "p1", "retained"))
 	})
-	var mu sync.Mutex
-	current := policy.Snapshot{Version: "allow", Policy: &policy.Relation{Allow: []policy.Rule{{ID: "visible", When: "true"}}}}
-	hints := make(chan []policy.Key, 1)
+	projects := storage.RelationName{Namespace: "app", Name: "projects"}
+	allow := relationdef.Relation{Visibility: "true"}
+	store, err := relationdef.NewStore(relationdef.Definitions{projects: allow}, relationdef.Limits{})
+	if err != nil {
+		t.Fatal(err)
+	}
 	options := policyOptions()
-	options.Policies.Definitions = nil
-	options.Policies.Provider = policy.ProviderFunc(func(context.Context, policy.Key) (policy.Snapshot, error) {
-		mu.Lock()
-		defer mu.Unlock()
-		return current, nil
-	})
-	options.Policies.Invalidations = hints
+	options.Relations.Definitions = nil
+	options.Relations.Store = store
 	stream, done := openPolicyStreamOptions(t, ctx, backend, options)
 	defer func() {
 		cancel()
@@ -180,18 +178,16 @@ func TestDynamicPolicyInvalidationReevaluatesIdleProjection(t *testing.T) {
 	if len(initial.Entities) != 1 {
 		t.Fatalf("missing initial entity: %v", initial)
 	}
-	mu.Lock()
-	current = policy.Snapshot{Version: "deny", Policy: &policy.Relation{}}
-	mu.Unlock()
-	hints <- []policy.Key{{Namespace: "app", Name: "projects"}}
+	if err := store.Replace(relationdef.Definitions{projects: {Visibility: "false"}}); err != nil {
+		t.Fatal(err)
+	}
 	revoked := receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_KIND_HYDRATION, "")
 	if len(revoked.Entities) != 1 || revoked.Entities[0].GetReleased() == nil {
 		t.Fatalf("idle revocation not published: %v", revoked)
 	}
-	mu.Lock()
-	current = policy.Snapshot{Version: "allow-again", Policy: &policy.Relation{Allow: []policy.Rule{{ID: "visible", When: "true"}}}}
-	mu.Unlock()
-	hints <- []policy.Key{{Namespace: "app", Name: "projects"}}
+	if err := store.Replace(relationdef.Definitions{projects: allow}); err != nil {
+		t.Fatal(err)
+	}
 	restored := receivePolicyBatch(t, ctx, stream, reactivev1.ModelBatch_KIND_HYDRATION, "")
 	if len(restored.Entities) != 1 || restored.Entities[0].GetUpsert().GetValues()["title"].GetTextValue() != "retained" {
 		t.Fatalf("idle restoration lost data: %v", restored)
@@ -384,15 +380,16 @@ func TestPolicyLiveUnknownKeepsPublishedImageUntilCurrentDecision(t *testing.T) 
 				})
 				options := policyOptions()
 				project := storage.RelationName{Namespace: "app", Name: "projects"}
-				definition := options.Policies.Definitions[project]
+				definition := options.Relations.Definitions[project]
 				definition.Facts = append(definition.Facts, testPolicyFact("backup", storage.RelationName{Namespace: "app", Name: "backup"}, true))
-				definition.Allow[0].When = `facts.grant.exists(g,true) || facts.backup.exists(g,true)`
+				definition.Visibility = `facts.grant.exists(g,true) || facts.backup.exists(g,true)`
 				if mode == "nested-projection" {
-					definition.Propagate = []policy.Edge{{ID: "tasks", To: storage.RelationName{Namespace: "app", Name: "tasks"}, When: `parent.id == parent.id`}}
-					options.Policies.Definitions[storage.RelationName{Namespace: "app", Name: "tasks"}] = policy.Relation{}
+					definition.Computed = map[string]relationdef.Computed{"_visible": {Type: storage.TypeBool, Expression: definition.Visibility, Propagate: []relationdef.Propagation{{To: storage.RelationName{Namespace: "app", Name: "tasks"}, When: `parent.id == parent.id`}}}}
+					definition.Visibility = `computed._visible`
+					options.Relations.Definitions[storage.RelationName{Namespace: "app", Name: "tasks"}] = relationdef.Relation{Visibility: `has(inherited._visible) && inherited._visible`}
 				}
-				options.Policies.Definitions[project] = definition
-				options.Policies.Definitions[storage.RelationName{Namespace: "app", Name: "notes"}] = policy.Relation{Allow: []policy.Rule{{ID: "public", When: `item.id == item.id`}}}
+				options.Relations.Definitions[project] = definition
+				options.Relations.Definitions[storage.RelationName{Namespace: "app", Name: "notes"}] = relationdef.Relation{Visibility: `item.id == item.id`}
 				service, err := New(ctx, backend, options)
 				if err != nil {
 					t.Fatal(err)
@@ -508,12 +505,13 @@ func TestPolicyPropagationReevaluatesDescendantsOnParentChanges(t *testing.T) {
 	projectName := storage.RelationName{Namespace: "app", Name: "projects"}
 	linkName := storage.RelationName{Namespace: "app", Name: "project_tasks"}
 	taskName := storage.RelationName{Namespace: "app", Name: "tasks"}
-	definition := options.Policies.Definitions
+	definition := options.Relations.Definitions
 	rootPolicy := definition[projectName]
-	rootPolicy.Propagate = []policy.Edge{{ID: "project-links", To: linkName, When: `parent.id == item.project_id && parent.propagate == true`}}
+	rootPolicy.Computed = map[string]relationdef.Computed{"_visible": {Type: storage.TypeBool, Expression: rootPolicy.Visibility, Propagate: []relationdef.Propagation{{To: linkName, When: `parent.id == item.project_id && parent.propagate == true`}}}}
+	rootPolicy.Visibility = `computed._visible`
 	definition[projectName] = rootPolicy
-	definition[linkName] = policy.Relation{Propagate: []policy.Edge{{ID: "link-task", To: taskName, When: `parent.task_id == item.id`}}}
-	definition[taskName] = policy.Relation{}
+	definition[linkName] = relationdef.Relation{Computed: map[string]relationdef.Computed{"_visible": {Type: storage.TypeBool, Expression: `has(inherited._visible) && inherited._visible`, Propagate: []relationdef.Propagation{{To: taskName, When: `parent.task_id == item.id`}}}}, Visibility: `computed._visible`}
+	definition[taskName] = relationdef.Relation{Visibility: `has(inherited._visible) && inherited._visible`}
 	service, err := New(ctx, backend, options)
 	if err != nil {
 		t.Fatal(err)

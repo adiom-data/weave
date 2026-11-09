@@ -43,6 +43,30 @@ function Project({ projectId }: { projectId: string }) {
 This component owns its client. With several views, create one shared client
 and mount `useConnection` once above them; each view owns only its projection.
 
+### Server-computed values
+
+Declare computed fields in the projection schema, then select them normally:
+
+```graphql
+type Task @table(schema:"app", name:"tasks") {
+  id: UUID!
+  canEdit: Boolean! @computed
+  role: Int64! @computed
+}
+```
+
+The host's relation definitions implement these names. Generated bindings decode
+them into the row's typed `value` alongside stored fields; React needs no special
+handling. Computation names beginning with `_` are private server helpers and
+cannot be selected, including through a public schema alias. Public fields such
+as `canEdit` may intentionally derive from private helpers such as `_role`.
+Raw projection readers expose selected values separately as `row.computed`, and
+`store.getComputed(occurrenceId, entityId)` reads their normalized state. They are
+not added to the entity cache: the same entity reached through different paths
+can have different computed values. Changes publish atomically with the enclosing
+model batch, and reconnect replacement uses the same structural reconciliation
+as stored data. Optimistic entity patches do not alter authoritative computations.
+
 ## Guide
 
 - [Framework-independent use](#framework-independent-use)

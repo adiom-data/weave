@@ -32,7 +32,7 @@ export type ValueShape = Readonly<{ nullable?: boolean }> & (
   | Readonly<{ kind: 'list'; element: ValueShape }>
   | Readonly<{ kind: 'object'; fields: readonly FieldShape[] }>
 )
-export interface FieldShape { readonly name: string; readonly path: readonly string[]; readonly type: ValueShape }
+export interface FieldShape { readonly name: string; readonly path: readonly string[]; readonly type: ValueShape; readonly computed?: boolean }
 export interface ProjectionShape {
   readonly nodeId: string
   readonly kind: 'entity' | 'list'
@@ -126,9 +126,9 @@ function decode(value: Value | undefined, shape: ValueShape, location: string, p
     default: return invalid()
   }
 }
-function decodeFields(values: RecordData, fields: readonly FieldShape[], location: string, previous?: Readonly<Record<string, unknown>>, provisional = false): Record<string, unknown> {
+function decodeFields(values: RecordData, fields: readonly FieldShape[], location: string, previous?: Readonly<Record<string, unknown>>, provisional = false, computed: RecordData = {}): Record<string, unknown> {
   const out: Record<string, unknown> = Object.create(null)
-  for (const field of fields) out[field.name] = decode(lookup(values, field.path), field.type, `${location}.${field.name}`, previous?.[field.name], provisional)
+  for (const field of fields) out[field.name] = decode(lookup(field.computed ? computed : values, field.path), field.type, `${location}.${field.name}`, previous?.[field.name], provisional)
   return out
 }
 
@@ -185,7 +185,7 @@ class Materializer {
       else {
         const oldFields = (before?.status === 'available' || before?.status === 'optimistic') && before.entityId === value.entityId ? before.value as Readonly<Record<string, unknown>> : undefined
         const status = value.entity.provisional ? 'optimistic' : 'available'
-        const fields = decodeFields(value.entity.values, shape.fields, shape.nodeId, oldFields, value.entity.provisional)
+        const fields = decodeFields(value.entity.values, shape.fields, shape.nodeId, oldFields, value.entity.provisional, value.computed)
         for (const [name, child] of Object.entries(shape.children)) fields[name] = this.node(value.children[child.nodeId], child, [...ancestors, value.entityId], oldFields?.[name])
         const shared = reuseObject(oldFields, fields)
         output = (before?.status === 'available' || before?.status === 'optimistic') && before.status === status && before.value === shared ? before : Object.freeze({ [entityBrand]: true as const, entityId: value.entityId, status, value: shared })

@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/adiom-data/weave/internal/accesscontrol"
-	"github.com/adiom-data/weave/internal/projection/authorization"
+	"github.com/adiom-data/weave/internal/projection/evaluation"
 	q "github.com/adiom-data/weave/internal/querysubscription/model"
 	"github.com/adiom-data/weave/internal/storage"
 )
@@ -179,7 +179,7 @@ func (i *initialQueryImage) covered() (bool, error) {
 // authorize retains the private gate across retries. Only the first attempt
 // reads the full image; later attempts apply final coalesced changes and newly
 // usable fact evidence. The caller has already proved source coverage.
-func (i *initialQueryImage) authorize(ctx context.Context, session *authorization.Session, prepared accesscontrol.Prepared) (bool, error) {
+func (i *initialQueryImage) authorize(ctx context.Context, session *evaluation.Session, prepared accesscontrol.Prepared) (bool, error) {
 	view, err := session.OpenView(i.observed)
 	if err != nil {
 		return false, err

@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/adiom-data/weave/internal/accesscontrol"
-	"github.com/adiom-data/weave/internal/accesscontrol/policy"
 	proj "github.com/adiom-data/weave/internal/projection"
-	"github.com/adiom-data/weave/internal/projection/authorization"
+	"github.com/adiom-data/weave/internal/projection/evaluation"
 	q "github.com/adiom-data/weave/internal/querysubscription/model"
+	relationdef "github.com/adiom-data/weave/internal/relation"
 	"github.com/adiom-data/weave/internal/storage"
 )
 
@@ -38,11 +38,11 @@ func TestProjectionCleanupReleasesUnpublishedAttemptDependencies(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer feed.Close(context.Background())
-	evaluator, err := policy.Compile(policyOptions().Policies.Definitions, policyOptions().Policies.Limits)
+	evaluator, err := relationdef.Compile(policyOptions().Relations.Definitions, policyOptions().Relations.Limits)
 	if err != nil {
 		t.Fatal(err)
 	}
-	controller, err := newPolicyAccess(ctx, feed, evaluator, accesscontrol.Claims{}, authorization.Options{MaxQueries: 10, MaxRows: 10, LoadConcurrency: 1})
+	controller, err := newRelationAccess(ctx, feed, evaluator, accesscontrol.Claims{}, evaluation.Options{MaxQueries: 10, MaxRows: 10, LoadConcurrency: 1}, false)
 	if err != nil {
 		t.Fatal(err)
 	}

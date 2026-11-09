@@ -103,16 +103,17 @@ see the [fetch-hint example and restrictions](../../examples/demo/PROJECTIONS.md
 This only optimizes loading. Entity/query subscriptions, authorization, normalized
 client results, and the base query cache remain separate and unchanged.
 
-## Visibility and trusted claims
+## Computed values, visibility, and trusted claims
 
-Omitting both policy options uses allow-all. `Options.Policies` accepts either
-fixed Go declarations (`Definitions`) or an application-owned `Provider` from
-`pkg/accesscontrol/policy`, plus compilation/evaluation bounds and fact
-query/row/load-concurrency limits. Rules are CEL strings; facts are private
+Omitting relation/access-control options uses allow-all. `Options.Relations` accepts either
+fixed Go declarations (`Definitions`) or an application-owned `Store` from
+`pkg/relation`, plus compilation/evaluation bounds and fact
+query/row/load-concurrency limits. Expressions are CEL strings; facts are private
 parameterized projection plans with ordinary query leaves. Incoming and outgoing propagation
-edges are explicit. All `Require` rules must pass before access is granted;
-a failed requirement skips propagation and direct allow checks. Propagation
-skips individual `Allow` rules, and fact discovery stays lazy within expressions.
+exports are explicit. Visibility is a boolean expression using the same lazy
+computed values and facts as selected outputs; there is no separate visibility
+propagation or require/allow rule model. Expression short-circuiting skips
+unneeded facts and exports. Place cheap local checks before expensive discovery.
 The library manages fact subscriptions, sharing, pruning, and invalidation.
 Fact selectors require complete coverage: `MaxFactRows + 1` must fit the query
 backend's window limit. Exceeding it fails the affected consumer, not CDC.
@@ -126,6 +127,60 @@ provide their own resolver. Authentication, transport security, and long-lived t
 refresh are the host's responsibility. The standalone host supports OIDC-verified,
 explicitly unverified, and fixed claims. The projection library itself contains
 no token verifier and does not require a `sub` claim.
+
+Relations declare shared `Facts`, named `Computed` definitions, and optional
+`Visibility`. A computation has a canonical `Type` and CEL `Expression` over
+`item`, `claims`, `facts.name`, and local `computed.name` dependencies. For example:
+
+```go
+Relations: &projectionserver.RelationOptions{Definitions: relation.Definitions{
+    {Namespace: "app", Name: "tasks"}: {
+        Computed: map[string]relation.Computed{
+            "_role": {Type: storage.TypeInteger, Expression: `claims.user_id != null && item.owner_id == claims.user_id ? 2 : 0`},
+            "canEdit": {Type: storage.TypeBool, Expression: `computed._role >= 2`},
+        },
+        Visibility: `item.deleted_at == null && computed._role >= 1`,
+    },
+}},
+```
+
+Empty `Visibility` permits access to a configured relation; `"false"` denies.
+Missing definitions deny unless
+`RelationOptions.AllowAll` bypasses visibility. This does not disable computations.
+Values are evaluated only when selected or needed by visibility, another
+computation, or a descendant. Types are checked without implicit coercion.
+Names beginning with `_` are private backend helpers: they can be referenced
+internally and propagated, but both raw projection requests and generated schemas
+reject exposing them. Public computations can intentionally derive from them.
+This convention does not hide stored database columns with underscore names.
+
+Clients select names using `ProjectionNode.computed`. GraphQL schemas expose
+them using `@computed` or `@computed(name:"definitionName")`; normal selection,
+aliasing and generated TypeScript decoding apply. Values are separate
+occurrence-and-entity keyed events, not shared entity fields. The same entity
+can therefore have different results along different paths. One-shot snapshots
+combine computed values into row objects; names cannot collide with selected
+stored fields or child nodes. Computations are not filters, sort keys, or
+relationship bindings. Selecting a structured computation requests its whole
+canonical value; typed readers can select a subset of its structure.
+
+For propagation, a parent's `Computed[name].Propagate` declares a target relation
+and a parent/item guard, with at most one entry per destination. The field is
+exported under its own name; there are no edge IDs or destination renames.
+The child can restrict `Relation.Receive` using `Incoming{From, Field}` pairs:
+nil accepts all configured exports, an empty non-nil list accepts none. A child
+can use `has(inherited._role) ? inherited._role : computed._directRole` without
+declaring a corresponding local `_role` field. Any computation or visibility
+expression can read the export. Define a local field only to transform, provide
+a fallback, or re-export it to the next hop.
+
+Presence tests evaluate export eligibility, not the source value or its facts.
+An unknown guard remains unknown; an eligible export is present even when its
+value is false, null, or pending. Actual reads retain transitive dependencies and
+remain unresolved while the value loads; absent exports read as null. Only the
+concrete immediate path edge within the same data source is considered. An
+unrelated projection can never supply an inherited value. The parent need not
+select the value publicly.
 
 ### Loading and live policy changes
 
@@ -147,15 +202,24 @@ Already authorized references elsewhere on the connection can still update a
 shared entity. This is not permission to use an unrelated projection as a
 visibility grant.
 
-Policy providers return immutable `Snapshot{Version, Policy}` values keyed by
-relation. A publication pass fetches each required key once, pinning its version.
-The shared compiled-policy cache reuses unchanged versions; provider calls still
-occur on each new pass. `PolicyOptions.Cache` configures load concurrency and
-bounded indexed idle eviction. Optional `Invalidations` broadcasts changed keys
-to reevaluate dependent idle occurrences. Without it, changes are adopted on
-the next evaluation. The application need not track which keys were requested.
-Versions identify content uniquely per key, including a nil (deny-by-default)
-policy. See [policy semantics and fact shapes](../../internal/accesscontrol/policy/README.md).
+For live updates, construct `relation.NewStore(definitions, limits)` and pass it
+as `RelationOptions.Store` instead of `Definitions`. Call `store.Replace(next)`
+with the complete replacement map. Validation and compilation finish before an
+atomic publication; invalid replacements leave the current definitions intact.
+Unchanged compiled relations are reused. No version strings or separate
+invalidation notifications are required.
+
+Each evaluation pins the entire map once, so parents and children cannot mix
+definition generations. Changed, added, and removed relations automatically
+wake only their dependents, including idle projections. Existing evaluations
+finish using their old map; publication does not wait for all connections to
+adopt the replacement. Supplied stores own their compilation/evaluation limits;
+`RelationOptions.Limits` applies when constructing a private store from fixed
+`Definitions`. There is no provider load queue or compiled-policy idle cache.
+
+Applications may host multiple projection servers with independent stores over
+one shared query backend. Routing connections to the appropriate definition
+domain remains outside this library. See [policy semantics and fact shapes](../../internal/relation/README.md).
 
 ## Configuration
 
@@ -234,9 +298,9 @@ hijacked connections). The demo's composition shows this explicitly.
 ## Policy and transport limits
 
 Operational defaults also apply to partially specified configurations. For
-declarative visibility, `Options{Policies: &PolicyOptions{Definitions: definitions}}`
+declarative evaluation, `Options{Relations: &RelationOptions{Definitions: definitions}}`
 uses default policy limits, cache settings, and fact-read budgets. Use
-`DefaultPolicyOptions()` to inspect or override those budgets. A fact read uses
+`DefaultRelationOptions()` to inspect or override those budgets. A fact read uses
 one overflow-detection row: `MaxFactRows + 1` must fit the query backend's maximum
 initial window count (999 + 1 with the defaults). Negative policy limits are
 invalid, not a way to disable protection. Policies are never enabled by defaults.

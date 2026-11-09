@@ -47,8 +47,8 @@ func TestGenericPackagesNeverImportExamples(t *testing.T) {
 var publicTypes = map[string]string{
 	"server":                     "AuthConfig Config Host JSONClaims Options",
 	"mutation":                   "Context HeaderNames",
-	"projectionserver":           "DependencyOptions MessageOptions Options PolicyOptions ProjectionLimits Server Stream",
-	"accesscontrol/policy":       "Binding CacheOptions Definition Edge EdgeReference Fact Key Limits Projection Provider ProviderFunc Relation Rule Snapshot",
+	"projectionserver":           "DependencyOptions MessageOptions Options RelationOptions ProjectionLimits Server Stream",
+	"relation":                   "Binding Definitions Relation Computed Propagation Incoming Fact Limits Projection Store",
 	"projectionserver/websocket": "Authentication AuthenticationOptions ServeStream SocketConfig Stream",
 	"querysubscription":          "Batch Boundary BoundaryChange BoundaryKind BoundaryOperation BoundarySide Bounds Change ChangeKind Client DeliveryEnvelope DeliveryKind DeliveryMetadata EntitySnapshot EntitySnapshotInstaller EntitySubscribeRequest EntitySubscription Event Feed FeedOptions InitialWindow Insertion MembershipDelta Position Progress QueryRow QuerySnapshot QuerySnapshotInstaller QuerySubscribeRequest QuerySubscription RecordVersion ReferenceSource ReferenceRoute EntityTarget EntityDelta EntityEffect EntityInstallation Row Subscription SubscriptionEffect SubscriptionFailure WindowTransition",
 	"querysubscription/grpc":     "Server TransportOptions",

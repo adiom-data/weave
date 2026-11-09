@@ -38,7 +38,7 @@ database mutation permission checks still run against those claims.
 - [Projection definitions](PROJECTIONS.md): GraphQL-shaped build-time documents
   compiled into typed TypeScript readers and React hooks. This is not a GraphQL
   runtime. The demo expands `Project -> ProjectTasks -> Task`.
-- [Visibility policy](policy.yaml): user/team grants
+- [Visibility policy](relations.yaml): user/team grants
   allow a project, with visibility propagated over explicitly approved edges.
 - [Fixed claims](server.yaml): trusted local-demo inputs
   supplied to both projections and mutations.

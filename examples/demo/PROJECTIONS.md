@@ -28,6 +28,18 @@ go run ./cmd/projectiongen \
 
 ## Using the generated library
 
+### Computed values
+
+`Project` and `Task` expose `role` and `canEdit` using `@computed`. The
+`ProjectPermissions` operation selects them; its generated reader/hook behaves
+like other projections. Definitions live in [`relations.yaml`](relations.yaml).
+Project role is computed from private grant facts and propagated to association
+rows, then tasks. Visibility consumes that same role; `canEdit` derives from it.
+Selecting either output does not require copying grant facts into public data.
+
+Computed values are contextual to each row occurrence and never become shared
+entity fields. They cannot be used as query predicates, ordering, or bindings.
+
 ### Many-to-many fetch hint
 
 The demo's association list opts into one-level reference preloading:

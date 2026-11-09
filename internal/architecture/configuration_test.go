@@ -4,11 +4,11 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/adiom-data/weave/pkg/accesscontrol/policy"
 	"github.com/adiom-data/weave/pkg/projectionserver"
 	"github.com/adiom-data/weave/pkg/projectionserver/websocket"
 	"github.com/adiom-data/weave/pkg/queryserver"
 	querygrpc "github.com/adiom-data/weave/pkg/querysubscription/grpc"
+	relationdef "github.com/adiom-data/weave/pkg/relation"
 	"github.com/adiom-data/weave/pkg/server"
 	"github.com/adiom-data/weave/pkg/storage"
 	"github.com/adiom-data/weave/pkg/transactionmessage"
@@ -22,10 +22,10 @@ func TestForwardedConfigurationExposesDataNotImplementationMethods(t *testing.T)
 		queryserver.Options{}, queryserver.Limits{},
 		server.Options{},
 		projectionserver.Options{}, projectionserver.ProjectionLimits{}, projectionserver.MessageOptions{},
-		projectionserver.DependencyOptions{}, projectionserver.PolicyOptions{},
+		projectionserver.DependencyOptions{}, projectionserver.RelationOptions{},
 		websocket.SocketConfig{}, querygrpc.TransportOptions{},
 		transactionmessage.Options{}, transactionmessage.MessageLimits{},
-		policy.CacheOptions{}, policy.Limits{},
+		relationdef.Limits{},
 	}
 	for _, config := range configs {
 		value := reflect.TypeOf(config)

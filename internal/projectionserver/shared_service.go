@@ -19,11 +19,11 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/adiom-data/weave/internal/accesscontrol"
-	"github.com/adiom-data/weave/internal/accesscontrol/policy"
 	proj "github.com/adiom-data/weave/internal/projection"
 	"github.com/adiom-data/weave/internal/projection/dependency"
 	"github.com/adiom-data/weave/internal/projection/transactionmessages"
 	"github.com/adiom-data/weave/internal/querysubscription/model"
+	relationdef "github.com/adiom-data/weave/internal/relation"
 	"github.com/adiom-data/weave/internal/storage"
 	"github.com/adiom-data/weave/internal/transactionmessage"
 	reactivev1 "github.com/adiom-data/weave/pkg/gen/reactive/v1"
@@ -77,23 +77,23 @@ type Options struct {
 	// trusted policy inputs from the host. No identity claim is required;
 	// authentication and token verification deliberately remain edge concerns.
 	AccessController accesscontrol.Controller
-	Policies         *PolicyOptions
+	Relations        *RelationOptions
 	ClaimsProvider   func(context.Context) (accesscontrol.Claims, error)
 	Dependencies     DependencyOptions
 }
 
-// PolicyOptions configures library-owned declarative visibility evaluation.
+// RelationOptions configures library-owned computed values and visibility.
 // It is mutually exclusive with a custom AccessController. Zero resource limits
 // select defaults; applications may override them for their workload.
-type PolicyOptions struct {
-	// Definitions and Provider are alternatives. Fixed definitions are checked
-	// during construction; provider definitions are checked when first needed.
-	Definitions policy.Map
-	Provider    policy.Provider
-	Cache       policy.CacheOptions
-	// Optional broadcast hints. Providers need not track what the engine read.
-	Invalidations       <-chan []policy.Key
-	Limits              policy.Limits
+type RelationOptions struct {
+	// AllowAll bypasses visibility decisions, not selected computations.
+	AllowAll bool
+	// Definitions and Store are alternatives. Fixed definitions create a private
+	// store during construction. A supplied Store supports atomic live updates.
+	// Limits configure a private store; a supplied Store owns its own limits.
+	Definitions         relationdef.Definitions
+	Store               *relationdef.Store
+	Limits              relationdef.Limits
 	MaxFactQueries      int
 	MaxFactRows         int
 	FactLoadConcurrency int
@@ -120,8 +120,8 @@ type server struct {
 	lifetime         context.Context
 	cancel           context.CancelFunc
 	dependencies     *dependency.Cache
-	policy           *policy.Evaluator
-	policyAccess     *policyAccess // populated only on a connection-local service copy
+	evaluator        *relationdef.Evaluator
+	relationAccess   *relationAccess // populated only on a connection-local service copy
 }
 
 // New constructs the projection service, shared dependencies, and optional message routing. The
@@ -136,47 +136,44 @@ func New(ctx context.Context, queries querysubscription.Client, options Options)
 	options = options.withDefaults()
 	s := newServer(queries, options)
 	s.lifetime, s.cancel = context.WithCancel(ctx)
-	if options.Policies != nil {
+	if options.Relations != nil {
 		if options.AccessController != nil {
 			s.cancel()
-			return nil, errors.New("policies and a custom access controller are mutually exclusive")
+			return nil, errors.New("relation definitions and a custom access controller are mutually exclusive")
 		}
-		configuration := options.Policies
+		configuration := options.Relations
 		if configuration.MaxFactQueries < 1 || configuration.MaxFactRows < 1 || configuration.MaxFactRows == int(^uint(0)>>1) || configuration.FactLoadConcurrency < 1 {
 			s.cancel()
-			return nil, errors.New("positive authorization dependency limits are required")
+			return nil, errors.New("positive relation dependency limits are required")
 		}
-		if configuration.Provider != nil && configuration.Definitions != nil {
+		if configuration.Store != nil && configuration.Definitions != nil {
 			s.cancel()
-			return nil, errors.New("policy provider and fixed definitions are mutually exclusive")
+			return nil, errors.New("relation store and fixed definitions are mutually exclusive")
 		}
-		provider := configuration.Provider
-		if provider == nil {
+		store := configuration.Store
+		if store == nil {
 			var err error
-			provider, err = policy.NewStaticProvider(configuration.Definitions, configuration.Limits)
+			store, err = relationdef.NewStore(configuration.Definitions, configuration.Limits)
 			if err != nil {
 				s.cancel()
-				return nil, fmt.Errorf("compile visibility policies: %w", err)
+				return nil, fmt.Errorf("compile relation definitions: %w", err)
 			}
 		}
-		compiled, err := policy.NewEvaluator(s.lifetime, provider, configuration.Limits, configuration.Cache, configuration.Invalidations)
+		compiled, err := relationdef.NewEvaluator(store)
 		if err != nil {
 			s.cancel()
-			return nil, fmt.Errorf("compile visibility policies: %w", err)
+			return nil, fmt.Errorf("compile relation definitions: %w", err)
 		}
-		s.policy = compiled
+		s.evaluator = compiled
 		copy := *configuration
 		copy.Definitions = nil
-		s.options.Policies = &copy
+		s.options.Relations = &copy
 	}
 	dependencies := options.Dependencies
 	var err error
 	s.dependencies, err = dependency.New(s.lifetime, queries, dependency.Options(dependencies))
 	if err != nil {
 		s.cancel()
-		if s.policy != nil {
-			_ = s.policy.Close()
-		}
 		return nil, err
 	}
 	s.queries = s.dependencies
@@ -189,9 +186,6 @@ func New(ctx context.Context, queries querysubscription.Client, options Options)
 		if err != nil {
 			s.cancel()
 			_ = s.dependencies.Close()
-			if s.policy != nil {
-				_ = s.policy.Close()
-			}
 			return nil, err
 		}
 	}
@@ -200,9 +194,6 @@ func New(ctx context.Context, queries querysubscription.Client, options Options)
 
 func (s *server) Close() error {
 	s.cancel()
-	if s.policy != nil {
-		_ = s.policy.Close()
-	}
 	var dependencyErr error
 	if s.dependencies != nil {
 		dependencyErr = s.dependencies.Close()
@@ -460,9 +451,9 @@ func (session *connectionSession) run() error {
 		}
 	}()
 	outbound := make(chan outboundMessage, s.options.OutboundQueueLimit)
-	if s.policyAccess != nil {
+	if s.relationAccess != nil {
 		go func() {
-			if err := s.policyAccess.runProgress(ctx); err != nil && ctx.Err() == nil {
+			if err := s.relationAccess.runProgress(ctx); err != nil && ctx.Err() == nil {
 				select {
 				case outbound <- queryEventMessage{err: err}:
 				case <-ctx.Done():
@@ -514,7 +505,7 @@ func (session *connectionSession) run() error {
 		if err != nil {
 			return err
 		}
-		if len(batch.Entities) == 0 && len(batch.Queries) == 0 && len(batch.Projections) == 0 {
+		if len(batch.Entities) == 0 && len(batch.Queries) == 0 && len(batch.Projections) == 0 && len(batch.Computed) == 0 {
 			return nil
 		}
 		*sequence = *sequence + 1
@@ -757,7 +748,7 @@ func (session *connectionSession) run() error {
 			}
 			batch.Atomic = delivery.metadata.Atomic
 			coalesceEntityEvents(batch)
-			if len(batch.Entities) > 0 || len(batch.Queries) > 0 || len(batch.Projections) > 0 || len(batch.Messages) > 0 {
+			if len(batch.Entities) > 0 || len(batch.Queries) > 0 || len(batch.Projections) > 0 || len(batch.Computed) > 0 || len(batch.Messages) > 0 {
 				connectionSequence++
 				if err := stream.Send(&reactivev1.ServerMessage{ConnectionSequence: connectionSequence, Event: &reactivev1.ServerMessage_ModelBatch{ModelBatch: batch}}); err != nil {
 					return err
@@ -844,7 +835,7 @@ func (session *connectionSession) run() error {
 		}
 		batch.Kind = reactivev1.ModelBatch_KIND_WINDOW
 		coalesceEntityEvents(batch)
-		if len(batch.Entities) == 0 && len(batch.Queries) == 0 && len(batch.Projections) == 0 && requestID == "" {
+		if len(batch.Entities) == 0 && len(batch.Queries) == 0 && len(batch.Projections) == 0 && len(batch.Computed) == 0 && requestID == "" {
 			return nil
 		}
 		projection.sequence++
@@ -908,9 +899,9 @@ func (session *connectionSession) run() error {
 			if item.err != nil {
 				return item.err
 			}
-			if s.policyAccess != nil {
+			if s.relationAccess != nil {
 				publications.observe(item.event)
-				affected, err := s.policyAccess.observe(item.event)
+				affected, err := s.relationAccess.observe(item.event)
 				if err != nil {
 					return err
 				}
@@ -957,7 +948,7 @@ func (session *connectionSession) run() error {
 				if err := projectionOutputs.Advance(item.event.Progress.Revision, consumeProjectionOutput); err != nil {
 					return err
 				}
-				if s.policyAccess != nil {
+				if s.relationAccess != nil {
 					progress := item.event.Progress
 					return emitDeliveries([]feedDelivery{{metadata: querysubscription.DeliveryMetadata{Kind: querysubscription.DeliveryHydration, Checkpoint: progress.Position, Revision: progress.Revision, PreviousRevision: progress.PreviousRevision}}})
 				}
@@ -1039,16 +1030,16 @@ func (session *connectionSession) run() error {
 		return err
 	}
 	admissions := &policyAdmissions{ctx: ctx, service: s, stream: stream, queries: queries, prepared: prepared, subscriptions: subscriptions, projections: projections, pending: pending, loaders: &loaders, model: model, outbound: outbound, releaseProjection: releaseProjection, cleanupFailedScope: cleanupFailedScope}
-	if s.policyAccess != nil {
+	if s.relationAccess != nil {
 		publications = &policyPublications{ctx: ctx, service: s, prepared: prepared, model: model, subscriptions: subscriptions, projections: projections, stream: stream, outbound: outbound, loaders: &loaders, closeDirect: closeDirect, closeProjection: closeProjection}
 	}
 	var factActivity, policyActivity <-chan struct{}
-	if s.policyAccess != nil {
-		factActivity = s.policyAccess.session.FactChanges()
-		policyActivity = s.policyAccess.session.PolicyChanges()
+	if s.relationAccess != nil {
+		factActivity = s.relationAccess.session.FactChanges()
+		policyActivity = s.relationAccess.session.PolicyChanges()
 	}
 	refreshPolicy := func() error {
-		s.policyAccess.refresh()
+		s.relationAccess.refresh()
 		for _, loading := range pending {
 			loading.retry = true
 		}
@@ -1062,7 +1053,7 @@ func (session *connectionSession) run() error {
 		}}})
 	}
 	retryPolicy := func() error {
-		if s.policyAccess == nil {
+		if s.relationAccess == nil {
 			return nil
 		}
 		if err := admissions.retry(); err != nil {

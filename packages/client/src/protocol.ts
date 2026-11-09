@@ -47,7 +47,8 @@ export type OccurrenceChange = { readonly id: string; readonly type: 'detached' 
 /** Opaque application payload encoded as base64, matching protobuf JSON bytes. */
 export interface TransactionMessage { readonly kind: string; readonly payload: string }
 export interface ModelBatch {
-	readonly messages: readonly TransactionMessage[]
+  readonly computed: readonly ComputedChange[]
+  readonly messages: readonly TransactionMessage[]
   readonly entities: readonly EntityChange[]
   readonly queries: readonly QueryChange[]
   readonly occurrences: readonly OccurrenceChange[]
@@ -55,6 +56,10 @@ export interface ModelBatch {
   readonly atomic: boolean
   readonly checkpoint: string
 }
+export type ComputedChange = Readonly<{ occurrenceId: string; entityId: string }> & (
+  | Readonly<{ type: 'upsert'; values: RecordData }>
+  | Readonly<{ type: 'released' }>
+)
 export interface ServerMessage {
   readonly subscriptionId: string
   readonly requestId: string
@@ -199,7 +204,15 @@ export function normalizeServerMessage(message: pb.ServerMessage, limits: Decode
       if (kind === undefined) throw new ProtocolError('Unknown model batch kind')
       if (batch.messages.length && kind !== 'COMMIT') throw new ProtocolError('Transaction messages require a commit batch')
       const messages = batch.messages.map(message => ({ kind: id(message.kind), payload: toJson(pb.TransactionMessageSchema, message).payload ?? '' }))
-      event = { type: 'batch', batch: { entities, queries, occurrences, messages, kind, atomic: batch.atomic, checkpoint: batch.checkpoint } }
+      const computed = batch.computed.map((change): ComputedChange => {
+        const base = { occurrenceId: id(change.occurrenceId), entityId: id(change.entityId) }
+        switch (change.event.case) {
+          case 'upsert': return { ...base, type: 'upsert', values: record(change.event.value.fields) }
+          case 'released': return { ...base, type: 'released' }
+          default: throw new ProtocolError('Missing computed event')
+        }
+      })
+      event = { type: 'batch', batch: { entities, queries, occurrences, computed, messages, kind, atomic: batch.atomic, checkpoint: batch.checkpoint } }
       break
     }
     default: throw new ProtocolError('Missing server event')

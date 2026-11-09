@@ -4,9 +4,9 @@ set -euo pipefail
 bench_root=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 backend=${1:-both}
 if [[ $# -gt 0 ]]; then shift; fi
-case "$backend" in weave|electric|zero|weave-embedded|weave-remote) backends=("$backend");; topology) backends=(weave-embedded weave-remote);; both) backends=(weave electric);; all) backends=(weave electric zero);; *) echo "usage: $0 weave|electric|zero|both|all|topology|weave-embedded|weave-remote [runner flags]" >&2; exit 2;; esac
+case "$backend" in weave|electric|drasi|weave-embedded|weave-remote) backends=("$backend");; topology) backends=(weave-embedded weave-remote);; both) backends=(weave electric);; all) backends=(weave electric drasi);; *) echo "usage: $0 weave|electric|drasi|both|all|topology|weave-embedded|weave-remote [runner flags]" >&2; exit 2;; esac
 for bench_arg in "$@"; do
-  case "$bench_arg" in --backend|--backend=*|-backend|-backend=*|--grpc|--grpc=*|-grpc|-grpc=*|--electric|--electric=*|-electric|-electric=*|--zero|--zero=*|-zero|-zero=*)
+  case "$bench_arg" in --backend|--backend=*|-backend|-backend=*|--grpc|--grpc=*|-grpc|-grpc=*|--electric|--electric=*|-electric|-electric=*|--drasi|--drasi=*|-drasi|-drasi=*|--drasi-events|--drasi-events=*|-drasi-events|-drasi-events=*)
     echo "run.sh owns backend/endpoints; configure workloads only" >&2; exit 2;;
   esac
 done
@@ -43,6 +43,11 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 docker compose -p weave-query-benchmark-build -f "$bench_root/compose.yaml" build weave runner >&2
+for bench_backend in "${backends[@]}"; do
+  if [[ "$bench_backend" == drasi ]]; then
+    docker compose -p weave-query-benchmark-build -f "$bench_root/compose.yaml" build drasi >&2
+  fi
+done
 bench_failed=0
 for bench_backend in "${backends[@]}"; do
   bench_project="weave-qbench-$bench_run-$bench_backend"
@@ -60,14 +65,13 @@ for bench_backend in "${backends[@]}"; do
   "${compose[@]}" --profile "$bench_backend" up -d --no-build "$bench_backend" >&2
   bench_ready="http://$bench_backend:8081/ready"
   if [[ "$bench_backend" == electric ]]; then bench_ready=http://electric:3000/v1/health; fi
-  if [[ "$bench_backend" == zero ]]; then bench_ready=http://zero:4848/keepalive; fi
+  if [[ "$bench_backend" == drasi ]]; then bench_ready=http://drasi:8080/health; fi
   "${compose[@]}" run --rm --no-deps runner wait --url "$bench_ready" >&2
   bench_generator="${bench_project}-load"
   bench_container=$("${compose[@]}" run -d --no-deps --name "$bench_generator" runner run --backend "$bench_backend" --grpc "$bench_backend:9090" "$@")
   bench_engine=$("${compose[@]}" ps -q "$bench_backend")
   bench_postgres=$("${compose[@]}" ps -q postgres)
   bench_resources=("$bench_engine" "$bench_postgres" "$bench_container")
-  if [[ "$bench_backend" == zero ]]; then bench_resources+=("$("${compose[@]}" ps -q zero-query)"); fi
   if [[ "$bench_backend" == weave-remote ]]; then bench_resources+=("$("${compose[@]}" ps -q weave)"); fi
   docker inspect "${bench_resources[@]}" >"$bench_results/$bench_backend/containers.json"
   "${compose[@]}" config >"$bench_results/$bench_backend/compose.yaml"

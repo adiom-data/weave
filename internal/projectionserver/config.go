@@ -3,23 +3,23 @@ package projectionserver
 import (
 	"time"
 
-	"github.com/adiom-data/weave/internal/accesscontrol/policy"
 	proj "github.com/adiom-data/weave/internal/projection"
 	"github.com/adiom-data/weave/internal/projection/dependency"
+	relationdef "github.com/adiom-data/weave/internal/relation"
 )
 
-// DefaultPolicyOptions returns operational defaults without selecting policies.
+// DefaultRelationOptions returns operational defaults without selecting policies.
 // Fact reads request one extra row to detect overflow, so MaxFactRows must be
 // smaller than the query backend's maximum initial window count.
-func DefaultPolicyOptions() PolicyOptions {
-	return PolicyOptions{
-		Limits: policy.DefaultLimits(), Cache: policy.DefaultCacheOptions(),
+func DefaultRelationOptions() RelationOptions {
+	return RelationOptions{
+		Limits:         relationdef.DefaultLimits(),
 		MaxFactQueries: 1000, MaxFactRows: 999, FactLoadConcurrency: 8,
 	}
 }
 
-func (o PolicyOptions) withDefaults() PolicyOptions {
-	d := DefaultPolicyOptions()
+func (o RelationOptions) withDefaults() RelationOptions {
+	d := DefaultRelationOptions()
 	if o.MaxFactQueries == 0 {
 		o.MaxFactQueries = d.MaxFactQueries
 	}
@@ -49,9 +49,9 @@ func DefaultOptions() Options {
 
 func (o Options) withDefaults() Options {
 	d := DefaultOptions()
-	if o.Policies != nil {
-		configuration := o.Policies.withDefaults()
-		o.Policies = &configuration
+	if o.Relations != nil {
+		configuration := o.Relations.withDefaults()
+		o.Relations = &configuration
 	}
 	if o.MessageProgressInterval <= 0 {
 		o.MessageProgressInterval = d.MessageProgressInterval

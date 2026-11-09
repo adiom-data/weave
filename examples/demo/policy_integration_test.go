@@ -15,6 +15,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/protobuf/types/known/structpb"
 )
 
 func TestDeclarativeDemoPolicyWithPostgres(t *testing.T) {
@@ -87,12 +88,12 @@ CREATE PUBLICATION %[1]s FOR ALL TABLES;`, name)
 	// Admission must canonicalize both compact and uppercase UUID strings so
 	// native fact bindings and policy comparisons agree with mutation IDs.
 	cfg.Auth.FixedClaims = server.JSONClaims{"organization_id": strings.ReplaceAll(organization, "-", ""), "user_id": strings.ToUpper(strings.ReplaceAll(user, "-", "")), "team_ids": []any{strings.ToUpper(team)}}
-	policyData, err := os.ReadFile("policy.yaml")
+	policyData, err := os.ReadFile("relations.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
-	cfg.Visibility.PolicyFile = filepath.Join(t.TempDir(), "policy.yaml")
-	if err := os.WriteFile(cfg.Visibility.PolicyFile, []byte(strings.ReplaceAll(string(policyData), "tenant_001", name)), 0600); err != nil {
+	cfg.Relations.File = filepath.Join(t.TempDir(), "relations.yaml")
+	if err := os.WriteFile(cfg.Relations.File, []byte(strings.ReplaceAll(string(policyData), "tenant_001", name)), 0600); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("OTEL_SDK_DISABLED", "true")
@@ -133,6 +134,8 @@ CREATE PUBLICATION %[1]s FOR ALL TABLES;`, name)
 	defer conn.Close()
 	root := &reactivev1.ProjectionNode{NodeId: "project", Selection: &reactivev1.ProjectionNode_Entity{Entity: &reactivev1.ProjectionEntity{Query: &reactivev1.Query{Schema: name, Table: "projects", Columns: policyColumns("id", "title"), Filter: policyEqual("id", project)}}}}
 	root.Children = []*reactivev1.ProjectionNode{{NodeId: "links", Selection: &reactivev1.ProjectionNode_List{List: &reactivev1.ProjectionList{Query: &reactivev1.Query{Schema: name, Table: "project_tasks", Columns: policyColumns("id", "project_id", "task_id")}, Window: &reactivev1.InitialWindow{From: reactivev1.InitialWindow_FROM_START, Count: 10}, Bindings: []*reactivev1.ProjectionBinding{policyBinding("project_id", "id")}}}, Children: []*reactivev1.ProjectionNode{{NodeId: "task", Selection: &reactivev1.ProjectionNode_Entity{Entity: &reactivev1.ProjectionEntity{Query: &reactivev1.Query{Schema: name, Table: "tasks", Columns: policyColumns("id", "title")}, Bindings: []*reactivev1.ProjectionBinding{policyBinding("id", "task_id")}}}}}}}
+	root.Computed = []string{"role", "canEdit"}
+	root.Children[0].Children[0].Computed = []string{"role", "canEdit"}
 	client := reactivev1.NewReactiveQueriesClient(conn)
 	image, err := client.GetProjectionSnapshot(ctx, &reactivev1.ProjectionSnapshotRequest{Root: root, WaitForSync: true})
 	if err != nil {
@@ -142,6 +145,11 @@ CREATE PUBLICATION %[1]s FOR ALL TABLES;`, name)
 	links := projectData.GetFields()["links"].GetListValue().GetValues()
 	if len(links) != 1 || links[0].GetStructValue().GetFields()["task"].GetStructValue() == nil {
 		t.Fatalf("expected project with association and task; got %v", image)
+	}
+	for _, row := range []map[string]*structpb.Value{projectData.Fields, links[0].GetStructValue().Fields["task"].GetStructValue().Fields} {
+		if row["role"].GetStringValue() != "2" || !row["canEdit"].GetBoolValue() {
+			t.Fatalf("computed role did not propagate through the association: %v", image)
+		}
 	}
 	live, err := client.Open(ctx)
 	if err != nil {

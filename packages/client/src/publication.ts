@@ -4,6 +4,7 @@ import { invokeSafely } from './callbacks.js'
 
 // Display data deliberately excludes connection-owned window/occurrence IDs.
 export interface ProjectionDataRow {
+  readonly computed?: ProjectionRow['computed']
   readonly entityId: string
   readonly entity: ProjectionRow['entity']
   readonly children: Readonly<Record<string, ProjectionDataNode | undefined>>
@@ -65,7 +66,7 @@ function isRow(value: unknown): value is ProjectionDataRow {
 function data(node: NodeView | undefined): ProjectionDataNode | undefined {
   if (!node) return undefined
   const row = (value: ProjectionRow): ProjectionDataRow => Object.freeze({
-    entityId: value.entityId, entity: value.entity,
+    entityId: value.entityId, entity: value.entity, computed: value.computed,
     children: Object.freeze(Object.fromEntries(Object.entries(value.children).map(([key, child]) => [key, data(child)]))),
   })
   return node.type === 'entity'

@@ -23,15 +23,15 @@ type Stream = impl.Stream
 type Options = impl.Options
 
 type DependencyOptions = impl.DependencyOptions
-type PolicyOptions = impl.PolicyOptions
+type RelationOptions = impl.RelationOptions
 
 // DefaultOptions returns a fresh base configuration to customize before New.
 func DefaultOptions() Options { return impl.DefaultOptions() }
 
-// DefaultPolicyOptions returns customizable policy resource defaults. Definitions
+// DefaultRelationOptions returns customizable computation resource defaults. Definitions
 // or a provider remain application-owned. MaxFactRows + 1 must fit the query
 // backend's maximum initial window count (the defaults fit its default of 1000).
-func DefaultPolicyOptions() PolicyOptions { return impl.DefaultPolicyOptions() }
+func DefaultRelationOptions() RelationOptions { return impl.DefaultRelationOptions() }
 
 // New constructs the projection service and owns optional message routing. The
 // caller owns the query/message clients, policy, listeners, and gRPC server.
