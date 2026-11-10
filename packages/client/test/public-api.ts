@@ -1,4 +1,5 @@
-import { ModelStore, ReactiveClient, MutationHarness, unionOptimisticShapes, invalidateComputed, type ProjectionFields, type TypedProjectionHandle, type ProjectionHandle, type EntitySnapshot, type Selection, type OptimisticEntityPatch, type ProjectedEntity, type ProjectedList, type ProvisionalValue } from '../dist/index.js'
+import { ModelStore, ReactiveClient, MutationHarness, unionOptimisticShapes, invalidateComputed, type CompiledProjection, type ProjectionFields, type TypedProjectionHandle, type ProjectionHandle, type EntitySnapshot, type Selection, type OptimisticEntityPatch, type ProjectedEntity, type ProjectedList, type ProvisionalValue } from '../dist/index.js'
+import { useTypedProjection } from '../dist/react.js'
 
 type ComputedTask = ProjectionFields<{ title: string; completed: boolean }, { canEdit: boolean; role: bigint }>
 type ComputedProject = ProjectedEntity<ProjectionFields<{ tasks: ProjectedList<ComputedTask> | undefined }, { canEdit: string }>>
@@ -34,6 +35,24 @@ function computedPredictions(client: ReactiveClient, handle: TypedProjectionHand
   draft.commit()
 }
 void computedPredictions
+
+function useComputedPredictions(client: ReactiveClient, definition: CompiledProjection<{ id: string }, ComputedProject>, task: ProjectedEntity<ComputedTask>): void {
+  const projection = useTypedProjection(client, definition, { id: 'project' })
+  // @ts-expect-error a hook handle is not available before mounting
+  const unguarded: TypedProjectionHandle<ComputedProject> = projection.handle
+  if (projection.status === 'ready' && projection.handle) {
+    const handle: TypedProjectionHandle<ComputedProject> = projection.handle
+    const shape = unionOptimisticShapes([task], { project: handle })
+    const draft = client.optimistic({ mutationId: 'react-computed' })
+    draft.fill(shape, { project: { tasks: { canEdit: () => true, role: () => 1n } } })
+    // @ts-expect-error the handle must retain computed result types
+    draft.fill(shape, { project: { tasks: { canEdit: () => 'no' } } })
+    // @ts-expect-error the hook's borrowed handle is read-only
+    projection.handle = handle
+  }
+  void unguarded
+}
+void useComputedPredictions
 
 const revisionClient = new ReactiveClient({ url: 'ws://localhost', clientRevision: 42n, onClientVersionStatus: notice => {
   const revision: bigint = notice.minimumRevision

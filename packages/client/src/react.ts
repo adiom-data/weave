@@ -49,6 +49,10 @@ export function useProjection(client: ReactiveClient, request: ProjectionRequest
 }
 
 export interface TypedProjectionResult<T> extends TypedProjectionSnapshot<T> {
+  /** Borrowed handle for this mounted subscription. The hook owns disposal.
+   * Undefined before effects run or while the requested inputs are changing.
+   */
+  readonly handle: TypedProjectionHandle<T> | undefined
   window(list: ProjectedList<unknown>): WindowControl
   target(listOrNode?: ProjectedList<unknown> | string, ancestors?: readonly string[]): OptimisticTarget
 }
@@ -73,5 +77,5 @@ export function useTypedProjection<P, T>(client: ReactiveClient, definition: Com
     if (!handle) throw new Error('Projection is not mounted')
     return handle.target(listOrNode, ancestors)
   }, [handle])
-  return useMemo(() => ({ ...snapshot, window, target }), [snapshot, window, target])
+  return useMemo(() => ({ ...snapshot, handle, window, target }), [snapshot, handle, window, target])
 }

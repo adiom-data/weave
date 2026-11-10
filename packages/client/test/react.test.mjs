@@ -4,16 +4,18 @@ import { act, createElement, StrictMode } from 'react'
 import { renderToString } from 'react-dom/server'
 import { createRoot } from 'react-dom/client'
 import { JSDOM } from 'jsdom'
-import { ReactiveClient, defineProjection } from '../dist/index.js'
+import { ReactiveClient, defineProjection, unionOptimisticShapes } from '../dist/index.js'
 import { useConnection, useProjection, useSelection, useTypedProjection } from '../dist/react.js'
-import { initial, request, entity, FakeSocket } from './helpers.mjs'
+import { initial, request, entity, attach, FakeSocket } from './helpers.mjs'
 
 test('React rendering/SSR does not open sockets or create live subscriptions', () => {
   const client = new ReactiveClient({ url: 'ws://example.test', createSocket: () => { throw new Error('Network work during render') } })
+  const definition = defineProjection(request.root, { nodeId: 'project', kind: 'entity', fields: [], children: {} }, [])
   function View() {
     assert.equal(useConnection(client).status, 'disconnected')
     const result = useProjection(client, request)
     assert.equal(typeof result.updateWindow, 'function')
+    assert.equal(useTypedProjection(client, definition, {}).handle, undefined)
     return createElement('div', null, result.status)
   }
   assert.match(renderToString(createElement(StrictMode, null, createElement(View))), /loading/)
@@ -93,27 +95,111 @@ test('typed hooks stabilize equal parameter values and replace scopes when param
     nodeId: 'project', kind: 'entity', fields: [{ name: 'title', path: ['title'], type: { kind: 'text' } }], children: {},
   }, [{ name: 'id', type: { kind: 'text' } }])
   let renders = 0
+  let latest
+  const seen = []
   function View({ id }) {
     renders++
     const view = useTypedProjection(client, definition, { id })
+    latest = view
+    seen.push({ id, handle: view.handle, data: view.data })
     return createElement('div', null, view.data?.status === 'available' ? view.data.value.title : view.status)
   }
   const subscriptions = () => sockets[0].sent.filter(message => message.subscribeProjection)
   await act(async () => root.render(createElement(StrictMode, null, createElement(View, { id: 'one' }))))
   const count = subscriptions().length
   const scope = subscriptions().at(-1).subscriptionId
+  const original = latest.handle
+  assert.equal(original.id, scope)
   await act(async () => {
     sockets[0].message(image(scope)); sockets[0].message({ subscriptionId: scope, sequence: '2', ready: {} })
   })
   assert.equal(container.textContent, 'Project')
+  assert.equal(latest.handle, original)
   const beforeUnselected = renders
   await act(async () => sockets[0].message({ connectionSequence: '1', modelBatch: { kind: 'KIND_COMMIT', entities: [entity('project', 'Project', { unselected: { textValue: 'new' } })] } }))
   assert.equal(renders, beforeUnselected, 'unselected values must not rerender the combined typed hook')
   await act(async () => root.render(createElement(StrictMode, null, createElement(View, { id: 'one' }))))
   assert.equal(subscriptions().length, count, 'new argument object with equal values must not resubscribe')
+  assert.equal(latest.handle, original)
   await act(async () => root.render(createElement(StrictMode, null, createElement(View, { id: 'two' }))))
   assert.equal(subscriptions().length, count + 1)
   assert.equal(container.textContent, 'loading', 'old parameters must not leak while the new scope loads')
+  assert.ok(seen.some(value => value.id === 'two' && value.handle === undefined && value.data === undefined), 'input-change render hides the previous handle along with its snapshot')
+  assert.notEqual(latest.handle, original)
+  assert.equal(latest.handle.id, subscriptions().at(-1).subscriptionId)
+  assert.throws(() => original.target(), /disposed/)
+})
+
+test('typed hook handles support computed fills and follow definition, connection, and mount lifetimes', async t => {
+  const { client, sockets, root, container } = mounted(t)
+  const node = { nodeId: 'project', entity: { query: { table: 'projects' } }, computed: ['canEdit'] }
+  const shape = { nodeId: 'project', kind: 'entity', children: {}, fields: [
+    { name: 'title', path: ['title'], type: { kind: 'text' } },
+    { name: 'editable', path: ['canEdit'], type: { kind: 'bool' }, computed: true },
+  ] }
+  const definition = defineProjection(node, shape, [])
+  const replacementDefinition = defineProjection(node, shape, [])
+  let latest
+  const seen = []
+  function View({ connection, projection }) {
+    latest = useTypedProjection(connection, projection, {})
+    seen.push({ connection, projection, handle: latest.handle })
+    return createElement('div', null, latest.data?.status === 'available' ? `${latest.data.value.title}:${latest.data.value.editable}` : latest.status)
+  }
+  const render = (connection = client, projection = definition) => root.render(createElement(StrictMode, null, createElement(View, { connection, projection })))
+  const load = socket => {
+    const scope = latest.handle.id
+    socket.message({ subscriptionId: scope, sequence: '1', modelBatch: {
+      kind: 'KIND_SNAPSHOT', entities: [entity('project', 'Project')],
+      projections: [attach('project-occurrence', 'project', { entityId: 'project' }, '', '', scope)],
+      computed: [{ occurrenceId: 'project-occurrence', entityId: 'project', upsert: { fields: { canEdit: { boolValue: true } } } }],
+    } })
+    socket.message({ subscriptionId: scope, sequence: '2', ready: {} })
+  }
+  sockets[0].message({ connectionOpened: { connectionContext: 'one' } })
+  await act(async () => render())
+  const original = latest.handle
+  assert.equal(latest.status, 'loading', 'a mounted handle need not be ready yet')
+  await act(async () => load(sockets[0]))
+  assert.equal(container.textContent, 'Project:true')
+  assert.equal(latest.handle, original)
+  const count = sockets[0].sent.filter(message => message.subscribeProjection).length
+  const draft = client.optimistic({ mutationId: 'react-computed' })
+  draft.fill(unionOptimisticShapes([latest.data], { project: latest.handle }), { project: { editable: () => false } })
+  let overlay
+  await act(async () => { overlay = draft.commit() })
+  assert.equal(container.textContent, 'Project:false')
+  assert.equal(latest.data.computedState.editable, 'predicted')
+  assert.equal(latest.handle, original)
+  assert.equal(sockets[0].sent.filter(message => message.subscribeProjection).length, count, 'using the hook handle creates no duplicate subscription')
+  await act(async () => overlay.rollback())
+  assert.equal(container.textContent, 'Project:true')
+
+  await act(async () => { client.disconnect(); client.connect(); sockets[1].open() })
+  assert.equal(latest.handle, original, 'reconnect keeps the mounted projection identity')
+  await act(async () => {
+    sockets[1].message({ connectionOpened: { connectionContext: 'two' } })
+    load(sockets[1])
+  })
+  assert.equal(latest.handle, original)
+  assert.equal(container.textContent, 'Project:true')
+
+  await act(async () => render(client, replacementDefinition))
+  assert.ok(seen.some(value => value.projection === replacementDefinition && value.handle === undefined))
+  assert.notEqual(latest.handle, original)
+  assert.throws(() => original.target(), /disposed/)
+  const priorClientHandle = latest.handle
+  const replacement = new ReactiveClient({ url: 'ws://replacement', createSocket: () => new FakeSocket() })
+  t.after(() => replacement.clear())
+  await act(async () => render(replacement, replacementDefinition))
+  assert.ok(seen.some(value => value.connection === replacement && value.handle === undefined))
+  assert.notEqual(latest.handle, priorClientHandle)
+  assert.throws(() => priorClientHandle.target(), /disposed/)
+  const last = latest.handle
+  await act(async () => root.render(null))
+  assert.throws(() => last.target(), /disposed/)
+  assert.equal(client.getDiagnostics().activeProjections, 0)
+  assert.equal(replacement.getDiagnostics().activeProjections, 0)
 })
 
 test('typed hooks replace scopes when partial-error behavior changes but not for equivalent options', async t => {

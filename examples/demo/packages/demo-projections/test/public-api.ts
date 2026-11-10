@@ -1,5 +1,6 @@
-import { ProjectDetails, type ProjectDetailsData } from '../dist/index.js'
-import type { ReactiveClient } from '@adiom-data/weave'
+import { ProjectDetails, type ProjectDetailsData, type ProjectPermissionsData } from '../dist/index.js'
+import { useProjectPermissions } from '../dist/react.js'
+import { unionOptimisticShapes, type ReactiveClient, type TypedProjectionHandle } from '@adiom-data/weave'
 
 ProjectDetails.request({ projectId: '10000000-0000-4000-8000-000000000001' })
 // @ts-expect-error UUID parameters are not numbers
@@ -37,3 +38,16 @@ function check(client: ReactiveClient, data: ProjectDetailsData): void {
   }
 }
 void check
+
+function usePermissionsPrediction(client: ReactiveClient): void {
+  const projection = useProjectPermissions(client, { projectId: '10000000-0000-4000-8000-000000000001' })
+  if (projection.status === 'ready' && projection.handle && projection.data) {
+    const handle: TypedProjectionHandle<ProjectPermissionsData> = projection.handle
+    const shape = unionOptimisticShapes([projection.data], { project: handle })
+    const draft = client.optimistic({ mutationId: 'generated-hook' })
+    draft.fill(shape, { project: { canEdit: () => false, role: () => 1n } })
+    // @ts-expect-error generated React handles preserve computed native types
+    draft.fill(shape, { project: { canEdit: () => 'false' } })
+  }
+}
+void usePermissionsPrediction

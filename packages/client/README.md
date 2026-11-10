@@ -662,6 +662,31 @@ cached views or disposing projection handles.
 never render; SSR returns loading projection state without connecting, and
 React StrictMode can safely replay the lifecycle.
 
+`useTypedProjection` and generated hooks also expose a borrowed `handle`, with
+the precise generated data type. This is the concrete handle required by
+`unionOptimisticShapes`, so no second subscription is needed. For example, with
+a projection selecting the computed `canEdit` field:
+
+```ts
+const projection = useProjectPermissions(client, { projectId })
+
+// Inside a mutation's optimistic callback, where `draft` is its writer:
+if (projection.status === 'ready' && projection.handle && projection.data) {
+  const affected = unionOptimisticShapes([projection.data], {
+    project: projection.handle,
+  })
+  draft.fill(affected, { project: { canEdit: () => false } })
+}
+```
+
+The hook owns disposal; do not call `handle.dispose()` yourself. The handle is
+undefined during SSR, before mounting effects run, and on the render where
+client, definition, parameters, or options change before the new subscription
+is installed. It stays stable across ordinary updates and reconnects, but a
+mounted handle may still be loading or disconnected: check readiness before a
+computed fill, and use the latest hook result in callbacks. Unmounting disposes
+the handle, and saved handles from replaced subscriptions cannot be reused.
+
 An entity view contains a `row`; a list view contains `query` (version/bounds)
 and ordered `rows`. Every row contains an entity state and its named child views.
 Missing child occurrences are `undefined`; that alone does not distinguish
