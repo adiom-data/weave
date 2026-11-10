@@ -1,4 +1,45 @@
-import { ModelStore, ReactiveClient, MutationHarness, type ProjectionHandle, type EntitySnapshot, type Selection, type OptimisticEntityPatch, type ProjectedEntity, type ProjectedList, type ProvisionalValue } from '../dist/index.js'
+import { ModelStore, ReactiveClient, MutationHarness, unionOptimisticShapes, invalidateComputed, type ProjectionFields, type TypedProjectionHandle, type ProjectionHandle, type EntitySnapshot, type Selection, type OptimisticEntityPatch, type ProjectedEntity, type ProjectedList, type ProvisionalValue } from '../dist/index.js'
+
+type ComputedTask = ProjectionFields<{ title: string; completed: boolean }, { canEdit: boolean; role: bigint }>
+type ComputedProject = ProjectedEntity<ProjectionFields<{ tasks: ProjectedList<ComputedTask> | undefined }, { canEdit: string }>>
+function computedPredictions(client: ReactiveClient, handle: TypedProjectionHandle<ComputedProject>, task: ProjectedEntity<ComputedTask>, list: ProjectedList<ComputedTask>): void {
+  const shape = unionOptimisticShapes([task], { project: handle })
+  const draft = client.optimistic({ mutationId: 'computed' })
+  draft.patch(task, { completed: true })
+  // @ts-expect-error computed fields are not stored patches
+  draft.patch(task, { canEdit: true })
+  // @ts-expect-error stored patches use native types
+  draft.patch(task, { completed: 'true' })
+  const inserted = draft.insert(list, { title: 'New', completed: false })
+  const insertedShape = unionOptimisticShapes([inserted], { project: handle })
+  draft.fill(insertedShape, { project: { tasks: { canEdit: () => false } } })
+  // @ts-expect-error inserted reference must not turn computed fields into stored patches
+  draft.patch(inserted, { canEdit: true })
+  // @ts-expect-error computed fields are not stored insertion inputs
+  draft.insert(list, { title: 'New', canEdit: true })
+  draft.fill(shape, { project: { canEdit: () => 'root', tasks: {
+    canEdit: row => { const completed: boolean | undefined = row.current.completed; return completed === true ? false : invalidateComputed },
+    role: () => 1n,
+  } } })
+  // @ts-expect-error bool computation cannot return a string
+  draft.fill(shape, { project: { tasks: { canEdit: () => 'no' } } })
+  // @ts-expect-error same computation name at root has a distinct string type
+  draft.fill(shape, { project: { canEdit: () => false } })
+  // @ts-expect-error stored fields cannot be computed fillers
+  draft.fill(shape, { project: { tasks: { title: () => 'no' } } })
+  // @ts-expect-error invalid projection path
+  draft.fill(shape, { project: { unknown: {} } })
+  // @ts-expect-error invalid concrete projection key
+  draft.fill(shape, { unknown: {} })
+  draft.commit()
+}
+void computedPredictions
+
+const revisionClient = new ReactiveClient({ url: 'ws://localhost', clientRevision: 42n, onClientVersionStatus: notice => {
+  const revision: bigint = notice.minimumRevision
+  void revision
+} })
+void revisionClient
 
 const store = new ModelStore({ onListenerError: error => console.error(error) })
 const selection: Selection<EntitySnapshot> = store.observe(model => model.getEntity('entity'))
@@ -6,6 +47,8 @@ const stop = selection.subscribe(() => { selection.getSnapshot() })
 stop()
 
 // Consumers use the read/subscribe interface, not store tracking capabilities.
+// @ts-expect-error private staged draft readers are not a public store API
+store.previewOptimistic({ mutationId: 'private' })
 // @ts-expect-error dependency tracking is private
 store.track(model => model.getEntity('entity'))
 // @ts-expect-error internal dependency keys are not a public subscription API

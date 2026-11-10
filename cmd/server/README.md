@@ -136,6 +136,25 @@ authenticating upstream that injects the header, or a trusted fixed-claims setup
 Initial browser credentials still need that cookie/proxy/custom-socket path;
 in-protocol renewal does not replace initial admission.
 
+### Optional client compatibility revisions
+
+WebSocket clients can announce an application-owned unsigned 64-bit revision
+(unrelated to the Weave package version). Both compatibility thresholds default
+to zero, accepting legacy clients:
+
+```yaml
+websocket:
+  minimum_client_revision: 10
+  recommended_client_revision: 12
+```
+
+Below the recommended revision, the server sends a deprecation advisory. Below
+the minimum, it sends upgrade-required and closes the socket. The TypeScript
+client pauses automatic reconnects and lets the application prompt for a reload.
+Omitting a revision means zero. Revisions are compatibility hints, not verified
+credentials, and do not affect authorization. RPC clients are not gated by these
+WebSocket settings.
+
 ### Optional WebSocket renewal
 
 Renewal is disabled by default. To require clients to keep presenting a current

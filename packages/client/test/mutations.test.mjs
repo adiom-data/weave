@@ -20,7 +20,7 @@ function setup(t, options = {}) {
     decodeReceipts: transaction => transaction.messages.filter(message => message.kind === 'receipt').map(message => atob(message.payload)),
     onListenerError: error => errors.push(error), ...options })
   t.after(() => { harness.dispose(); reactive.clear() })
-  const predict = draft => draft.patch({ entityId: 'e' }, { title: { textValue: 'Predicted' } })
+  const predict = draft => draft.patchCanonical({ entityId: 'e' }, { title: { textValue: 'Predicted' } })
   return { reactive, harness, sockets, errors, commit, predict }
 }
 

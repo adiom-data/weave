@@ -24,6 +24,40 @@ func writeTestFile(t *testing.T, name, contents string) string {
 }
 func noEnv(string) (string, bool) { return "", false }
 
+func TestClientRevisionConfiguration(t *testing.T) {
+	path := writeTestFile(t, "server.yaml", `
+storage:
+  postgres:
+    url: postgres://localhost/app
+    publication: publication
+    slot: slot
+auth:
+  mode: fixed
+visibility:
+  mode: allow_all
+websocket:
+  minimum_client_revision: 9007199254740993
+  recommended_client_revision: 18446744073709551615
+`)
+	c, err := Load(path, noEnv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Socket.MinimumClientRevision != 9007199254740993 || c.Socket.RecommendedClientRevision != ^uint64(0) {
+		t.Fatal("client revisions lost integer precision")
+	}
+	c = validConfig()
+	c.Socket.MinimumClientRevision = 3
+	c.Socket.RecommendedClientRevision = 2
+	if c.Validate() == nil {
+		t.Fatal("accepted recommended revision below minimum")
+	}
+	c.Socket.RecommendedClientRevision = 0
+	if err := c.Validate(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestConfigDefaultsAndEnvironment(t *testing.T) {
 	path := writeTestFile(t, "server.yaml", `
 storage:

@@ -10,6 +10,7 @@ export interface ProjectionDataRow {
   readonly error?: BranchFailure
   readonly stale?: boolean
   readonly computed?: ProjectionRow['computed']
+  readonly computedState?: ProjectionRow['computedState']
   readonly entityId: string
   readonly entity: ProjectionRow['entity']
   readonly children: Readonly<Record<string, ProjectionDataNode | undefined>>
@@ -76,16 +77,18 @@ function share<T>(before: T, after: T, memo = new WeakMap<object, WeakMap<object
 function isRow(value: unknown): value is ProjectionDataRow {
   return !!value && typeof value === 'object' && 'entityId' in value && typeof value.entityId === 'string'
 }
-function data(node: NodeView | undefined): ProjectionDataNode | undefined {
-  if (!node) return undefined
-  const row = (value: ProjectionRow): ProjectionDataRow => Object.freeze({
-    entityId: value.entityId, entity: value.entity, computed: value.computed,
+export function projectionRowData(value: ProjectionRow): ProjectionDataRow {
+  return Object.freeze({
+    entityId: value.entityId, entity: value.entity, computed: value.computed, computedState: value.computedState,
     ...(value.error ? { error: value.error, stale: value.stale } : {}),
-    children: Object.freeze(Object.fromEntries(Object.entries(value.children).map(([key, child]) => [key, data(child)]))),
+    children: Object.freeze(Object.fromEntries(Object.entries(value.children).map(([key, child]) => [key, projectionData(child)]))),
   })
+}
+export function projectionData(node: NodeView | undefined): ProjectionDataNode | undefined {
+  if (!node) return undefined
   return node.type === 'entity'
-    ? Object.freeze({ nodeId: node.nodeId, type: 'entity', row: row(node.error ? { ...node.row, error: node.error, stale: node.stale } : node.row), ...(node.error ? { error: node.error, stale: node.stale } : {}) })
-    : Object.freeze({ nodeId: node.nodeId, type: 'list', rows: Object.freeze(node.rows.map(row)), ...(node.error ? { error: node.error, stale: node.stale } : {}) })
+    ? Object.freeze({ nodeId: node.nodeId, type: 'entity', row: projectionRowData(node.error ? { ...node.row, error: node.error, stale: node.stale } : node.row), ...(node.error ? { error: node.error, stale: node.stale } : {}) })
+    : Object.freeze({ nodeId: node.nodeId, type: 'list', rows: Object.freeze(node.rows.map(projectionRowData)), ...(node.error ? { error: node.error, stale: node.stale } : {}) })
 }
 
 export class ProjectionPublication {
@@ -123,7 +126,7 @@ export class ProjectionPublication {
     const root = ready ? this.branches.reconcile(candidate.root, candidate.errors) : terminal ? undefined : this.resetRoot ? this.resetRoot.root : previous.root
     this.resetRoot = undefined
     this.view.stage(Object.freeze({ ...candidate, root, stale: !terminal && root !== undefined && (!ready || !!candidate.errors?.length) }))
-    if (root !== previous.root) this.data.stage(data(root))
+    if (root !== previous.root) this.data.stage(projectionData(root))
   }
   hasWindow(id: string): boolean {
     return this.current && !!findLiveWindow(this.view.getSnapshot().root, { occurrenceId: id })

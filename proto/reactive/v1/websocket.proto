@@ -13,6 +13,7 @@ message WebSocketClientFrame {
     ClientMessage message = 1;
     WebSocketHeartbeat ping = 2;
     WebSocketAuthToken auth_token = 3;
+    WebSocketClientInfo client_info = 4;
   }
 }
 
@@ -21,11 +22,29 @@ message WebSocketServerFrame {
     ServerMessage message = 1;
     WebSocketHeartbeat pong = 2;
     WebSocketAuthStatus auth_status = 3;
+    WebSocketClientVersionStatus client_version_status = 4;
   }
 }
 
 message WebSocketHeartbeat {
   string id = 1;
+}
+
+// Application-owned compatibility revision, not the Weave package version.
+// Send at most once, before any reactive request. Omission means revision zero.
+message WebSocketClientInfo {
+  uint64 revision = 1;
+}
+
+message WebSocketClientVersionStatus {
+  enum Status {
+    STATUS_UNSPECIFIED = 0;
+    STATUS_DEPRECATED = 1;
+    STATUS_UPGRADE_REQUIRED = 2;
+  }
+  Status status = 1;
+  uint64 minimum_revision = 2;
+  uint64 recommended_revision = 3;
 }
 
 // Transport-only renewal. Tokens never enter the reactive model or WAL stream.

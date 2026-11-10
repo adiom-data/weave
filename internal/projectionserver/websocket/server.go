@@ -42,6 +42,9 @@ type SocketConfig struct {
 	// Authentication is opt-in. Without it, admission remains entirely owned
 	// by serve and in-protocol renewal is unavailable.
 	Authentication *AuthenticationOptions
+	// Optional application-owned policy. Revisions are announced in-protocol;
+	// the getter is rechecked on activity, including established connections.
+	ClientVersions *ClientVersionOptions
 }
 
 // DefaultSocketConfig returns conservative edge limits for a browser client.
@@ -74,6 +77,10 @@ func NewHandler(serve ServeStream, origin string, logger *slog.Logger, config So
 		logger = slog.Default()
 	}
 	h := &handler{serve: serve, origin: origin, logger: logger, socketConfig: config.withDefaults()}
+	if config.ClientVersions != nil {
+		versions := *config.ClientVersions
+		h.socketConfig.ClientVersions = &versions
+	}
 	if config.Authentication != nil {
 		auth := config.Authentication.withDefaults()
 		h.socketConfig.Authentication = &auth
@@ -168,6 +175,7 @@ type socketStream struct {
 	cancel  context.CancelFunc
 	tokens  *tokenUpdates
 	headers http.Header
+	version clientVersion
 }
 
 func (s *socketStream) Context() context.Context { return s.ctx }
@@ -194,6 +202,9 @@ func (s *socketStream) write(frame *reactivev1.WebSocketServerFrame) error {
 	return s.socket.WriteMessage(websocket.BinaryMessage, data)
 }
 func (s *socketStream) Send(message *reactivev1.ServerMessage) error {
+	if err := s.checkVersion(false); err != nil {
+		return err
+	}
 	return s.write(&reactivev1.WebSocketServerFrame{Payload: &reactivev1.WebSocketServerFrame_Message{Message: message}})
 }
 func (s *socketStream) Recv() (*reactivev1.ClientMessage, error) {
@@ -213,11 +224,19 @@ func (s *socketStream) Recv() (*reactivev1.ClientMessage, error) {
 			return nil, err
 		}
 		switch payload := frame.Payload.(type) {
+		case *reactivev1.WebSocketClientFrame_ClientInfo:
+			s.touch()
+			if err := s.declareVersion(payload.ClientInfo); err != nil {
+				return nil, err
+			}
 		case *reactivev1.WebSocketClientFrame_AuthToken:
 			if err := s.updateAuthToken(payload.AuthToken); err != nil {
 				return nil, err
 			}
 		case *reactivev1.WebSocketClientFrame_Ping:
+			if err := s.checkVersion(true); err != nil {
+				return nil, err
+			}
 			if payload.Ping == nil || payload.Ping.Id == "" || len(payload.Ping.Id) > 128 {
 				return nil, errors.New("invalid WebSocket heartbeat")
 			}
@@ -226,6 +245,9 @@ func (s *socketStream) Recv() (*reactivev1.ClientMessage, error) {
 				return nil, err
 			}
 		case *reactivev1.WebSocketClientFrame_Message:
+			if err := s.checkVersion(true); err != nil {
+				return nil, err
+			}
 			if payload.Message == nil {
 				return nil, errors.New("missing reactive message")
 			}

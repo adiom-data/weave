@@ -80,7 +80,15 @@ var reservedTS = map[string]bool{
 }
 
 func tsNode(shape *Shape) string {
-	row := tsObject(shape.Fields, shape.Children)
+	var stored, computed []Field
+	for _, field := range shape.Fields {
+		if field.Computed {
+			computed = append(computed, field)
+		} else {
+			stored = append(stored, field)
+		}
+	}
+	row := "$runtime.ProjectionFields<" + tsObject(stored, shape.Children) + ", " + tsObject(computed, nil) + ">"
 	if shape.Kind == "list" {
 		return "$runtime.ProjectedList<" + row + ">"
 	}

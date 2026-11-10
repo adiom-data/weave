@@ -37,7 +37,7 @@ installs the client's pre-publication receipt decoder, so any optimistic layer
 with the same mutation ID retires atomically with its authoritative transaction.
 Post-publication receipt observers still run after that final view is visible.
 To predict changes to a loaded entity, supply `optimistic: draft =>
-draft.patch(task, { completed: { boolValue: true } })` as the method's second
+draft.patch(task, { completed: true })` as the method's second
 argument. All three methods accept the harness's optional lifecycle hooks.
 `operation.state` can be used directly with the client's React `useSelection`.
 

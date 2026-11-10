@@ -10,6 +10,6 @@
     "./react": { "types": "./dist/react.d.ts", "default": "./dist/react.js" }
   },
   "scripts": { "build": "tsc -p tsconfig.json", "test": "npm run build && tsc -p tsconfig.test.json && node --test test/*.test.mjs" },
-  "dependencies": { "@adiom-data/weave": "0.0.3" },
+  "dependencies": { "@adiom-data/weave": "0.0.4" },
   "peerDependencies": { "react": ">=18" }
 }

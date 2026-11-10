@@ -21,6 +21,55 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+type WebSocketClientVersionStatus_Status int32
+
+const (
+	WebSocketClientVersionStatus_STATUS_UNSPECIFIED      WebSocketClientVersionStatus_Status = 0
+	WebSocketClientVersionStatus_STATUS_DEPRECATED       WebSocketClientVersionStatus_Status = 1
+	WebSocketClientVersionStatus_STATUS_UPGRADE_REQUIRED WebSocketClientVersionStatus_Status = 2
+)
+
+// Enum value maps for WebSocketClientVersionStatus_Status.
+var (
+	WebSocketClientVersionStatus_Status_name = map[int32]string{
+		0: "STATUS_UNSPECIFIED",
+		1: "STATUS_DEPRECATED",
+		2: "STATUS_UPGRADE_REQUIRED",
+	}
+	WebSocketClientVersionStatus_Status_value = map[string]int32{
+		"STATUS_UNSPECIFIED":      0,
+		"STATUS_DEPRECATED":       1,
+		"STATUS_UPGRADE_REQUIRED": 2,
+	}
+)
+
+func (x WebSocketClientVersionStatus_Status) Enum() *WebSocketClientVersionStatus_Status {
+	p := new(WebSocketClientVersionStatus_Status)
+	*p = x
+	return p
+}
+
+func (x WebSocketClientVersionStatus_Status) String() string {
+	return protoimpl.X.EnumStringOf(x.Descriptor(), protoreflect.EnumNumber(x))
+}
+
+func (WebSocketClientVersionStatus_Status) Descriptor() protoreflect.EnumDescriptor {
+	return file_reactive_v1_websocket_proto_enumTypes[0].Descriptor()
+}
+
+func (WebSocketClientVersionStatus_Status) Type() protoreflect.EnumType {
+	return &file_reactive_v1_websocket_proto_enumTypes[0]
+}
+
+func (x WebSocketClientVersionStatus_Status) Number() protoreflect.EnumNumber {
+	return protoreflect.EnumNumber(x)
+}
+
+// Deprecated: Use WebSocketClientVersionStatus_Status.Descriptor instead.
+func (WebSocketClientVersionStatus_Status) EnumDescriptor() ([]byte, []int) {
+	return file_reactive_v1_websocket_proto_rawDescGZIP(), []int{4, 0}
+}
+
 type WebSocketAuthStatus_Status int32
 
 const (
@@ -54,11 +103,11 @@ func (x WebSocketAuthStatus_Status) String() string {
 }
 
 func (WebSocketAuthStatus_Status) Descriptor() protoreflect.EnumDescriptor {
-	return file_reactive_v1_websocket_proto_enumTypes[0].Descriptor()
+	return file_reactive_v1_websocket_proto_enumTypes[1].Descriptor()
 }
 
 func (WebSocketAuthStatus_Status) Type() protoreflect.EnumType {
-	return &file_reactive_v1_websocket_proto_enumTypes[0]
+	return &file_reactive_v1_websocket_proto_enumTypes[1]
 }
 
 func (x WebSocketAuthStatus_Status) Number() protoreflect.EnumNumber {
@@ -67,7 +116,7 @@ func (x WebSocketAuthStatus_Status) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use WebSocketAuthStatus_Status.Descriptor instead.
 func (WebSocketAuthStatus_Status) EnumDescriptor() ([]byte, []int) {
-	return file_reactive_v1_websocket_proto_rawDescGZIP(), []int{4, 0}
+	return file_reactive_v1_websocket_proto_rawDescGZIP(), []int{6, 0}
 }
 
 // One complete envelope per binary WebSocket frame. Transport liveness stays
@@ -79,6 +128,7 @@ type WebSocketClientFrame struct {
 	//	*WebSocketClientFrame_Message
 	//	*WebSocketClientFrame_Ping
 	//	*WebSocketClientFrame_AuthToken
+	//	*WebSocketClientFrame_ClientInfo
 	Payload       isWebSocketClientFrame_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -148,6 +198,15 @@ func (x *WebSocketClientFrame) GetAuthToken() *WebSocketAuthToken {
 	return nil
 }
 
+func (x *WebSocketClientFrame) GetClientInfo() *WebSocketClientInfo {
+	if x != nil {
+		if x, ok := x.Payload.(*WebSocketClientFrame_ClientInfo); ok {
+			return x.ClientInfo
+		}
+	}
+	return nil
+}
+
 type isWebSocketClientFrame_Payload interface {
 	isWebSocketClientFrame_Payload()
 }
@@ -164,11 +223,17 @@ type WebSocketClientFrame_AuthToken struct {
 	AuthToken *WebSocketAuthToken `protobuf:"bytes,3,opt,name=auth_token,json=authToken,proto3,oneof"`
 }
 
+type WebSocketClientFrame_ClientInfo struct {
+	ClientInfo *WebSocketClientInfo `protobuf:"bytes,4,opt,name=client_info,json=clientInfo,proto3,oneof"`
+}
+
 func (*WebSocketClientFrame_Message) isWebSocketClientFrame_Payload() {}
 
 func (*WebSocketClientFrame_Ping) isWebSocketClientFrame_Payload() {}
 
 func (*WebSocketClientFrame_AuthToken) isWebSocketClientFrame_Payload() {}
+
+func (*WebSocketClientFrame_ClientInfo) isWebSocketClientFrame_Payload() {}
 
 type WebSocketServerFrame struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -177,6 +242,7 @@ type WebSocketServerFrame struct {
 	//	*WebSocketServerFrame_Message
 	//	*WebSocketServerFrame_Pong
 	//	*WebSocketServerFrame_AuthStatus
+	//	*WebSocketServerFrame_ClientVersionStatus
 	Payload       isWebSocketServerFrame_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -246,6 +312,15 @@ func (x *WebSocketServerFrame) GetAuthStatus() *WebSocketAuthStatus {
 	return nil
 }
 
+func (x *WebSocketServerFrame) GetClientVersionStatus() *WebSocketClientVersionStatus {
+	if x != nil {
+		if x, ok := x.Payload.(*WebSocketServerFrame_ClientVersionStatus); ok {
+			return x.ClientVersionStatus
+		}
+	}
+	return nil
+}
+
 type isWebSocketServerFrame_Payload interface {
 	isWebSocketServerFrame_Payload()
 }
@@ -262,11 +337,17 @@ type WebSocketServerFrame_AuthStatus struct {
 	AuthStatus *WebSocketAuthStatus `protobuf:"bytes,3,opt,name=auth_status,json=authStatus,proto3,oneof"`
 }
 
+type WebSocketServerFrame_ClientVersionStatus struct {
+	ClientVersionStatus *WebSocketClientVersionStatus `protobuf:"bytes,4,opt,name=client_version_status,json=clientVersionStatus,proto3,oneof"`
+}
+
 func (*WebSocketServerFrame_Message) isWebSocketServerFrame_Payload() {}
 
 func (*WebSocketServerFrame_Pong) isWebSocketServerFrame_Payload() {}
 
 func (*WebSocketServerFrame_AuthStatus) isWebSocketServerFrame_Payload() {}
+
+func (*WebSocketServerFrame_ClientVersionStatus) isWebSocketServerFrame_Payload() {}
 
 type WebSocketHeartbeat struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -312,6 +393,112 @@ func (x *WebSocketHeartbeat) GetId() string {
 	return ""
 }
 
+// Application-owned compatibility revision, not the Weave package version.
+// Send at most once, before any reactive request. Omission means revision zero.
+type WebSocketClientInfo struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Revision      uint64                 `protobuf:"varint,1,opt,name=revision,proto3" json:"revision,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WebSocketClientInfo) Reset() {
+	*x = WebSocketClientInfo{}
+	mi := &file_reactive_v1_websocket_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WebSocketClientInfo) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WebSocketClientInfo) ProtoMessage() {}
+
+func (x *WebSocketClientInfo) ProtoReflect() protoreflect.Message {
+	mi := &file_reactive_v1_websocket_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WebSocketClientInfo.ProtoReflect.Descriptor instead.
+func (*WebSocketClientInfo) Descriptor() ([]byte, []int) {
+	return file_reactive_v1_websocket_proto_rawDescGZIP(), []int{3}
+}
+
+func (x *WebSocketClientInfo) GetRevision() uint64 {
+	if x != nil {
+		return x.Revision
+	}
+	return 0
+}
+
+type WebSocketClientVersionStatus struct {
+	state               protoimpl.MessageState              `protogen:"open.v1"`
+	Status              WebSocketClientVersionStatus_Status `protobuf:"varint,1,opt,name=status,proto3,enum=reactive.v1.WebSocketClientVersionStatus_Status" json:"status,omitempty"`
+	MinimumRevision     uint64                              `protobuf:"varint,2,opt,name=minimum_revision,json=minimumRevision,proto3" json:"minimum_revision,omitempty"`
+	RecommendedRevision uint64                              `protobuf:"varint,3,opt,name=recommended_revision,json=recommendedRevision,proto3" json:"recommended_revision,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
+}
+
+func (x *WebSocketClientVersionStatus) Reset() {
+	*x = WebSocketClientVersionStatus{}
+	mi := &file_reactive_v1_websocket_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WebSocketClientVersionStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WebSocketClientVersionStatus) ProtoMessage() {}
+
+func (x *WebSocketClientVersionStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_reactive_v1_websocket_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WebSocketClientVersionStatus.ProtoReflect.Descriptor instead.
+func (*WebSocketClientVersionStatus) Descriptor() ([]byte, []int) {
+	return file_reactive_v1_websocket_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *WebSocketClientVersionStatus) GetStatus() WebSocketClientVersionStatus_Status {
+	if x != nil {
+		return x.Status
+	}
+	return WebSocketClientVersionStatus_STATUS_UNSPECIFIED
+}
+
+func (x *WebSocketClientVersionStatus) GetMinimumRevision() uint64 {
+	if x != nil {
+		return x.MinimumRevision
+	}
+	return 0
+}
+
+func (x *WebSocketClientVersionStatus) GetRecommendedRevision() uint64 {
+	if x != nil {
+		return x.RecommendedRevision
+	}
+	return 0
+}
+
 // Transport-only renewal. Tokens never enter the reactive model or WAL stream.
 type WebSocketAuthToken struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -322,7 +509,7 @@ type WebSocketAuthToken struct {
 
 func (x *WebSocketAuthToken) Reset() {
 	*x = WebSocketAuthToken{}
-	mi := &file_reactive_v1_websocket_proto_msgTypes[3]
+	mi := &file_reactive_v1_websocket_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -334,7 +521,7 @@ func (x *WebSocketAuthToken) String() string {
 func (*WebSocketAuthToken) ProtoMessage() {}
 
 func (x *WebSocketAuthToken) ProtoReflect() protoreflect.Message {
-	mi := &file_reactive_v1_websocket_proto_msgTypes[3]
+	mi := &file_reactive_v1_websocket_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -347,7 +534,7 @@ func (x *WebSocketAuthToken) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WebSocketAuthToken.ProtoReflect.Descriptor instead.
 func (*WebSocketAuthToken) Descriptor() ([]byte, []int) {
-	return file_reactive_v1_websocket_proto_rawDescGZIP(), []int{3}
+	return file_reactive_v1_websocket_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *WebSocketAuthToken) GetToken() string {
@@ -368,7 +555,7 @@ type WebSocketAuthStatus struct {
 
 func (x *WebSocketAuthStatus) Reset() {
 	*x = WebSocketAuthStatus{}
-	mi := &file_reactive_v1_websocket_proto_msgTypes[4]
+	mi := &file_reactive_v1_websocket_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -380,7 +567,7 @@ func (x *WebSocketAuthStatus) String() string {
 func (*WebSocketAuthStatus) ProtoMessage() {}
 
 func (x *WebSocketAuthStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_reactive_v1_websocket_proto_msgTypes[4]
+	mi := &file_reactive_v1_websocket_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -393,7 +580,7 @@ func (x *WebSocketAuthStatus) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WebSocketAuthStatus.ProtoReflect.Descriptor instead.
 func (*WebSocketAuthStatus) Descriptor() ([]byte, []int) {
-	return file_reactive_v1_websocket_proto_rawDescGZIP(), []int{4}
+	return file_reactive_v1_websocket_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *WebSocketAuthStatus) GetStatus() WebSocketAuthStatus_Status {
@@ -407,21 +594,34 @@ var File_reactive_v1_websocket_proto protoreflect.FileDescriptor
 
 const file_reactive_v1_websocket_proto_rawDesc = "" +
 	"\n" +
-	"\x1breactive/v1/websocket.proto\x12\vreactive.v1\x1a\x1areactive/v1/reactive.proto\"\xd2\x01\n" +
+	"\x1breactive/v1/websocket.proto\x12\vreactive.v1\x1a\x1areactive/v1/reactive.proto\"\x97\x02\n" +
 	"\x14WebSocketClientFrame\x126\n" +
 	"\amessage\x18\x01 \x01(\v2\x1a.reactive.v1.ClientMessageH\x00R\amessage\x125\n" +
 	"\x04ping\x18\x02 \x01(\v2\x1f.reactive.v1.WebSocketHeartbeatH\x00R\x04ping\x12@\n" +
 	"\n" +
-	"auth_token\x18\x03 \x01(\v2\x1f.reactive.v1.WebSocketAuthTokenH\x00R\tauthTokenB\t\n" +
-	"\apayload\"\xd5\x01\n" +
+	"auth_token\x18\x03 \x01(\v2\x1f.reactive.v1.WebSocketAuthTokenH\x00R\tauthToken\x12C\n" +
+	"\vclient_info\x18\x04 \x01(\v2 .reactive.v1.WebSocketClientInfoH\x00R\n" +
+	"clientInfoB\t\n" +
+	"\apayload\"\xb6\x02\n" +
 	"\x14WebSocketServerFrame\x126\n" +
 	"\amessage\x18\x01 \x01(\v2\x1a.reactive.v1.ServerMessageH\x00R\amessage\x125\n" +
 	"\x04pong\x18\x02 \x01(\v2\x1f.reactive.v1.WebSocketHeartbeatH\x00R\x04pong\x12C\n" +
 	"\vauth_status\x18\x03 \x01(\v2 .reactive.v1.WebSocketAuthStatusH\x00R\n" +
-	"authStatusB\t\n" +
+	"authStatus\x12_\n" +
+	"\x15client_version_status\x18\x04 \x01(\v2).reactive.v1.WebSocketClientVersionStatusH\x00R\x13clientVersionStatusB\t\n" +
 	"\apayload\"$\n" +
 	"\x12WebSocketHeartbeat\x12\x0e\n" +
-	"\x02id\x18\x01 \x01(\tR\x02id\"*\n" +
+	"\x02id\x18\x01 \x01(\tR\x02id\"1\n" +
+	"\x13WebSocketClientInfo\x12\x1a\n" +
+	"\brevision\x18\x01 \x01(\x04R\brevision\"\x9c\x02\n" +
+	"\x1cWebSocketClientVersionStatus\x12H\n" +
+	"\x06status\x18\x01 \x01(\x0e20.reactive.v1.WebSocketClientVersionStatus.StatusR\x06status\x12)\n" +
+	"\x10minimum_revision\x18\x02 \x01(\x04R\x0fminimumRevision\x121\n" +
+	"\x14recommended_revision\x18\x03 \x01(\x04R\x13recommendedRevision\"T\n" +
+	"\x06Status\x12\x16\n" +
+	"\x12STATUS_UNSPECIFIED\x10\x00\x12\x15\n" +
+	"\x11STATUS_DEPRECATED\x10\x01\x12\x1b\n" +
+	"\x17STATUS_UPGRADE_REQUIRED\x10\x02\"*\n" +
 	"\x12WebSocketAuthToken\x12\x14\n" +
 	"\x05token\x18\x01 \x01(\tR\x05token\"\xa3\x01\n" +
 	"\x13WebSocketAuthStatus\x12?\n" +
@@ -443,31 +643,37 @@ func file_reactive_v1_websocket_proto_rawDescGZIP() []byte {
 	return file_reactive_v1_websocket_proto_rawDescData
 }
 
-var file_reactive_v1_websocket_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_reactive_v1_websocket_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_reactive_v1_websocket_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_reactive_v1_websocket_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_reactive_v1_websocket_proto_goTypes = []any{
-	(WebSocketAuthStatus_Status)(0), // 0: reactive.v1.WebSocketAuthStatus.Status
-	(*WebSocketClientFrame)(nil),    // 1: reactive.v1.WebSocketClientFrame
-	(*WebSocketServerFrame)(nil),    // 2: reactive.v1.WebSocketServerFrame
-	(*WebSocketHeartbeat)(nil),      // 3: reactive.v1.WebSocketHeartbeat
-	(*WebSocketAuthToken)(nil),      // 4: reactive.v1.WebSocketAuthToken
-	(*WebSocketAuthStatus)(nil),     // 5: reactive.v1.WebSocketAuthStatus
-	(*ClientMessage)(nil),           // 6: reactive.v1.ClientMessage
-	(*ServerMessage)(nil),           // 7: reactive.v1.ServerMessage
+	(WebSocketClientVersionStatus_Status)(0), // 0: reactive.v1.WebSocketClientVersionStatus.Status
+	(WebSocketAuthStatus_Status)(0),          // 1: reactive.v1.WebSocketAuthStatus.Status
+	(*WebSocketClientFrame)(nil),             // 2: reactive.v1.WebSocketClientFrame
+	(*WebSocketServerFrame)(nil),             // 3: reactive.v1.WebSocketServerFrame
+	(*WebSocketHeartbeat)(nil),               // 4: reactive.v1.WebSocketHeartbeat
+	(*WebSocketClientInfo)(nil),              // 5: reactive.v1.WebSocketClientInfo
+	(*WebSocketClientVersionStatus)(nil),     // 6: reactive.v1.WebSocketClientVersionStatus
+	(*WebSocketAuthToken)(nil),               // 7: reactive.v1.WebSocketAuthToken
+	(*WebSocketAuthStatus)(nil),              // 8: reactive.v1.WebSocketAuthStatus
+	(*ClientMessage)(nil),                    // 9: reactive.v1.ClientMessage
+	(*ServerMessage)(nil),                    // 10: reactive.v1.ServerMessage
 }
 var file_reactive_v1_websocket_proto_depIdxs = []int32{
-	6, // 0: reactive.v1.WebSocketClientFrame.message:type_name -> reactive.v1.ClientMessage
-	3, // 1: reactive.v1.WebSocketClientFrame.ping:type_name -> reactive.v1.WebSocketHeartbeat
-	4, // 2: reactive.v1.WebSocketClientFrame.auth_token:type_name -> reactive.v1.WebSocketAuthToken
-	7, // 3: reactive.v1.WebSocketServerFrame.message:type_name -> reactive.v1.ServerMessage
-	3, // 4: reactive.v1.WebSocketServerFrame.pong:type_name -> reactive.v1.WebSocketHeartbeat
-	5, // 5: reactive.v1.WebSocketServerFrame.auth_status:type_name -> reactive.v1.WebSocketAuthStatus
-	0, // 6: reactive.v1.WebSocketAuthStatus.status:type_name -> reactive.v1.WebSocketAuthStatus.Status
-	7, // [7:7] is the sub-list for method output_type
-	7, // [7:7] is the sub-list for method input_type
-	7, // [7:7] is the sub-list for extension type_name
-	7, // [7:7] is the sub-list for extension extendee
-	0, // [0:7] is the sub-list for field type_name
+	9,  // 0: reactive.v1.WebSocketClientFrame.message:type_name -> reactive.v1.ClientMessage
+	4,  // 1: reactive.v1.WebSocketClientFrame.ping:type_name -> reactive.v1.WebSocketHeartbeat
+	7,  // 2: reactive.v1.WebSocketClientFrame.auth_token:type_name -> reactive.v1.WebSocketAuthToken
+	5,  // 3: reactive.v1.WebSocketClientFrame.client_info:type_name -> reactive.v1.WebSocketClientInfo
+	10, // 4: reactive.v1.WebSocketServerFrame.message:type_name -> reactive.v1.ServerMessage
+	4,  // 5: reactive.v1.WebSocketServerFrame.pong:type_name -> reactive.v1.WebSocketHeartbeat
+	8,  // 6: reactive.v1.WebSocketServerFrame.auth_status:type_name -> reactive.v1.WebSocketAuthStatus
+	6,  // 7: reactive.v1.WebSocketServerFrame.client_version_status:type_name -> reactive.v1.WebSocketClientVersionStatus
+	0,  // 8: reactive.v1.WebSocketClientVersionStatus.status:type_name -> reactive.v1.WebSocketClientVersionStatus.Status
+	1,  // 9: reactive.v1.WebSocketAuthStatus.status:type_name -> reactive.v1.WebSocketAuthStatus.Status
+	10, // [10:10] is the sub-list for method output_type
+	10, // [10:10] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_reactive_v1_websocket_proto_init() }
@@ -480,19 +686,21 @@ func file_reactive_v1_websocket_proto_init() {
 		(*WebSocketClientFrame_Message)(nil),
 		(*WebSocketClientFrame_Ping)(nil),
 		(*WebSocketClientFrame_AuthToken)(nil),
+		(*WebSocketClientFrame_ClientInfo)(nil),
 	}
 	file_reactive_v1_websocket_proto_msgTypes[1].OneofWrappers = []any{
 		(*WebSocketServerFrame_Message)(nil),
 		(*WebSocketServerFrame_Pong)(nil),
 		(*WebSocketServerFrame_AuthStatus)(nil),
+		(*WebSocketServerFrame_ClientVersionStatus)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_reactive_v1_websocket_proto_rawDesc), len(file_reactive_v1_websocket_proto_rawDesc)),
-			NumEnums:      1,
-			NumMessages:   5,
+			NumEnums:      2,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -25,12 +25,14 @@ type Config struct {
 	IdleTimeout       time.Duration `yaml:"idle_timeout"`
 	MaxMessageBytes   int           `yaml:"max_message_bytes"`
 	Socket            struct {
-		Enabled         bool          `yaml:"enabled"`
-		WriteTimeout    time.Duration `yaml:"write_timeout"`
-		IdleTimeout     time.Duration `yaml:"idle_timeout"`
-		MaxMessageBytes int64         `yaml:"max_message_bytes"`
-		MaxMessageDepth int           `yaml:"max_message_depth"`
-		Renewal         RenewalConfig `yaml:"renewal"`
+		Enabled                   bool          `yaml:"enabled"`
+		WriteTimeout              time.Duration `yaml:"write_timeout"`
+		IdleTimeout               time.Duration `yaml:"idle_timeout"`
+		MaxMessageBytes           int64         `yaml:"max_message_bytes"`
+		MaxMessageDepth           int           `yaml:"max_message_depth"`
+		Renewal                   RenewalConfig `yaml:"renewal"`
+		MinimumClientRevision     uint64        `yaml:"minimum_client_revision"`
+		RecommendedClientRevision uint64        `yaml:"recommended_client_revision"`
 	} `yaml:"websocket"`
 	Storage struct {
 		Type     string `yaml:"type"`
@@ -161,6 +163,9 @@ func Load(path string, lookup func(string) (string, bool)) (Config, error) {
 }
 
 func (c Config) Validate() error {
+	if c.Socket.RecommendedClientRevision != 0 && c.Socket.RecommendedClientRevision < c.Socket.MinimumClientRevision {
+		return errors.New("websocket.recommended_client_revision must be zero or at least minimum_client_revision")
+	}
 	if c.Storage.Type != "postgres" {
 		return fmt.Errorf("unsupported storage type %q", c.Storage.Type)
 	}

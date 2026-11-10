@@ -1,8 +1,11 @@
 import { immutable, ProtocolError, branchKey } from './protocol.js'
 import type { Bounds, ModelBatch, Occurrence, RecordData, ServerMessage, BranchFailure } from './protocol.js'
 import { OptimisticLayers } from './optimistic.js'
-import type { OptimisticMutation, OptimisticHandle, OptimisticTarget, TemporaryEntity, OptimisticChanges } from './optimistic.js'
+import type { OptimisticMutation, OptimisticHandle, OptimisticTarget, TemporaryEntity, OptimisticChanges, OptimisticComputedChange, OptimisticReadView } from './optimistic.js'
 import { selectionKey } from './optimistic_selection.js'
+import { optimisticComputedKey, authoritativeComputed } from './optimistic_computed.js'
+import type { ComputedPrediction } from './optimistic_computed.js'
+import { previewOptimistic, validateComputed } from './projection_metadata.js'
 import type { StoreDiagnostics } from './diagnostics.js'
 import { invokeSafely } from './callbacks.js'
 
@@ -115,6 +118,7 @@ export class ModelStore {
   private availableEntities = 0
   private pendingEntities = 0
   private optimistic = new OptimisticLayers()
+  private readonly optimisticView: OptimisticReadView
   private queries = new Map<string, QuerySnapshot>()
   private occurrences = new Map<string, Occurrence>()
   private buckets = new Map<string, readonly Occurrence[]>()
@@ -126,7 +130,17 @@ export class ModelStore {
   private commitListeners = new Set<CommitListener>()
   private collecting?: Set<string>
   private _revision = 0
-  constructor(private options: ModelStoreOptions = {}) {}
+  constructor(private options: ModelStoreOptions = {}) {
+    this.optimisticView = this.optimistic.over({
+      entity: id => {
+        this.read(entityKey(id))
+        const record = this.entities.get(id) ?? unavailable
+        return { record, backed: record.status === 'available', deleted: false }
+      },
+      selection: (_key, ids) => ({ ids, overridden: false }),
+      computed: (_key, values) => authoritativeComputed(values),
+    })
+  }
   getDiagnostics(): StoreDiagnostics {
     return Object.freeze({ entities: Object.freeze({ available: this.availableEntities, pending: this.pendingEntities }),
       queries: this.queries.size, occurrences: this.occurrences.size, subscriptions: this.statuses.size,
@@ -147,18 +161,41 @@ export class ModelStore {
       notify: listeners => this.notifyListeners(listeners),
     })
   }
-  getEntity(id: string): EntitySnapshot { this.read(entityKey(id)); return this.optimistic.read(id, this.entities.get(id) ?? unavailable) }
+  getEntity(id: string): EntitySnapshot { return this.optimisticView.entity(id).record }
   getAuthoritativeEntity(id: string): EntitySnapshot { this.read(authoritativeEntityKey(id)); return this.entities.get(id) ?? unavailable }
+  [validateComputed](changes: readonly OptimisticComputedChange[]): void { this.optimistic.prepareComputed(changes) }
+  // A read-only staged draft over the current effective model. No publication,
+  // listeners, or changes to live layers; discarded when filling is complete.
+  [previewOptimistic](mutation: OptimisticMutation): import('./projection.js').ProjectionReader {
+    const overlay = this.optimistic.fork()
+    overlay.add(mutation)
+    const view = overlay.over(this.optimisticView)
+    return {
+      getEntity: id => view.entity(id).record,
+      getAuthoritativeEntity: id => this.getAuthoritativeEntity(id),
+      getSubscription: id => this.getSubscription(id),
+      getConnection: () => this.getConnection(),
+      getBranchErrors: id => this.getBranchErrors(id),
+      getOccurrences: (...args) => this.getOccurrences(...args),
+      getQuery: id => this.getQuery(id),
+      getComputed: (...args) => this.getComputed(...args),
+      isOptimisticallyDeleted: id => view.entity(id).deleted,
+      projectionSelection: (scope, node, ancestors, base) => this.selectFrom(view, scope, node, ancestors, base),
+      projectionComputed: (scope, node, ancestors, id, occurrence) => this.computedFrom(view, scope, node, ancestors, id, occurrence),
+    }
+  }
   getBranchErrors(scope: string): readonly BranchFailure[] { this.read(branchesKey(scope)); return this.branches.get(scope) ?? noFailures }
   temporaryEntity(): TemporaryEntity { return this.optimistic.temporary() }
   projectionTarget(scope: string, node: string, ancestors: readonly string[], kind: 'entity' | 'list'): OptimisticTarget { return this.optimistic.target(scope, node, ancestors, kind) }
   projectionSelection(scope: string, node: string, ancestors: readonly string[], base: readonly string[]): Readonly<{ ids: readonly string[]; overridden: boolean }> {
+    return this.selectFrom(this.optimisticView, scope, node, ancestors, base)
+  }
+  private selectFrom(view: OptimisticReadView, scope: string, node: string, ancestors: readonly string[], base: readonly string[]): Readonly<{ ids: readonly string[]; overridden: boolean }> {
     const key = selectionKey(scope, node, ancestors)
     this.read(key)
-    return { ids: this.optimistic.selection(key, base, id => this.hasEntityBacking(id)), overridden: this.optimistic.hasSelection(key) }
+    return view.selection(key, base)
   }
-  private hasEntityBacking(id: string): boolean { this.read(entityKey(id)); return this.optimistic.hasBacking(id, this.entities.get(id) ?? unavailable) }
-  isOptimisticallyDeleted(id: string): boolean { this.read(entityKey(id)); return this.optimistic.deleted(id, this.entities.get(id) ?? unavailable) }
+  isOptimisticallyDeleted(id: string): boolean { return this.optimisticView.entity(id).deleted }
   beginOptimistic(mutation: OptimisticMutation): OptimisticHandle {
     const { mutationId } = mutation
     const layer = this.optimistic.add(mutation)
@@ -175,6 +212,15 @@ export class ModelStore {
   getComputed(occurrenceId: string, entityId: string): RecordData {
     this.read(computedKey(occurrenceId, entityId))
     return this.computed.get(occurrenceId)?.get(entityId) ?? noComputed
+  }
+  projectionComputed(scope: string, node: string, ancestors: readonly string[], entity: string, occurrence: string | undefined): ComputedPrediction {
+    return this.computedFrom(this.optimisticView, scope, node, ancestors, entity, occurrence)
+  }
+  private computedFrom(view: OptimisticReadView, scope: string, node: string, ancestors: readonly string[], entity: string, occurrence: string | undefined): ComputedPrediction {
+    const base = occurrence ? this.getComputed(occurrence, entity) : noComputed
+    const key = optimisticComputedKey(selectionKey(scope, node, ancestors), entity)
+    this.read(key)
+    return view.computed(key, base)
   }
   getOccurrences(scope: string, node: string, parent = '', entity = ''): readonly Occurrence[] {
     const key = occurrenceKey(scope, node, parent, entity)

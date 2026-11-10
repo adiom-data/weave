@@ -49,7 +49,7 @@ func newSocketHandler(c config.Config, logger *slog.Logger, authenticate identit
 		ctx := accesscontrol.ContextWithClaims(stream.Context(), claims)
 		return projections.ServeStream(trustedSocketStream{Stream: stream, ctx: ctx})
 	}
-	return projectionws.NewHandler(serve, c.WebOrigin, logger, projectionws.SocketConfig{WriteTimeout: c.Socket.WriteTimeout, IdleTimeout: c.Socket.IdleTimeout, MaxMessageBytes: c.Socket.MaxMessageBytes, MaxMessageDepth: c.Socket.MaxMessageDepth, Authentication: authentication})
+	return projectionws.NewHandler(serve, c.WebOrigin, logger, projectionws.SocketConfig{WriteTimeout: c.Socket.WriteTimeout, IdleTimeout: c.Socket.IdleTimeout, MaxMessageBytes: c.Socket.MaxMessageBytes, MaxMessageDepth: c.Socket.MaxMessageDepth, Authentication: authentication, ClientVersions: &projectionws.ClientVersionOptions{Policy: projectionws.ClientVersionPolicy{MinimumRevision: c.Socket.MinimumClientRevision, RecommendedRevision: c.Socket.RecommendedClientRevision}}})
 }
 
 type trustedSocketStream struct {

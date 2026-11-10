@@ -66,6 +66,7 @@ not added to the entity cache: the same entity reached through different paths
 can have different computed values. Changes publish atomically with the enclosing
 model batch, and reconnect replacement uses the same structural reconciliation
 as stored data. Optimistic entity patches do not alter authoritative computations.
+Computed predictions are separate, occurrence-scoped overlays; see below.
 
 ## Guide
 
@@ -195,7 +196,7 @@ does not impose an RPC deadline: the transport owns it. Configure synchronizatio
 timeouts to account for any retry budget. Application adapters must own/snapshot
 mutable command inputs as appropriate.
 
-The optimistic writer exposes `entity`, `insert`, `remove`, `patch`, and `delete`,
+The optimistic writer exposes `entity`, `insert`, `remove`, `patch`, `patchCanonical`, `fill`, and `delete`,
 with the same types as the standalone draft. It is valid only during its
 synchronous callback; the harness exclusively owns commit. Invalid prediction
 setup sends nothing and reports `not-sent`. A missing handshake, disposed harness,
@@ -359,8 +360,11 @@ mutation; combine its field edits into one patch.
 A draft can target lists in several projections on the same client. To share a
 new entity between them, create one reference with
 `draft.entity({ title: { textValue: 'Shared' } })`, then use that reference as a
-child in each insertion. `entity()` and `patch()` take canonical stored fields;
-`insert()` takes typed projection fields or an existing entity reference.
+child in each insertion. `entity()` and the explicit `patchCanonical()` escape
+hatch take canonical stored fields. `patch()` accepts a typed projection row and
+native selected stored fields (including aliases), while `insert()` accepts typed
+stored fields and child insertions, or an existing entity reference. Computed
+fields are rejected by both typed stored operations.
 `remove(list, reference)` removes only membership; `delete(reference)` hides the
 entity everywhere. All operations retire together with the mutation receipt.
 This does not infer which other projections should contain an entity: address
@@ -416,6 +420,115 @@ are still pending. No temporary-to-server identity mapping is required or
 performed. Membership is explicit: there is no automatic predicate evaluation
 or inference from field edits. Offline/retry/idempotency semantics remain out
 of scope.
+
+### Computed predictions and union-then-fill shapes
+
+Select affected entity references and named concrete projection handles. Their
+compiled metadata defines one combined, nested fill structure with native TS
+return types—no caller-supplied traversal paths or canonical tagged values:
+
+```ts
+import { unionOptimisticShapes, invalidateComputed } from '@adiom-data/weave'
+
+const draft = client.optimistic({ mutationId: operation.mutationId })
+draft.patch(taskA, { completed: true })
+draft.patch(taskB, { completed: true })
+const inserted = draft.insert(taskLinks, {
+  task: { title: 'Follow-up', completed: false },
+})
+const affected = unionOptimisticShapes([taskA, taskB, inserted], {
+  project: projectProjection,
+  assigned: assignedTasksProjection,
+})
+draft.fill(affected, {
+  project: { taskLinks: { task: {
+    canEdit: occurrence => occurrence.current.completed === false,
+  } } },
+  assigned: { task: {
+    canEdit: () => invalidateComputed,
+  } },
+})
+draft.commit()
+```
+
+Each field function runs for matching affected entities at that specific
+projection location. The same name at another path/handle has its own callback
+and result type. It receives `{entityId, current, ancestors}`; `current` is the
+typed, potentially partial row after the draft's staged stored changes. It
+includes earlier overlays and preceding draft fills too, including their
+`computedState` prediction/staleness markers. Private previews and committed
+reads use the same composition rules for entity backing, memberships, and
+computed values. Functions share ordinary closure context and must be
+synchronous, without mutating the
+draft being filled. Invalid keys, results, or thrown callbacks stage no part of
+that fill.
+
+The same handle cannot be supplied twice, even under different names. Repeated
+entity references deduplicate; diamonds retain distinct occurrence-specific
+computations. If the schema selects aliases of one canonical computation, supply
+only one alias's filler. Shapes capture identities/handles, not data: traversal
+happens at fill time and includes staged insertions using the same compiled
+projection expansion. An insertion's returned reference includes explicitly
+inserted child references (for example, `inserted.value.task`). Passing the whole
+insertion selects those nested inserted entities too. No guessed relationships or
+automatic list membership are inferred. Stale/failed/unavailable branches are
+skipped. Shapes cannot outlive their connection generation or disposed handles.
+Entity references themselves retain only client ownership and field codecs, so
+they remain usable after their originating projection closes. Computed fills
+still require their explicitly supplied destination handles to be live.
+
+Fills route through identities before reading payloads, materializing only
+matching rows and the context their callbacks can access. Unchanged decoded
+fields are shared through weak, immutable-image caches. Stored and computed
+fields are cached independently, so changing a computed prediction does not
+re-decode unchanged stored objects or lists. Membership/path lookup can still
+scan identities; it does not rebuild every unrelated row.
+
+Omitted callbacks or `undefined` results do nothing. Return a native value to
+predict it, or `invalidateComputed` to retain the effective value and mark it
+potentially stale. False, zero, empty strings, and nullable null are real
+predictions. Stored changes do not automatically invalidate computations; callers
+choose which computed slots may be affected. Different fills in one draft may
+repeat an identical prediction but cannot contradict one another.
+
+Typed rows expose `row.computedState?.canEdit` as `'predicted'` or `'stale'`, using
+the selected field alias; no entry means there is no optimistic override.
+Raw rows expose canonical names in `computedState`. Metadata stays outside the
+typed `value`, and computed values never enter the entity cache. Incoming server
+changes continue underneath overlays. Receipts, rollback, mutation failure, and
+disconnect retire both stored and computed predictions together. Failed branches
+retain authoritative values, never a frozen prediction.
+
+Missing computed predictions remain optional on optimistic rows. Projection
+generation carries stored/computed classifications in type-only metadata; it adds
+no payload fields. Regenerate application bindings to get these types. Automatic
+cross-entity dependency inference remains out of scope.
+
+### Application client revisions
+
+An application may announce an unsigned 64-bit build revision, independent of the
+Weave package version:
+
+```ts
+const client = new ReactiveClient({
+  url: '/api/reactive',
+  clientRevision: 42n,
+  onClientVersionStatus: notice => {
+    if (notice.status === 'upgrade-required') showReloadPrompt()
+  },
+})
+```
+
+The optional WebSocket compatibility policy has minimum and recommended revisions
+(both default to zero). Omitted client revisions count as zero. Deprecation is an
+advisory; upgrade-required closes the connection and pauses automatic reconnects,
+retaining the last authoritative view. The application decides whether to reload
+or explicitly reconnect. Revision checks are compatibility hints, not security.
+Enable revision announcements only after deploying a server that supports them.
+Standalone YAML exposes `websocket.minimum_client_revision` and
+`websocket.recommended_client_revision`. Embedded servers can also provide a live
+`ClientVersionOptions.Current` getter; existing connections are rechecked on
+requests, heartbeats, and output, without changing their claims.
 
 ## Seamless reconnects
 
@@ -679,7 +792,9 @@ The runtime also continues to accept ordinary projection definitions.
   effective values; it never owns authoritative records or evaluates queries.
 - `optimistic_selection.ts`: logical projection targets and explicit ordered
   list/slot overlays, independent of server occurrence IDs and query cursors.
-- `projection.ts`: resolves exact occurrence edges into read-only projection views.
+- `projection_reader.ts`: shared membership, error, and edge resolution for full
+  publication and targeted private draft reads. Payload materialization is explicit.
+- `projection.ts`: exposes read-only projection snapshots through that resolver.
 - `publication.ts`: retains published views, stages replacements, and reconciles
   immutable display data independently of connection-owned control IDs.
 - `client.ts`: multiplexes projections on one socket; owns reconnection and requests.
@@ -690,7 +805,7 @@ The runtime also continues to accept ordinary projection definitions.
   authoritative entity cache and no query evaluator.
 - `optimistic_draft.ts`: typed, private optimistic graph drafts using existing
   generated shape metadata. `value_input.ts` owns shared input encoding;
-  `projection_metadata.ts` privately associates returned lists with their paths.
+  `projection_metadata.ts` keeps entity codecs separate from list/occurrence paths.
 - `socket_protocol.ts`: generated binary WebSocket envelopes containing reactive
   messages or heartbeat controls, separate from model events.
 - `react.ts`: optional `useSyncExternalStore` integration. Core imports do not load React.

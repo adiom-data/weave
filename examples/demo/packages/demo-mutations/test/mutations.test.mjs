@@ -64,7 +64,7 @@ test('update and delete use the same binary correlation and atomic overlay retir
         return new Response(toBinary(responseSchema, create(responseSchema)), { headers: { 'Content-Type': 'application/proto' } })
       })
       sockets[0].message({ connectionSequence: '1', modelBatch: { kind: 'KIND_COMMIT', entities: [{ entityId: 'opaque-task', upsert: { values: { completed: { boolValue: false } } } }] } })
-      const hooks = { optimistic: draft => remove ? draft.delete({ entityId: 'opaque-task' }) : draft.patch({ entityId: 'opaque-task' }, { completed: { boolValue: true } }) }
+      const hooks = { optimistic: draft => remove ? draft.delete({ entityId: 'opaque-task' }) : draft.patchCanonical({ entityId: 'opaque-task' }, { completed: { boolValue: true } }) }
       const operation = remove ? mutations.deleteTask({ projectId: input.projectId, taskId: 'application-id' }, hooks)
         : mutations.updateTask({ projectId: input.projectId, taskId: 'application-id', completed: true }, hooks)
       assert.equal(reactive.store.getEntity('opaque-task').status, remove ? 'unavailable' : 'available')
@@ -247,7 +247,7 @@ test('demo receipt decoding joins authoritative updates with optimistic retireme
   sockets[0].message({ connectionSequence: '1', modelBatch: { kind: 'KIND_COMMIT', entities: [
     { entityId: 'e', upsert: { values: { title: { textValue: 'Base' } } } },
   ] } })
-  const operation = mutations.createTask(input, { optimistic: draft => draft.patch({ entityId: 'e' }, { title: { textValue: 'Predicted' } }) })
+  const operation = mutations.createTask(input, { optimistic: draft => draft.patchCanonical({ entityId: 'e' }, { title: { textValue: 'Predicted' } }) })
   await operation.response
   const seen = []
   const selection = reactive.store.observe(store => store.getEntity('e').values.title.textValue)
@@ -267,7 +267,7 @@ test('command rejection removes its bound overlay without modifying authoritativ
   sockets[0].message({ connectionSequence: '1', modelBatch: { kind: 'KIND_COMMIT', entities: [
     { entityId: 'e', upsert: { values: { title: { textValue: 'Base' } } } },
   ] } })
-  const operation = mutations.createTask(input, { optimistic: draft => draft.patch({ entityId: 'e' }, { title: { textValue: 'Predicted' } }) })
+  const operation = mutations.createTask(input, { optimistic: draft => draft.patchCanonical({ entityId: 'e' }, { title: { textValue: 'Predicted' } }) })
   assert.equal(reactive.store.getEntity('e').values.title.textValue, 'Predicted')
   await assert.rejects(completed(operation))
   assert.equal(reactive.store.getEntity('e').values.title.textValue, 'Base')

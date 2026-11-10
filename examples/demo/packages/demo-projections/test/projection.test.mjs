@@ -113,7 +113,7 @@ test('window controls target the list occurrence and follow replacement IDs afte
     client.disconnect()
     assert.equal(control.bounds.getSnapshot(), undefined)
     assert.equal(boundsChanges, 2)
-    await assert.rejects(control.extend('SIDE_LEFT', 1), /not ready/)
+    await assert.rejects(control.extend('SIDE_LEFT', 1), /no active server window/)
     assert.equal(handle.data.getSnapshot(), before)
     client.connect(); sockets[1].open(); const nextScope = install(sockets[1], 'new-')
     assert.equal(handle.data.getSnapshot(), before, 'identical reconnect should retain typed display references')

@@ -59,14 +59,14 @@ test('live optimistic create, rejected update rollback, completion, and deletion
     const loaded = taskLink(own.view.getSnapshot(), id).value.task
 
     const denied = mutations.updateTask({ projectId: 'ffffffff-ffff-4fff-8fff-ffffffffffff', taskId: id, completed: true }, {
-      optimistic: draft => draft.patch(loaded, { completed: { boolValue: true } }),
+      optimistic: draft => draft.patch(loaded, { completed: true }),
     })
     assert.equal(taskLink(own.view.getSnapshot(), id).value.task.value.completed, true)
     await assert.rejects(completed(denied))
     assert.equal(taskLink(own.view.getSnapshot(), id).value.task.value.completed, false, 'rejection restores confirmed data')
 
     const update = mutations.updateTask({ projectId, taskId: id, completed: true }, {
-      optimistic: draft => draft.patch(loaded, { completed: { boolValue: true } }),
+      optimistic: draft => draft.patch(loaded, { completed: true }),
     })
     assert.equal(taskLink(own.view.getSnapshot(), id).value.task.value.completed, true)
     await completed(update)

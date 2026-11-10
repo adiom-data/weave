@@ -5,10 +5,10 @@ import { WebSocketClientFrameSchema, WebSocketServerFrameSchema } from '../dist/
 
 export const modelBytes = value => toBinary(ServerMessageSchema, fromJson(ServerMessageSchema, value))
 export const serverBytes = value => toBinary(WebSocketServerFrameSchema, fromJson(WebSocketServerFrameSchema,
-  'pong' in value ? { pong: { id: value.pong } } : 'authStatus' in value ? value : { message: value }))
+  'pong' in value ? { pong: { id: value.pong } } : 'authStatus' in value || 'clientVersionStatus' in value ? value : { message: value }))
 export const clientFrame = bytes => {
   const frame = toJson(WebSocketClientFrameSchema, fromBinary(WebSocketClientFrameSchema, bytes))
-  return frame.ping ? { ping: frame.ping.id } : frame.authToken ? { authToken: frame.authToken } : frame.message
+  return frame.ping ? { ping: frame.ping.id } : frame.authToken ? { authToken: frame.authToken } : frame.clientInfo ? { clientInfo: frame.clientInfo } : frame.message
 }
 export class FakeSocket {
   readyState = 0

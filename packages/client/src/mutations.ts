@@ -21,7 +21,7 @@ export interface MutationState<T> {
   readonly reactive: Readonly<{ kind: 'waiting' }> | Readonly<{ kind: 'applied'; receipt: MutationReceipt }> | Readonly<{ kind: 'unconfirmed'; error: unknown }>
   readonly optimistic: Readonly<{ kind: 'active' }> | Readonly<{ kind: 'retired'; event: OptimisticRetirement }>
 }
-export type OptimisticWriter = Pick<OptimisticDraft, 'entity' | 'insert' | 'remove' | 'patch' | 'delete'>
+export type OptimisticWriter = Pick<OptimisticDraft, 'entity' | 'insert' | 'remove' | 'patch' | 'patchCanonical' | 'delete' | 'fill'>
 export interface MutationRequest<T> {
   send(context: MutationContext): Promise<T>
   optimistic?(draft: OptimisticWriter): void
@@ -173,12 +173,12 @@ export class MutationHarness {
         const draft = this.reactive.optimistic({ mutationId: context.mutationId })
         let accepting = true
         const check = () => { if (!accepting) throw new Error('Optimistic writer is only valid during its callback') }
+        // Transparent forwarding preserves generic/overloaded signatures.
+        const scoped = <F extends (...args: never[]) => unknown>(method: F): F => ((...args: never[]) => { check(); return method.apply(draft, args) }) as F
         const writer: OptimisticWriter = Object.freeze({
-          entity: values => { check(); return draft.entity(values) },
-          insert: (list, value, position) => { check(); return draft.insert(list, value, position) },
-          remove: (list, entity) => { check(); draft.remove(list, entity) },
-          patch: (entity, set, unset) => { check(); draft.patch(entity, set, unset) },
-          delete: entity => { check(); draft.delete(entity) },
+          entity: scoped(draft.entity), insert: scoped(draft.insert),
+          remove: scoped(draft.remove), patch: scoped(draft.patch),
+          patchCanonical: scoped(draft.patchCanonical), fill: scoped(draft.fill), delete: scoped(draft.delete),
         })
         try {
           const result: unknown = request.optimistic(writer)

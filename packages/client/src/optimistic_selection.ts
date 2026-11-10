@@ -24,10 +24,20 @@ export const selectionKey = (scope: string, node: string, ancestors: readonly st
 export class OptimisticSelections {
   private targets = new WeakMap<OptimisticTarget, Descriptor>()
   private layers = new Map<string, Map<string, readonly Change[]>>()
+  fork(): OptimisticSelections {
+    const fork = new OptimisticSelections()
+    fork.targets = this.targets
+    return fork
+  }
   target(scope: string, node: string, ancestors: readonly string[], kind: 'entity' | 'list'): OptimisticTarget {
     const target = Object.freeze({ kind }) as OptimisticTarget
     this.targets.set(target, { key: selectionKey(scope, node, ancestors), kind })
     return target
+  }
+  describe(target: OptimisticTarget): string {
+    const descriptor = this.targets.get(target)
+    if (!descriptor) throw new Error('Optimistic change requires a target from this client generation')
+    return descriptor.key
   }
   prepare(lists: readonly OptimisticListChange[], slots: readonly OptimisticSlotChange[]): PreparedSelectionChanges {
     const result = new Map<string, Change[]>()
@@ -66,7 +76,7 @@ export class OptimisticSelections {
       if (!layers?.size) this.layers.delete(key)
     }
   }
-  clear(): void { this.layers.clear() }
+  clear(): void { this.layers.clear(); this.targets = new WeakMap() }
   has(key: string): boolean { return this.layers.has(key) }
   get size(): number { return this.layers.size }
   read(key: string, base: readonly string[], backed: (id: string) => boolean): readonly string[] {

@@ -12,7 +12,7 @@ import type { Message } from "@bufbuild/protobuf";
  * Describes the file reactive/v1/websocket.proto.
  */
 export const file_reactive_v1_websocket: GenFile = /*@__PURE__*/
-  fileDesc("ChtyZWFjdGl2ZS92MS93ZWJzb2NrZXQucHJvdG8SC3JlYWN0aXZlLnYxIrgBChRXZWJTb2NrZXRDbGllbnRGcmFtZRItCgdtZXNzYWdlGAEgASgLMhoucmVhY3RpdmUudjEuQ2xpZW50TWVzc2FnZUgAEi8KBHBpbmcYAiABKAsyHy5yZWFjdGl2ZS52MS5XZWJTb2NrZXRIZWFydGJlYXRIABI1CgphdXRoX3Rva2VuGAMgASgLMh8ucmVhY3RpdmUudjEuV2ViU29ja2V0QXV0aFRva2VuSABCCQoHcGF5bG9hZCK6AQoUV2ViU29ja2V0U2VydmVyRnJhbWUSLQoHbWVzc2FnZRgBIAEoCzIaLnJlYWN0aXZlLnYxLlNlcnZlck1lc3NhZ2VIABIvCgRwb25nGAIgASgLMh8ucmVhY3RpdmUudjEuV2ViU29ja2V0SGVhcnRiZWF0SAASNwoLYXV0aF9zdGF0dXMYAyABKAsyIC5yZWFjdGl2ZS52MS5XZWJTb2NrZXRBdXRoU3RhdHVzSABCCQoHcGF5bG9hZCIgChJXZWJTb2NrZXRIZWFydGJlYXQSCgoCaWQYASABKAkiIwoSV2ViU29ja2V0QXV0aFRva2VuEg0KBXRva2VuGAEgASgJIpsBChNXZWJTb2NrZXRBdXRoU3RhdHVzEjcKBnN0YXR1cxgBIAEoDjInLnJlYWN0aXZlLnYxLldlYlNvY2tldEF1dGhTdGF0dXMuU3RhdHVzIksKBlN0YXR1cxIWChJTVEFUVVNfVU5TUEVDSUZJRUQQABITCg9TVEFUVVNfUkVKRUNURUQQARIUChBTVEFUVVNfUkVDT05ORUNUEAJCPFo6Z2l0aHViLmNvbS9hZGlvbS1kYXRhL3dlYXZlL3BrZy9nZW4vcmVhY3RpdmUvdjE7cmVhY3RpdmV2MWIGcHJvdG8z", [file_reactive_v1_reactive]);
+  fileDesc("ChtyZWFjdGl2ZS92MS93ZWJzb2NrZXQucHJvdG8SC3JlYWN0aXZlLnYxIvEBChRXZWJTb2NrZXRDbGllbnRGcmFtZRItCgdtZXNzYWdlGAEgASgLMhoucmVhY3RpdmUudjEuQ2xpZW50TWVzc2FnZUgAEi8KBHBpbmcYAiABKAsyHy5yZWFjdGl2ZS52MS5XZWJTb2NrZXRIZWFydGJlYXRIABI1CgphdXRoX3Rva2VuGAMgASgLMh8ucmVhY3RpdmUudjEuV2ViU29ja2V0QXV0aFRva2VuSAASNwoLY2xpZW50X2luZm8YBCABKAsyIC5yZWFjdGl2ZS52MS5XZWJTb2NrZXRDbGllbnRJbmZvSABCCQoHcGF5bG9hZCKGAgoUV2ViU29ja2V0U2VydmVyRnJhbWUSLQoHbWVzc2FnZRgBIAEoCzIaLnJlYWN0aXZlLnYxLlNlcnZlck1lc3NhZ2VIABIvCgRwb25nGAIgASgLMh8ucmVhY3RpdmUudjEuV2ViU29ja2V0SGVhcnRiZWF0SAASNwoLYXV0aF9zdGF0dXMYAyABKAsyIC5yZWFjdGl2ZS52MS5XZWJTb2NrZXRBdXRoU3RhdHVzSAASSgoVY2xpZW50X3ZlcnNpb25fc3RhdHVzGAQgASgLMikucmVhY3RpdmUudjEuV2ViU29ja2V0Q2xpZW50VmVyc2lvblN0YXR1c0gAQgkKB3BheWxvYWQiIAoSV2ViU29ja2V0SGVhcnRiZWF0EgoKAmlkGAEgASgJIicKE1dlYlNvY2tldENsaWVudEluZm8SEAoIcmV2aXNpb24YASABKAQi7gEKHFdlYlNvY2tldENsaWVudFZlcnNpb25TdGF0dXMSQAoGc3RhdHVzGAEgASgOMjAucmVhY3RpdmUudjEuV2ViU29ja2V0Q2xpZW50VmVyc2lvblN0YXR1cy5TdGF0dXMSGAoQbWluaW11bV9yZXZpc2lvbhgCIAEoBBIcChRyZWNvbW1lbmRlZF9yZXZpc2lvbhgDIAEoBCJUCgZTdGF0dXMSFgoSU1RBVFVTX1VOU1BFQ0lGSUVEEAASFQoRU1RBVFVTX0RFUFJFQ0FURUQQARIbChdTVEFUVVNfVVBHUkFERV9SRVFVSVJFRBACIiMKEldlYlNvY2tldEF1dGhUb2tlbhINCgV0b2tlbhgBIAEoCSKbAQoTV2ViU29ja2V0QXV0aFN0YXR1cxI3CgZzdGF0dXMYASABKA4yJy5yZWFjdGl2ZS52MS5XZWJTb2NrZXRBdXRoU3RhdHVzLlN0YXR1cyJLCgZTdGF0dXMSFgoSU1RBVFVTX1VOU1BFQ0lGSUVEEAASEwoPU1RBVFVTX1JFSkVDVEVEEAESFAoQU1RBVFVTX1JFQ09OTkVDVBACQjxaOmdpdGh1Yi5jb20vYWRpb20tZGF0YS93ZWF2ZS9wa2cvZ2VuL3JlYWN0aXZlL3YxO3JlYWN0aXZldjFiBnByb3RvMw", [file_reactive_v1_reactive]);
 
 /**
  * One complete envelope per binary WebSocket frame. Transport liveness stays
@@ -42,6 +42,12 @@ export type WebSocketClientFrame = Message<"reactive.v1.WebSocketClientFrame"> &
      */
     value: WebSocketAuthToken;
     case: "authToken";
+  } | {
+    /**
+     * @generated from field: reactive.v1.WebSocketClientInfo client_info = 4;
+     */
+    value: WebSocketClientInfo;
+    case: "clientInfo";
   } | { case: undefined; value?: undefined };
 };
 
@@ -66,6 +72,11 @@ export type WebSocketClientFrameJson = {
    * @generated from field: reactive.v1.WebSocketAuthToken auth_token = 3;
    */
   authToken?: WebSocketAuthTokenJson;
+
+  /**
+   * @generated from field: reactive.v1.WebSocketClientInfo client_info = 4;
+   */
+  clientInfo?: WebSocketClientInfoJson;
 };
 
 /**
@@ -100,6 +111,12 @@ export type WebSocketServerFrame = Message<"reactive.v1.WebSocketServerFrame"> &
      */
     value: WebSocketAuthStatus;
     case: "authStatus";
+  } | {
+    /**
+     * @generated from field: reactive.v1.WebSocketClientVersionStatus client_version_status = 4;
+     */
+    value: WebSocketClientVersionStatus;
+    case: "clientVersionStatus";
   } | { case: undefined; value?: undefined };
 };
 
@@ -121,6 +138,11 @@ export type WebSocketServerFrameJson = {
    * @generated from field: reactive.v1.WebSocketAuthStatus auth_status = 3;
    */
   authStatus?: WebSocketAuthStatusJson;
+
+  /**
+   * @generated from field: reactive.v1.WebSocketClientVersionStatus client_version_status = 4;
+   */
+  clientVersionStatus?: WebSocketClientVersionStatusJson;
 };
 
 /**
@@ -158,6 +180,117 @@ export const WebSocketHeartbeatSchema: GenMessage<WebSocketHeartbeat, {jsonType:
   messageDesc(file_reactive_v1_websocket, 2);
 
 /**
+ * Application-owned compatibility revision, not the Weave package version.
+ * Send at most once, before any reactive request. Omission means revision zero.
+ *
+ * @generated from message reactive.v1.WebSocketClientInfo
+ */
+export type WebSocketClientInfo = Message<"reactive.v1.WebSocketClientInfo"> & {
+  /**
+   * @generated from field: uint64 revision = 1;
+   */
+  revision: bigint;
+};
+
+/**
+ * Application-owned compatibility revision, not the Weave package version.
+ * Send at most once, before any reactive request. Omission means revision zero.
+ *
+ * @generated from message reactive.v1.WebSocketClientInfo
+ */
+export type WebSocketClientInfoJson = {
+  /**
+   * @generated from field: uint64 revision = 1;
+   */
+  revision?: string;
+};
+
+/**
+ * Describes the message reactive.v1.WebSocketClientInfo.
+ * Use `create(WebSocketClientInfoSchema)` to create a new message.
+ */
+export const WebSocketClientInfoSchema: GenMessage<WebSocketClientInfo, {jsonType: WebSocketClientInfoJson}> = /*@__PURE__*/
+  messageDesc(file_reactive_v1_websocket, 3);
+
+/**
+ * @generated from message reactive.v1.WebSocketClientVersionStatus
+ */
+export type WebSocketClientVersionStatus = Message<"reactive.v1.WebSocketClientVersionStatus"> & {
+  /**
+   * @generated from field: reactive.v1.WebSocketClientVersionStatus.Status status = 1;
+   */
+  status: WebSocketClientVersionStatus_Status;
+
+  /**
+   * @generated from field: uint64 minimum_revision = 2;
+   */
+  minimumRevision: bigint;
+
+  /**
+   * @generated from field: uint64 recommended_revision = 3;
+   */
+  recommendedRevision: bigint;
+};
+
+/**
+ * @generated from message reactive.v1.WebSocketClientVersionStatus
+ */
+export type WebSocketClientVersionStatusJson = {
+  /**
+   * @generated from field: reactive.v1.WebSocketClientVersionStatus.Status status = 1;
+   */
+  status?: WebSocketClientVersionStatus_StatusJson;
+
+  /**
+   * @generated from field: uint64 minimum_revision = 2;
+   */
+  minimumRevision?: string;
+
+  /**
+   * @generated from field: uint64 recommended_revision = 3;
+   */
+  recommendedRevision?: string;
+};
+
+/**
+ * Describes the message reactive.v1.WebSocketClientVersionStatus.
+ * Use `create(WebSocketClientVersionStatusSchema)` to create a new message.
+ */
+export const WebSocketClientVersionStatusSchema: GenMessage<WebSocketClientVersionStatus, {jsonType: WebSocketClientVersionStatusJson}> = /*@__PURE__*/
+  messageDesc(file_reactive_v1_websocket, 4);
+
+/**
+ * @generated from enum reactive.v1.WebSocketClientVersionStatus.Status
+ */
+export enum WebSocketClientVersionStatus_Status {
+  /**
+   * @generated from enum value: STATUS_UNSPECIFIED = 0;
+   */
+  UNSPECIFIED = 0,
+
+  /**
+   * @generated from enum value: STATUS_DEPRECATED = 1;
+   */
+  DEPRECATED = 1,
+
+  /**
+   * @generated from enum value: STATUS_UPGRADE_REQUIRED = 2;
+   */
+  UPGRADE_REQUIRED = 2,
+}
+
+/**
+ * @generated from enum reactive.v1.WebSocketClientVersionStatus.Status
+ */
+export type WebSocketClientVersionStatus_StatusJson = "STATUS_UNSPECIFIED" | "STATUS_DEPRECATED" | "STATUS_UPGRADE_REQUIRED";
+
+/**
+ * Describes the enum reactive.v1.WebSocketClientVersionStatus.Status.
+ */
+export const WebSocketClientVersionStatus_StatusSchema: GenEnum<WebSocketClientVersionStatus_Status, WebSocketClientVersionStatus_StatusJson> = /*@__PURE__*/
+  enumDesc(file_reactive_v1_websocket, 4, 0);
+
+/**
  * Transport-only renewal. Tokens never enter the reactive model or WAL stream.
  *
  * @generated from message reactive.v1.WebSocketAuthToken
@@ -186,7 +319,7 @@ export type WebSocketAuthTokenJson = {
  * Use `create(WebSocketAuthTokenSchema)` to create a new message.
  */
 export const WebSocketAuthTokenSchema: GenMessage<WebSocketAuthToken, {jsonType: WebSocketAuthTokenJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_websocket, 3);
+  messageDesc(file_reactive_v1_websocket, 5);
 
 /**
  * Connection-level notification, not an acknowledgment of a particular token.
@@ -219,7 +352,7 @@ export type WebSocketAuthStatusJson = {
  * Use `create(WebSocketAuthStatusSchema)` to create a new message.
  */
 export const WebSocketAuthStatusSchema: GenMessage<WebSocketAuthStatus, {jsonType: WebSocketAuthStatusJson}> = /*@__PURE__*/
-  messageDesc(file_reactive_v1_websocket, 4);
+  messageDesc(file_reactive_v1_websocket, 6);
 
 /**
  * @generated from enum reactive.v1.WebSocketAuthStatus.Status
@@ -250,5 +383,5 @@ export type WebSocketAuthStatus_StatusJson = "STATUS_UNSPECIFIED" | "STATUS_REJE
  * Describes the enum reactive.v1.WebSocketAuthStatus.Status.
  */
 export const WebSocketAuthStatus_StatusSchema: GenEnum<WebSocketAuthStatus_Status, WebSocketAuthStatus_StatusJson> = /*@__PURE__*/
-  enumDesc(file_reactive_v1_websocket, 4, 0);
+  enumDesc(file_reactive_v1_websocket, 6, 0);
 

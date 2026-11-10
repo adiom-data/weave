@@ -109,6 +109,10 @@ idle_timeout: 75s
 max_message_bytes: 8388608
 websocket:
   enabled: true
+  # Application compatibility revisions, independent of the Weave npm version.
+  # Zero disables each floor; undeclared clients have revision zero.
+  minimum_client_revision: 0
+  recommended_client_revision: 0
   write_timeout: 10s
   idle_timeout: 1m
   max_message_bytes: 8388608

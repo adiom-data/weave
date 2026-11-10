@@ -12,6 +12,8 @@ import (
 type SocketConfig = impl.SocketConfig
 type AuthenticationOptions = impl.AuthenticationOptions
 type Authentication = impl.Authentication
+type ClientVersionPolicy = impl.ClientVersionPolicy
+type ClientVersionOptions = impl.ClientVersionOptions
 type Stream = impl.Stream
 type ServeStream = impl.ServeStream
 

@@ -23,6 +23,9 @@ func TestComputedSelectionsStayOutsideStoredQueries(t *testing.T) {
 	if err != nil || !strings.Contains(string(code), `"computed": true`) {
 		t.Fatalf("code=%s err=%v", code, err)
 	}
+	if !strings.Contains(string(code), `$runtime.ProjectionFields<{  }, { readonly "permission": bigint; readonly "canEdit": boolean }>`) {
+		t.Fatalf("generated row does not classify stored/computed field types: %s", code)
+	}
 	for _, doc := range []string{
 		`query X($id:UUID!) { project(id:$id) @orderBy(terms:[{field:"role"}]) { id } }`,
 		`query X($id:UUID!) { project(id:$id) @where(predicate:{field:"role",op:EQUAL,value:1}) { id } }`,

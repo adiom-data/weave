@@ -1,6 +1,6 @@
 import { prepareProjectionRequest, ProtocolError } from './protocol.js'
 import { decodeSocketMessage, encodeSocketMessage } from './socket_protocol.js'
-import type { AuthStatus, SocketRequest } from './socket_protocol.js'
+import type { AuthStatus, SocketRequest, ClientVersionStatus } from './socket_protocol.js'
 import type { BoundaryUpdate, DecodeLimits, ProjectionRequest, ServerMessage, TransactionMessage } from './protocol.js'
 import { ModelStore } from './store.js'
 import { readProjection } from './projection.js'
@@ -34,6 +34,10 @@ export interface ClientOptions extends DecodeLimits, ModelStoreOptions {
   /** Connection-level auth notices, not replies to individual token updates.
    * Successful verification is silent. Token acquisition/scheduling is external. */
   readonly onAuthStatus?: (status: AuthStatus) => void
+  /** Application compatibility revision. Omission announces legacy revision zero. */
+  readonly clientRevision?: bigint
+  /** Upgrade-required pauses this connection; the application decides whether to reload. */
+  readonly onClientVersionStatus?: (notice: ClientVersionStatus) => void
   /** Runs after the complete transaction's model changes have been published. */
   readonly onTransaction?: (transaction: TransactionNotification) => void
   readonly url: string | (() => string)
@@ -153,6 +157,7 @@ export class ReactiveClient {
     queueMicrotask(() => invokeSafely(() => this.options.onDiagnostic?.(value), error => this.reportListenerError(error)))
   }
   constructor(private options: ClientOptions) {
+    if (options.clientRevision !== undefined && (typeof options.clientRevision !== 'bigint' || options.clientRevision < 0n || options.clientRevision > (1n << 64n) - 1n)) throw new Error('Client revision must be an unsigned 64-bit bigint')
     this.store = new ModelStore({ onListenerError: options.onListenerError })
     for (const number of [options.reconnectDelayMs, options.maxReconnectDelayMs, options.requestTimeoutMs, options.maxMessageBytes, options.maxDepth, options.maxNodes, options.connectionTimeoutMs, options.heartbeatTimeoutMs]) {
       if (number !== undefined && (!Number.isSafeInteger(number) || number <= 0)) throw new Error('Client limits must be positive integers')
@@ -324,6 +329,11 @@ export class ReactiveClient {
       if (this.generation !== generation || generation.opened) return
       generation.opened = true
       clearTimeout(generation.connectionTimer)
+      if (this.options.clientRevision !== undefined) {
+        try { this.send(generation, { clientInfo: { revision: this.options.clientRevision } }) }
+        catch (error) { this.lost(generation, asError(error), 'send'); return }
+        if (this.generation !== generation) return
+      }
       this.attempts = 0
       this.diagnostic({ type: 'connected' })
       this.store.setConnection({ status: 'connected' })
@@ -343,6 +353,9 @@ export class ReactiveClient {
         if (message.type === 'model') this.receive(message.message, generation)
         else if (message.type === 'authStatus') {
           invokeSafely(() => this.options.onAuthStatus?.(message.status), error => this.reportListenerError(error))
+        } else if (message.type === 'clientVersion') {
+          if (message.notice.status === 'upgrade-required') this.disconnect()
+          invokeSafely(() => this.options.onClientVersionStatus?.(message.notice), error => this.reportListenerError(error))
         } else if (generation.heartbeatId === message.id) {
           clearTimeout(generation.heartbeatTimer)
           generation.heartbeatId = undefined

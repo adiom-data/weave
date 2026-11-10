@@ -1,6 +1,6 @@
 import { type FormEvent, useEffect, useMemo, useState } from 'react'
 import { ReactiveClient } from '@adiom-data/weave'
-import type { EntityReference } from '@adiom-data/weave'
+import type { EntityReference, ProjectedEntity } from '@adiom-data/weave'
 import { useConnection } from '@adiom-data/weave/react'
 import { useProjectDetails } from '@adiom/weave-demo-projections/react'
 import { TaskMutations } from '@adiom/weave-demo-mutations'
@@ -66,14 +66,14 @@ export default function App() {
     }
   }
 
-  async function toggle(entity: EntityReference, taskId: string, completed: boolean) {
+  async function toggle(entity: ProjectedEntity<{ completed: boolean }>, taskId: string, completed: boolean) {
     const entityId = entity.entityId
     if (!mutations || !ready || pendingTasks.has(entityId)) return
     setError('')
     setPendingTasks(current => new Set(current).add(entityId))
     try {
       const operation = mutations.updateTask({ projectId, taskId, completed }, {
-        optimistic: draft => draft.patch(entity, { completed: { boolValue: completed } }),
+        optimistic: draft => draft.patch(entity, { completed }),
       })
       await Promise.all([operation.response, operation.applied])
     } catch (reason) {
