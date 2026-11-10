@@ -1,5 +1,38 @@
 import { ModelStore, ReactiveClient, MutationHarness, unionOptimisticShapes, invalidateComputed, type CompiledProjection, type ProjectionFields, type TypedProjectionHandle, type ProjectionHandle, type EntitySnapshot, type Selection, type OptimisticEntityPatch, type ProjectedEntity, type ProjectedList, type ProvisionalValue } from '../dist/index.js'
 import { useTypedProjection } from '../dist/react.js'
+import { mergeValue, unsetValue, type Value, type OptimisticWriter } from '../dist/index.js'
+
+type MergeTask = ProjectionFields<{
+  title: string
+  metadata: { color: string; nested: { dense: boolean; locale: string | null }; items: readonly { label: string }[] }
+  payload: Value
+}, { canEdit: boolean }>
+function mergedPredictions(writer: OptimisticWriter, task: ProjectedEntity<MergeTask>): void {
+  writer.patch(task, {
+    metadata: mergeValue({ color: 'red', nested: mergeValue({ dense: true, locale: unsetValue }) }),
+    payload: mergeValue({ color: { textValue: 'red' }, nested: mergeValue({ dense: { boolValue: true } }), old: unsetValue }),
+  })
+  writer.patch(task, { title: unsetValue })
+  // @ts-expect-error native selected fields retain their scalar types
+  writer.patch(task, { metadata: mergeValue({ color: 123 }) })
+  // @ts-expect-error nested native fields retain their scalar types
+  writer.patch(task, { metadata: mergeValue({ nested: mergeValue({ dense: 'true' }) }) })
+  // @ts-expect-error a merge cannot target an unknown selected member
+  writer.patch(task, { metadata: mergeValue({ unknown: true }) })
+  // @ts-expect-error scalar fields cannot be merged
+  writer.patch(task, { title: mergeValue({}) })
+  // @ts-expect-error arrays replace atomically, not by position
+  writer.patch(task, { metadata: mergeValue({ items: mergeValue({}) }) })
+  // @ts-expect-error opaque leaves use canonical values, not guessed native scalars
+  writer.patch(task, { payload: mergeValue({ color: 'red' }) })
+  // @ts-expect-error opaque canonical values still validate their tagged payload type
+  writer.patch(task, { payload: mergeValue({ color: { textValue: 123 } }) })
+  // @ts-expect-error computed values are never stored-field patches
+  writer.patch(task, { canEdit: unsetValue })
+  // @ts-expect-error unmarked object replacement still requires the full native value
+  writer.patch(task, { metadata: { color: 'red' } })
+}
+void mergedPredictions
 
 type ComputedTask = ProjectionFields<{ title: string; completed: boolean }, { canEdit: boolean; role: bigint }>
 type ComputedProject = ProjectedEntity<ProjectionFields<{ tasks: ProjectedList<ComputedTask> | undefined }, { canEdit: string }>>

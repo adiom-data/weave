@@ -5,13 +5,14 @@ import { temporaryBrand, prepareOptimisticPatch } from './optimistic.js'
 import { entityBrand, listBinding, bindEntity, entityBinding, previewOptimistic, validateComputed } from './projection_metadata.js'
 import { prepareOptimisticPosition } from './optimistic_selection.js'
 import type { ListBinding, OptimisticHost } from './projection_metadata.js'
-import { encodeFields, encodeValue } from './value_input.js'
+import { encodeFields } from './value_input.js'
 import { prepareRecordData } from './protocol.js'
 import type { RecordData } from './protocol.js'
 import { fillOptimisticShape } from './optimistic_shape.js'
 import type { OptimisticShape, OptimisticFill } from './optimistic_shape.js'
-import { preparePaths } from './optimistic_paths.js'
-import type { OptimisticPathChange } from './optimistic_paths.js'
+import { prepareProjectedPatch } from './optimistic_patch.js'
+import { isMergeValue } from './optimistic_values.js'
+import type { PatchField } from './optimistic_values.js'
 import type { ModelStore } from './store.js'
 
 export type EntityReference = TemporaryEntity | ProjectedEntity<unknown>
@@ -22,7 +23,7 @@ type InputField<T> = NonNullable<T> extends ProjectedList<infer R> ? readonly (O
 /** Partial stored fields plus explicit child expansions, derived from generated data types. */
 export type OptimisticInput<T> = { readonly [K in keyof StoredFields<T>]?: InputField<StoredFields<T>[K]> }
 type ChildKeys<T> = { [K in keyof T]-?: NonNullable<T[K]> extends ProjectedList<unknown> | ProjectedEntity<unknown> ? K : never }[keyof T]
-export type OptimisticPatch<T> = Partial<Omit<StoredFields<T>, ChildKeys<StoredFields<T>>>>
+export type OptimisticPatch<T> = { readonly [K in keyof Omit<StoredFields<T>, ChildKeys<StoredFields<T>>>]?: PatchField<StoredFields<T>[K]> }
 export type InsertedEntity<R> = Readonly<{ entityId: string; [entityBrand]: true; status: 'optimistic'; value: {
   readonly [K in keyof StoredFields<R>]?: NonNullable<StoredFields<R>[K]> extends ProjectedList<infer C> ? readonly InsertedEntity<C>[] : NonNullable<StoredFields<R>[K]> extends ProjectedEntity<infer C> ? InsertedEntity<C> | EntityReference | null : StoredFields<R>[K]
 } }>
@@ -90,21 +91,8 @@ export class OptimisticDraft {
     this.assertOpen()
     const binding = entityBinding(this.host, entity)
     const fields = binding.fields.filter(field => !field.computed)
-    if (!set || typeof set !== 'object' || Array.isArray(set)) throw new Error('Optimistic patch requires stored fields')
-    const paths: OptimisticPathChange[] = Object.entries(set).filter(([, value]) => value !== undefined).map(([name, value]) => {
-      const field = fields.find(field => field.name === name)
-      if (!field) throw new Error(`Unknown stored field ${name}`)
-      return { path: field.path, value: encodeValue(value, field.type, `${binding.location}.${name}`) }
-    })
-    for (const name of Object.keys(set)) if (!fields.some(field => field.name === name)) throw new Error(`Unknown stored field ${name}`)
-    for (const name of unset) {
-      const field = fields.find(field => field.name === name)
-      if (!field) throw new Error(`Unknown stored field ${name}`)
-      if (Object.hasOwn(set, name) && (set as Record<string, unknown>)[name] !== undefined) throw new Error('Optimistic set/unset must be disjoint')
-      paths.push({ path: field.path, unset: true })
-    }
-    const patch = { entityId: entity.entityId, paths: preparePaths(paths) }
-    if (!patch.paths.length) throw new Error('Optimistic entity patch must change at least one field')
+    const patch = { entityId: entity.entityId, paths: prepareProjectedPatch(set, fields, unset, binding.location) }
+    if (!patch.paths.length) return // Explicit empty merges neither publish nor reserve the entity.
     this.reserveEntities([patch.entityId]); this.patches.push(patch)
   }
   /** Explicit canonical escape hatch for callers without compiled row metadata. */
@@ -157,6 +145,7 @@ export class OptimisticDraft {
   }
   private build(binding: ListBinding, shape: ProjectionShape, ancestors: readonly string[], input: unknown, staged: Changes): EntityReference {
     if (reference(input)) return input
+    if (isMergeValue(input)) throw new Error('mergeValue is only supported in stored-field patches')
     if (!input || typeof input !== 'object' || Array.isArray(input)) throw new Error('Optimistic entity input must be an object or entity reference')
     const fields: Record<string, unknown> = Object.create(null)
     for (const [key, value] of Object.entries(input)) {

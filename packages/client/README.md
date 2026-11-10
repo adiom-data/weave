@@ -370,6 +370,51 @@ entity everywhere. All operations retire together with the mutation receipt.
 This does not infer which other projections should contain an entity: address
 each desired list explicitly.
 
+### Opt-in object merges
+
+Ordinary `patch()` values replace the selected field, including embedded objects
+and arrays. Use `mergeValue()` to change only specified object members, leaving
+unrelated members responsive to server updates:
+
+```ts
+import { mergeValue, unsetValue } from '@adiom-data/weave'
+
+writer.patch(task, {
+  title: 'Updated',
+  metadata: mergeValue({
+    color: 'red',
+    preferences: mergeValue({ compact: true }),
+    obsolete: unsetValue,
+  }),
+})
+```
+
+Typed embedded objects use their selected field names, native types, and aliases.
+Opaque structured fields also support merging; their member map uses canonical
+`Value` leaves (not an `objectValue` wrapper around the whole merge):
+
+```ts
+writer.patch(task, {
+  payload: mergeValue({
+    color: { textValue: 'red' },
+    preferences: mergeValue({ compact: { boolValue: true } }),
+    obsolete: unsetValue,
+  }),
+})
+```
+
+Only explicitly wrapped levels merge. An unwrapped subobject or array still
+replaces that entire member. Keys in opaque maps are literal object keys, not
+dotted paths or array indexes. `unsetValue` removes a key; `null` (or canonical
+`{ nullValue: true }`) assigns a null. Undefined members are ignored, and empty
+merges are no-ops. Setting a nested member creates missing object containers;
+removal alone does not create them. Conflicting or overlapping edits are rejected
+before any part of the patch is staged.
+
+Merge/removal markers apply only to stored-field patches, not insertions,
+parameters, or computed predictions. They are local optimistic instructions and
+do not change the application's mutation request format.
+
 Commit the draft synchronously after starting the mutation, before its receipt
 can arrive. A draft cannot be reused after commit or across connection contexts;
 disposed/foreign list handles are rejected. It does not execute the mutation,

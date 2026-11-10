@@ -9,6 +9,8 @@ export { unionOptimisticShapes, invalidateComputed } from './optimistic_shape.js
 export type { OptimisticShape, OptimisticOccurrence, OptimisticFill, ComputedFill } from './optimistic_shape.js'
 export type { ComputedPredictionState, ComputedPredictionStates } from './optimistic_computed.js'
 export type { OptimisticPathChange } from './optimistic_paths.js'
+export { mergeValue, unsetValue } from './optimistic_values.js'
+export type { MergeValue, OpaqueMergeFields } from './optimistic_values.js'
 export * from './mutations.js'
 export * from './mutation_correlation.js'
 export type { ProjectionDataNode, ProjectionDataRow } from './publication.js'

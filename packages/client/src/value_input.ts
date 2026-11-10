@@ -1,10 +1,12 @@
 import type { ValueShape } from './bindings.js'
 import type { RecordData, Value } from './protocol.js'
+import { isMergeValue, unsetValue } from './optimistic_values.js'
 
 export class ProjectionDecodeError extends Error {}
 
 /** Same shape-directed scalar encoder for parameters and optimistic values. */
 export function encodeValue(value: unknown, shape: ValueShape, location: string): Value {
+  if (isMergeValue(value) || value === unsetValue) throw new ProjectionDecodeError(`${location}: mergeValue and unsetValue are only supported in stored-field patches`)
   const invalid = (): never => { throw new ProjectionDecodeError(`${location}: expected ${shape.kind}`) }
   if (value === null && shape.nullable) return { nullValue: true }
   switch (shape.kind) {
