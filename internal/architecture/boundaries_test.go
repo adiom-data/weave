@@ -47,7 +47,7 @@ func TestRuntimeMetricsHideOpenTelemetry(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") || strings.Contains(filepath.ToSlash(path), "/metrics/") {
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") || strings.Contains(filepath.ToSlash(path), "/metrics/otel/") {
 			return nil
 		}
 		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
@@ -59,8 +59,8 @@ func TestRuntimeMetricsHideOpenTelemetry(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			if strings.HasPrefix(value, "go.opentelemetry.io/") {
-				t.Errorf("%s imports %s directly; runtime instrumentation belongs in internal/metrics", path, value)
+			if strings.HasPrefix(value, "go.opentelemetry.io/") || value == "github.com/adiom-data/weave/internal/metrics/otel" || value == "github.com/adiom-data/weave/pkg/metrics/otel" {
+				t.Errorf("%s imports %s directly; OpenTelemetry belongs in internal/metrics/otel", path, value)
 			}
 		}
 		return nil
@@ -73,6 +73,7 @@ func TestRuntimeMetricsHideOpenTelemetry(t *testing.T) {
 // These are deliberately supported contracts/configuration, not arbitrary
 // internal structs. Adding a forwarded type requires an explicit API decision.
 var publicTypes = map[string]string{
+	"metrics":                    "Provider",
 	"server":                     "AuthConfig Config JSONClaims Options Server",
 	"management":                 "Server",
 	"mutation":                   "Context HeaderNames",

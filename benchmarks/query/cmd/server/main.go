@@ -151,9 +151,9 @@ func openLocalQueries(parent context.Context) (querysubscription.Client, func(),
 	source := postgres.NewPostgresDataSourceWithOptions(pool, broker, postgres.DataSourceOptions{
 		AllowedTables: []string{"public.tasks", "public.links"}, Publication: "bench_publication",
 	})
-	coordinator, err := engine.StartCoordinatorWithOptions(ctx, source, engine.CoordinatorOptions{
+	coordinator, err := engine.StartCoordinatorWithOptions(ctx, source, engine.CoordinatorOptions{Limits: engine.CoordinatorLimits{
 		ProgressBarrierDelay: 50 * time.Millisecond, MaxWindowRows: 1000, SnapshotPageRows: 1000,
-	})
+	}})
 	if err != nil {
 		return nil, nil, err
 	}

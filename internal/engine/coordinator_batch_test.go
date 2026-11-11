@@ -13,7 +13,7 @@ import (
 func batchFixture(t *testing.T) (*Coordinator, *ReferenceSource, context.Context) {
 	t.Helper()
 	c, plan, key := initialCacheFixture(t)
-	c.options = DefaultCoordinatorOptions()
+	c.options = DefaultCoordinatorLimits()
 	c.options.SubscriptionBatchSize = 2
 	c.hub.OpenGroup("feed", 16)
 	if _, err := c.startSubscribeActor(initialWindowOperation{subscriptionID: "parent", group: "feed", plan: plan}, InitialWindow{Count: 1}); err != nil {

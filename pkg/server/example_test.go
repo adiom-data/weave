@@ -9,7 +9,9 @@ import (
 	"connectrpc.com/connect"
 	"github.com/adiom-data/framework/httpapp"
 	"github.com/adiom-data/weave/pkg/accesscontrol"
+	metricsotel "github.com/adiom-data/weave/pkg/metrics/otel"
 	"github.com/adiom-data/weave/pkg/server"
+	"go.opentelemetry.io/otel"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -51,7 +53,7 @@ func ExampleNew() {
 	defer runtime.Shutdown(context.Background())
 	ctx, cancel := context.WithCancel(runtime.Context())
 	defer cancel()
-	host, err := server.New(ctx, cfg, server.Options{AuthenticatedServices: []httpapp.ConnectService{custom}})
+	host, err := server.New(ctx, cfg, server.Options{AuthenticatedServices: []httpapp.ConnectService{custom}, Metrics: metricsotel.New(otel.GetMeterProvider())})
 	if err != nil {
 		panic(err)
 	}

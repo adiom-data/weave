@@ -6,8 +6,8 @@ import (
 )
 
 func TestCoordinatorConfigurationDefaultsAndOverrides(t *testing.T) {
-	defaults := DefaultCoordinatorOptions()
-	if got := (CoordinatorOptions{}).withDefaults(); got != defaults {
+	defaults := DefaultCoordinatorLimits()
+	if got := (CoordinatorLimits{}).withDefaults(); got != defaults {
 		t.Fatalf("zero configuration = %+v, want %+v", got, defaults)
 	}
 	// Every current/future numeric tuning field must survive default filling.
@@ -22,7 +22,7 @@ func TestCoordinatorConfigurationDefaultsAndOverrides(t *testing.T) {
 	if defaults.ProgressBarrierDelay != 0 {
 		t.Fatal("zero progress delay must retain its immediate-progress semantics")
 	}
-	if got := (CoordinatorOptions{QueryIdleTTL: -1}).withDefaults(); got.QueryIdleTTL != -1 {
+	if got := (CoordinatorLimits{QueryIdleTTL: -1}).withDefaults(); got.QueryIdleTTL != -1 {
 		t.Fatal("invalid explicit value was hidden by defaults")
 	}
 }

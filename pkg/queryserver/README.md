@@ -174,6 +174,10 @@ minute, with indexed, bounded eviction rather than a full-cache sweep.
 
 ## Ownership
 
+`Options.Metrics` optionally accepts a [runtime metrics provider](../metrics/README.md).
+Nil disables these counts. Share one provider with storage when aggregating their
+runtime metrics; the query engine does not depend on OpenTelemetry.
+
 - The application owns storage. Query construction borrows it; query failure or
   `Close` never closes the source. Failed query startup also leaves storage usable.
 - The query server owns its coordinator and message broadcaster. Its `Messages()`

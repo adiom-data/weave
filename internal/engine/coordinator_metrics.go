@@ -6,15 +6,18 @@ type coordinatorMetrics struct {
 	active, initializing, queries, entities *metrics.Gauge
 }
 
-func newCoordinatorMetrics() coordinatorMetrics {
+func newCoordinatorMetrics(provider metrics.Provider) coordinatorMetrics {
 	return coordinatorMetrics{
-		metrics.NewGauge(metrics.ActiveSubscriptions), metrics.NewGauge(metrics.InitializingSubscriptions),
-		metrics.NewGauge(metrics.CachedQueries), metrics.NewGauge(metrics.CachedEntities),
+		metrics.NewGauge(provider, metrics.ActiveSubscriptions), metrics.NewGauge(provider, metrics.InitializingSubscriptions),
+		metrics.NewGauge(provider, metrics.CachedQueries), metrics.NewGauge(provider, metrics.CachedEntities),
 	}
 }
 
 // Actor-owned sampling is constant time; exporters read only scalar atomics.
 func (c *Coordinator) recordMetrics() {
+	if c.metrics.active == nil {
+		return
+	}
 	active, initializing := c.subscriptions.Counts()
 	c.metrics.active.Set(active)
 	c.metrics.initializing.Set(initializing)

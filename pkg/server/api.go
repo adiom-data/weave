@@ -17,13 +17,13 @@ type AuthConfig = impl.AuthConfig
 // JSONClaims preserves JSON-compatible fixed claims, including exact numbers.
 type JSONClaims = impl.JSONClaims
 
-// Options adds a logger, authenticated application RPC services, and optional
+// Options adds a logger, metrics provider, authenticated application RPC services, and optional
 // WebSocket authentication renewal hooks.
 type Options = impl.Options
 
 // Server supplies HTTP endpoints and owns the reactive stack. The application
 // mounts Services and Routes, supervises Wait, and stops serving before Close.
-// The caller owns OpenTelemetry setup and shuts its provider down after Close.
+// The caller owns telemetry setup and shuts its provider down after Close.
 type Server = impl.Server
 
 // DefaultConfig returns operational defaults; storage, auth, and visibility must be supplied.

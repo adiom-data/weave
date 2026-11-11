@@ -23,6 +23,7 @@ if err := cfg.ValidateListener(); err != nil {
 }
 host, err := server.New(ctx, cfg, server.Options{
     Logger: logger,
+    Metrics: metricsotel.New(otel.GetMeterProvider()),
     AuthenticatedServices: []httpapp.ConnectService{
         httpapp.Connect(
             demov1connect.TaskMutationServiceName,
@@ -87,10 +88,11 @@ the framework's mounting interface.
   and environment overrides; `ValidateConfig` additionally compiles the policy
   file without contacting PostgreSQL or OIDC. `New` performs the same reactive
   validation. These do not require a listener address or HTTP timeouts.
-- The stack uses the caller's OpenTelemetry provider. Install it before `New`
-  and shut it down after `Server.Close`; the server never installs or shuts down a
-  provider. `cmd/server` owns framework telemetry setup and follows `OTEL_*`
-  settings, including `OTEL_SDK_DISABLED`.
+- `Options.Metrics` accepts a [provider-neutral gauge registry](../metrics/README.md).
+  Nil disables runtime metrics. The example uses `pkg/metrics/otel` to adapt the
+  application's OpenTelemetry provider; the core engine does not depend on OTel.
+  Close the stack before shutting down its metrics provider. The bundled commands
+  select OTel and follow framework `OTEL_*` settings, including `OTEL_SDK_DISABLED`.
 - `Config.Management.Enabled` optionally includes the instance management service
   in `Services()`. It is disabled by default and requires its own
   `Config.Management.BearerToken`, independent of projection authentication.

@@ -21,7 +21,7 @@ func TestQueryGraceKeepsAbandonedRangesCurrentWithoutDelivery(t *testing.T) {
 	reads := make(chan datastore.WindowRequest, 20)
 	feed := newCoordinatorFeed()
 	source := &coordinatorSource{plan: plan, records: []storage.Record{record("1", "old"), record("2", "old"), record("3", "old")}, feed: feed, windowReads: reads}
-	c, err := StartCoordinatorWithOptions(ctx, source, CoordinatorOptions{QueryIdleTTL: time.Minute, QueryMaintenancePeriod: time.Millisecond, EvictionBatchSize: 1})
+	c, err := StartCoordinatorWithOptions(ctx, source, CoordinatorOptions{Limits: CoordinatorLimits{QueryIdleTTL: time.Minute, QueryMaintenancePeriod: time.Millisecond, EvictionBatchSize: 1}})
 	if err != nil {
 		t.Fatal(err)
 	}

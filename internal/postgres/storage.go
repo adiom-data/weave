@@ -36,6 +36,8 @@ type Options struct {
 	Replication        ReplicationOptions
 	CaptureBufferLimit int
 	Logger             *slog.Logger
+	// Metrics optionally exports metadata-cache counts. Nil disables them.
+	Metrics metrics.Provider
 }
 
 // Storage owns the PostgreSQL source consumed by the query server.
@@ -124,8 +126,8 @@ func NewStorage(ctx context.Context, databaseURL string, options Options) (Stora
 	store := &postgresStorage{PostgresDataSource: NewPostgresDataSourceWithOptions(pool, broker, DataSourceOptions{
 		AllowedTables: append([]string(nil), options.AllowedTables...), Publication: options.Publication, QueryLimits: options.QueryLimits,
 	}), cancel: cancel, done: make(chan struct{})}
-	store.metadata.ready = metrics.NewGauge(metrics.CachedMetadata)
-	store.metadata.loading = metrics.NewGauge(metrics.LoadingMetadata)
+	store.metadata.ready = metrics.NewGauge(options.Metrics, metrics.CachedMetadata)
+	store.metadata.loading = metrics.NewGauge(options.Metrics, metrics.LoadingMetadata)
 	go func() {
 		defer close(store.done)
 		defer store.metadata.ready.Close()

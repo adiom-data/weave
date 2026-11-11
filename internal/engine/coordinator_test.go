@@ -275,7 +275,7 @@ func TestCoordinatorUsesNaturalProgressBeforeRequestingBarrier(t *testing.T) {
 		feed:    feed, fence: testPosition(1), loadStarted: started,
 	}
 	source := &progressCoordinatorSource{coordinatorSource: base}
-	coordinator, err := StartCoordinatorWithOptions(ctx, source, CoordinatorOptions{ProgressBarrierDelay: 100 * time.Millisecond})
+	coordinator, err := StartCoordinatorWithOptions(ctx, source, CoordinatorOptions{Limits: CoordinatorLimits{ProgressBarrierDelay: 100 * time.Millisecond}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -310,7 +310,7 @@ func TestCoordinatorReportsKnownProgressWithoutRequestingBarrier(t *testing.T) {
 		feed:    feed, fence: testPosition(1), loadStarted: started,
 	}
 	source := &progressCoordinatorSource{coordinatorSource: base}
-	coordinator, err := StartCoordinatorWithOptions(ctx, source, CoordinatorOptions{ProgressBarrierDelay: time.Second})
+	coordinator, err := StartCoordinatorWithOptions(ctx, source, CoordinatorOptions{Limits: CoordinatorLimits{ProgressBarrierDelay: time.Second}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -407,7 +407,7 @@ func TestCoordinatorRequestsOneBarrierForQuietFence(t *testing.T) {
 		feed.events <- datastore.CommittedChanges{Checkpoint: fence.(testPosition)}
 		return nil
 	}
-	coordinator, err := StartCoordinatorWithOptions(ctx, source, CoordinatorOptions{ProgressBarrierDelay: time.Millisecond})
+	coordinator, err := StartCoordinatorWithOptions(ctx, source, CoordinatorOptions{Limits: CoordinatorLimits{ProgressBarrierDelay: time.Millisecond}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -442,7 +442,7 @@ func TestCoordinatorProcessesCommandsAndCDCWhileActivationWaitsForProgress(t *te
 		<-ctx.Done()
 		return ctx.Err()
 	}
-	coordinator, err := StartCoordinatorWithOptions(ctx, source, CoordinatorOptions{ProgressBarrierDelay: time.Millisecond})
+	coordinator, err := StartCoordinatorWithOptions(ctx, source, CoordinatorOptions{Limits: CoordinatorLimits{ProgressBarrierDelay: time.Millisecond}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -494,7 +494,7 @@ func TestCoordinatorBarrierFailureDoesNotStopCoordinator(t *testing.T) {
 	}
 	barrierErr := errors.New("barrier unavailable")
 	source := &progressCoordinatorSource{coordinatorSource: base, requestFn: func(context.Context, storage.Fence) error { return barrierErr }}
-	coordinator, err := StartCoordinatorWithOptions(ctx, source, CoordinatorOptions{ProgressBarrierDelay: time.Millisecond})
+	coordinator, err := StartCoordinatorWithOptions(ctx, source, CoordinatorOptions{Limits: CoordinatorLimits{ProgressBarrierDelay: time.Millisecond}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -530,7 +530,7 @@ func TestCoordinatorBarrierTimerSurvivesUnrelatedCommands(t *testing.T) {
 		feed.events <- datastore.CommittedChanges{Checkpoint: fence.(testPosition)}
 		return nil
 	}
-	coordinator, err := StartCoordinatorWithOptions(ctx, source, CoordinatorOptions{ProgressBarrierDelay: 20 * time.Millisecond})
+	coordinator, err := StartCoordinatorWithOptions(ctx, source, CoordinatorOptions{Limits: CoordinatorLimits{ProgressBarrierDelay: 20 * time.Millisecond}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1091,7 +1091,7 @@ func TestCoordinatorDoesNotBacklogBusyRelationDuringEntityHydration(t *testing.T
 	}
 	feed := newCoordinatorFeed()
 	source := &coordinatorSource{plan: plan, records: []storage.Record{record("old")}, feed: feed}
-	coordinator, err := StartCoordinatorWithOptions(ctx, source, CoordinatorOptions{MaxResyncTransactions: 1, MaxResyncChanges: 1})
+	coordinator, err := StartCoordinatorWithOptions(ctx, source, CoordinatorOptions{Limits: CoordinatorLimits{MaxResyncTransactions: 1, MaxResyncChanges: 1}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1950,7 +1950,7 @@ func TestCoordinatorAllowsSoftWindowGrowthAboveRequestLimit(t *testing.T) {
 	}
 	feed := newCoordinatorFeed()
 	source := &coordinatorSource{plan: plan, records: []storage.Record{record("1"), record("2")}, feed: feed}
-	coordinator, err := StartCoordinatorWithOptions(ctx, source, CoordinatorOptions{MaxWindowRows: 2, SnapshotPageRows: 2})
+	coordinator, err := StartCoordinatorWithOptions(ctx, source, CoordinatorOptions{Limits: CoordinatorLimits{MaxWindowRows: 2, SnapshotPageRows: 2}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2301,7 +2301,7 @@ func TestCoordinatorEvictsIdleEntitiesOnSchedule(t *testing.T) {
 	source := &coordinatorSource{plan: plan, records: records, feed: newCoordinatorFeed()}
 	// One periodic tick must drain the backlog through separate actor turns,
 	// rather than taking one batch per tick (which would take 20 seconds).
-	coordinator, err := StartCoordinatorWithOptions(ctx, source, CoordinatorOptions{EntityIdleTTL: time.Millisecond, EvictionPeriod: 200 * time.Millisecond, EvictionBatchSize: 1, QueryIdleTTL: time.Millisecond, QueryMaintenancePeriod: 5 * time.Millisecond})
+	coordinator, err := StartCoordinatorWithOptions(ctx, source, CoordinatorOptions{Limits: CoordinatorLimits{EntityIdleTTL: time.Millisecond, EvictionPeriod: 200 * time.Millisecond, EvictionBatchSize: 1, QueryIdleTTL: time.Millisecond, QueryMaintenancePeriod: 5 * time.Millisecond}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2813,7 +2813,7 @@ func TestCoordinatorRelationResyncPagesAcrossStableCoverage(t *testing.T) {
 	}
 	feed := newCoordinatorFeed()
 	source := &coordinatorSource{plan: plan, records: []storage.Record{record("1"), record("2")}, feed: feed}
-	coordinator, err := StartCoordinatorWithOptions(ctx, source, CoordinatorOptions{MaxWindowRows: 2, SnapshotPageRows: 2})
+	coordinator, err := StartCoordinatorWithOptions(ctx, source, CoordinatorOptions{Limits: CoordinatorLimits{MaxWindowRows: 2, SnapshotPageRows: 2}})
 	if err != nil {
 		t.Fatal(err)
 	}

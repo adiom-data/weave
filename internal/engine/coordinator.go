@@ -17,6 +17,7 @@ import (
 	"github.com/adiom-data/weave/internal/engine/selectorindex"
 	"github.com/adiom-data/weave/internal/engine/subscriptions"
 	"github.com/adiom-data/weave/internal/engine/windowloader"
+	"github.com/adiom-data/weave/internal/metrics"
 	"github.com/adiom-data/weave/internal/storage"
 )
 
@@ -34,6 +35,11 @@ type FetchOptions struct {
 }
 
 type CoordinatorOptions struct {
+	Limits  CoordinatorLimits
+	Metrics metrics.Provider
+}
+
+type CoordinatorLimits struct {
 	EntityIdleTTL          time.Duration
 	EvictionPeriod         time.Duration
 	EvictionBatchSize      int
@@ -180,7 +186,7 @@ type Coordinator struct {
 	recovery         *recovery.Manager
 	resyncResults    chan resyncReadResult
 	hydrationResults chan hydrationReadResult
-	options          CoordinatorOptions
+	options          CoordinatorLimits
 	progressFence    storage.Fence
 	progressStarting bool
 	progressResults  chan progressResult
@@ -195,8 +201,8 @@ func StartCoordinator(ctx context.Context, source datastore.DataSource) (*Coordi
 }
 
 func StartCoordinatorWithOptions(ctx context.Context, source datastore.DataSource, options CoordinatorOptions) (*Coordinator, error) {
-	options = options.withDefaults()
-	if options.EntityIdleTTL < 0 || options.EvictionPeriod < 0 || options.EvictionBatchSize < 1 || options.QueryIdleTTL < 0 || options.QueryMaintenancePeriod <= 0 || options.ProgressBarrierDelay < 0 || options.MaxResyncTransactions < 1 || options.MaxResyncChanges < 1 || options.MaxHydrations < 1 || options.ResyncResultBuffer < 1 || options.HydrationResultBuffer < 1 || options.MaxWindowRows < 1 || options.SnapshotPageRows < 1 || options.SubscriptionBatchSize < 1 || options.MaxReferenceInvalidations < 1 {
+	limits := options.Limits.withDefaults()
+	if limits.EntityIdleTTL < 0 || limits.EvictionPeriod < 0 || limits.EvictionBatchSize < 1 || limits.QueryIdleTTL < 0 || limits.QueryMaintenancePeriod <= 0 || limits.ProgressBarrierDelay < 0 || limits.MaxResyncTransactions < 1 || limits.MaxResyncChanges < 1 || limits.MaxHydrations < 1 || limits.ResyncResultBuffer < 1 || limits.HydrationResultBuffer < 1 || limits.MaxWindowRows < 1 || limits.SnapshotPageRows < 1 || limits.SubscriptionBatchSize < 1 || limits.MaxReferenceInvalidations < 1 {
 		return nil, errors.New("coordinator limits and durations must be positive")
 	}
 	feed, err := source.OpenFeed(ctx)
@@ -204,15 +210,15 @@ func StartCoordinatorWithOptions(ctx context.Context, source datastore.DataSourc
 		return nil, err
 	}
 	entities := entitycache.NewEntityCache()
-	queries := selectorindex.New(entities, options.QueryIdleTTL)
+	queries := selectorindex.New(entities, limits.QueryIdleTTL)
 	coordinator := &Coordinator{
 		source: source, feed: feed, entities: entities, queries: queries,
 		processor: changeprocessor.NewProcessor(source.ID(), entities, queries),
 		loader:    windowloader.NewWindowLoader(source, entities, queries), hub: delivery.NewSubscriptionHub(queries),
-		commands: make(chan coordinatorCommand), done: make(chan struct{}), subscriptions: subscriptions.NewRegistry(), recovery: recovery.NewManager(options.MaxHydrations, options.MaxResyncTransactions, options.MaxResyncChanges), resyncResults: make(chan resyncReadResult, options.ResyncResultBuffer), hydrationResults: make(chan hydrationReadResult, options.HydrationResultBuffer), options: options, progressResults: make(chan progressResult, 1), pendingInitial: make(map[string]*pendingInitialActivation), pendingWindows: make(map[string]*pendingWindowActivation),
+		commands: make(chan coordinatorCommand), done: make(chan struct{}), subscriptions: subscriptions.NewRegistry(), recovery: recovery.NewManager(limits.MaxHydrations, limits.MaxResyncTransactions, limits.MaxResyncChanges), resyncResults: make(chan resyncReadResult, limits.ResyncResultBuffer), hydrationResults: make(chan hydrationReadResult, limits.HydrationResultBuffer), options: limits, progressResults: make(chan progressResult, 1), pendingInitial: make(map[string]*pendingInitialActivation), pendingWindows: make(map[string]*pendingWindowActivation),
 	}
-	coordinator.prefetch = prefetchcache.New(entities, options.QueryIdleTTL)
-	coordinator.metrics = newCoordinatorMetrics()
+	coordinator.prefetch = prefetchcache.New(entities, limits.QueryIdleTTL)
+	coordinator.metrics = newCoordinatorMetrics(options.Metrics)
 	runCtx, cancelRun := context.WithCancel(ctx)
 	go coordinator.run(runCtx, cancelRun)
 	return coordinator, nil

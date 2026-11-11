@@ -9,6 +9,7 @@ import (
 
 	"github.com/adiom-data/weave/internal/datastore"
 	"github.com/adiom-data/weave/internal/engine"
+	"github.com/adiom-data/weave/internal/metrics"
 	querygrpc "github.com/adiom-data/weave/internal/querysubscription/grpc"
 	querylocal "github.com/adiom-data/weave/internal/querysubscription/local"
 	"github.com/adiom-data/weave/internal/querysubscription/model"
@@ -41,13 +42,15 @@ type Options struct {
 	Messages   transactionmessage.Options
 	Transport  querygrpc.TransportOptions
 	References ReferenceOptions
+	// Metrics optionally exports runtime counts. Nil disables them.
+	Metrics metrics.Provider
 }
 
 type ReferenceOptions = querylocal.ReferenceOptions
 
 // DefaultOptions returns independently customizable query and message defaults.
 func DefaultOptions() Options {
-	return Options{Limits: Limits(engine.DefaultCoordinatorOptions()), Messages: transactionmessage.DefaultOptions(), Transport: querygrpc.DefaultTransportOptions(), References: querylocal.DefaultReferenceOptions()}
+	return Options{Limits: Limits(engine.DefaultCoordinatorLimits()), Messages: transactionmessage.DefaultOptions(), Transport: querygrpc.DefaultTransportOptions(), References: querylocal.DefaultReferenceOptions()}
 }
 
 type backend struct {
@@ -69,7 +72,7 @@ func New(ctx context.Context, source datastore.Storage, options Options) (Backen
 		return nil, errors.New("storage is required")
 	}
 	runCtx, cancel := context.WithCancel(ctx)
-	coordinator, err := engine.StartCoordinatorWithOptions(runCtx, source, engine.CoordinatorOptions(options.Limits))
+	coordinator, err := engine.StartCoordinatorWithOptions(runCtx, source, engine.CoordinatorOptions{Limits: engine.CoordinatorLimits(options.Limits), Metrics: options.Metrics})
 	if err != nil {
 		cancel()
 		return nil, err

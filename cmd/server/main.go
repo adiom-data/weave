@@ -10,7 +10,9 @@ import (
 
 	"github.com/adiom-data/framework/httpapp"
 	"github.com/adiom-data/framework/telemetry"
+	"go.opentelemetry.io/otel"
 
+	metricsotel "github.com/adiom-data/weave/pkg/metrics/otel"
 	"github.com/adiom-data/weave/pkg/server"
 )
 
@@ -56,7 +58,7 @@ func execute(logger *slog.Logger) (runErr error) {
 		defer stop()
 		runErr = errors.Join(runErr, shutdownTelemetry(shutdownCtx))
 	}()
-	host, err := server.New(ctx, c, server.Options{Logger: logger})
+	host, err := server.New(ctx, c, server.Options{Logger: logger, Metrics: metricsotel.New(otel.GetMeterProvider())})
 	if err != nil {
 		return err
 	}

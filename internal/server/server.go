@@ -8,6 +8,7 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/adiom-data/framework/httpapp"
+	"github.com/adiom-data/weave/internal/metrics"
 	"github.com/adiom-data/weave/internal/server/identity"
 	"github.com/adiom-data/weave/pkg/gen/management/v1/managementv1connect"
 	"github.com/adiom-data/weave/pkg/gen/reactive/v1/reactivev1connect"
@@ -23,6 +24,8 @@ import (
 type Options struct {
 	Logger                *slog.Logger
 	AuthenticatedServices []httpapp.ConnectService
+	// Metrics is shared by this stack's query engine and storage. Nil disables counts.
+	Metrics metrics.Provider
 	// Optional application-owned WebSocket authentication/renewal. When set,
 	// its verified claims replace configured admission for WebSockets only.
 	// Mutually exclusive with configured websocket.renewal.
@@ -80,12 +83,15 @@ func New(parent context.Context, c Config, options Options) (Server, error) {
 	}
 	pg := postgresOptions(c)
 	pg.Logger = logger
+	pg.Metrics = options.Metrics
 	source, err := storage.NewPostgres(ctx, c.Storage.Postgres.URL, pg)
 	if err != nil {
 		return nil, errors.New("initialize PostgreSQL storage failed (check connectivity, publication, slot, and privileges)")
 	}
 	h.source = source
-	h.queries, err = queryserver.New(ctx, source, queryOptions(c))
+	queries := queryOptions(c)
+	queries.Metrics = options.Metrics
+	h.queries, err = queryserver.New(ctx, source, queries)
 	if err != nil {
 		return nil, fmt.Errorf("initialize query backend: %w", err)
 	}

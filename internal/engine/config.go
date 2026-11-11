@@ -2,10 +2,10 @@ package engine
 
 import "time"
 
-// DefaultCoordinatorOptions returns a fresh base configuration. Progress delay
+// DefaultCoordinatorLimits returns a fresh base configuration. Progress delay
 // is intentionally zero: callers may request sparse-stream progress immediately.
-func DefaultCoordinatorOptions() CoordinatorOptions {
-	return CoordinatorOptions{
+func DefaultCoordinatorLimits() CoordinatorLimits {
+	return CoordinatorLimits{
 		EntityIdleTTL: 5 * time.Minute, EvictionPeriod: time.Minute,
 		EvictionBatchSize: 128, QueryIdleTTL: 30 * time.Second, QueryMaintenancePeriod: time.Second,
 		MaxResyncTransactions: 4096, MaxResyncChanges: 100000, MaxHydrations: 1024,
@@ -16,8 +16,8 @@ func DefaultCoordinatorOptions() CoordinatorOptions {
 	}
 }
 
-func (o CoordinatorOptions) withDefaults() CoordinatorOptions {
-	d := DefaultCoordinatorOptions()
+func (o CoordinatorLimits) withDefaults() CoordinatorLimits {
+	d := DefaultCoordinatorLimits()
 	if o.SubscriptionBatchSize == 0 {
 		o.SubscriptionBatchSize = d.SubscriptionBatchSize
 	}

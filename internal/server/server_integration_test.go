@@ -34,6 +34,7 @@ import (
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
 	"github.com/adiom-data/weave/internal/metrics"
+	metricsotel "github.com/adiom-data/weave/internal/metrics/otel"
 	"github.com/adiom-data/weave/internal/server/config"
 	"github.com/adiom-data/weave/pkg/accesscontrol"
 	managementv1 "github.com/adiom-data/weave/pkg/gen/management/v1"
@@ -135,6 +136,7 @@ func TestStandalonePostgres(t *testing.T) {
 	if !ok {
 		t.Fatal("external telemetry setup did not install an SDK meter provider")
 	}
+	runtimeMetrics := metricsotel.New(provider)
 	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {
 		t.Fatal(err)
@@ -201,6 +203,7 @@ func TestStandalonePostgres(t *testing.T) {
 		stackConfig.ShutdownTimeout, stackConfig.ReadHeaderTimeout, stackConfig.IdleTimeout = 0, 0, 0
 		host, err := New(runCtx, stackConfig, Options{
 			Logger:                slog.New(readyLogHandler{ready}),
+			Metrics:               runtimeMetrics,
 			AuthenticatedServices: []httpapp.ConnectService{claimsService("app.v1.HostAdmission")},
 		})
 		if err != nil {

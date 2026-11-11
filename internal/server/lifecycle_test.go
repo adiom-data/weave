@@ -14,6 +14,7 @@ import (
 
 	"github.com/adiom-data/framework/httpapp"
 	"github.com/adiom-data/weave/internal/metrics"
+	metricsotel "github.com/adiom-data/weave/internal/metrics/otel"
 	"github.com/adiom-data/weave/pkg/projectionserver"
 	"github.com/adiom-data/weave/pkg/queryserver"
 	"go.opentelemetry.io/otel"
@@ -158,7 +159,7 @@ func TestServerLeavesCallerHTTPAndTelemetryRunning(t *testing.T) {
 			t.Error(err)
 		}
 	})
-	weaveGauge := metrics.NewGauge(metrics.CachedQueries)
+	weaveGauge := metrics.NewGauge(metricsotel.New(provider), metrics.CachedQueries)
 	weaveGauge.Set(7)
 	defer weaveGauge.Close()
 	meter := provider.Meter("embedding-app")

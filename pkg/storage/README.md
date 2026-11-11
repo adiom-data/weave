@@ -7,6 +7,10 @@ The connection string accepts pgx URI or keyword syntax, including pool options.
 Reads, replication, and slot inspection derive from the same parsed settings;
 pool-only options are not sent as PostgreSQL session parameters.
 
+`PostgresOptions.Metrics` optionally accepts a
+[runtime metrics provider](../metrics/README.md). Nil disables metadata-cache
+counts. The storage implementation does not depend on OpenTelemetry.
+
 Pass the returned storage to `queryserver.New`. Declarative visibility policies
 gather authorization facts through ordinary query/entity subscriptions managed
 by the projection server, not through a separate storage-level fact stream.

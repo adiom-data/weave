@@ -11,8 +11,10 @@ import (
 	"github.com/adiom-data/framework/httpapp"
 	"github.com/adiom-data/framework/telemetry"
 	"github.com/adiom-data/weave/examples/demo/internal/demomutations"
+	metricsotel "github.com/adiom-data/weave/pkg/metrics/otel"
 	"github.com/adiom-data/weave/pkg/server"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel"
 )
 
 func main() {
@@ -77,6 +79,7 @@ func run(ctx context.Context, cfg server.Config, logger *slog.Logger) (runErr er
 	}
 	host, err := server.New(ctx, cfg, server.Options{
 		Logger:                logger,
+		Metrics:               metricsotel.New(otel.GetMeterProvider()),
 		AuthenticatedServices: []httpapp.ConnectService{demomutations.Endpoint(pool, cfg.WebOrigin, logger)},
 	})
 	if err != nil {

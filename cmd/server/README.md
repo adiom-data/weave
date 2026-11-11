@@ -248,7 +248,8 @@ and HTTP request logs remain enabled independently.
 
 Weave exports active/initializing subscription counts, retained query/entity-cache
 sizes, and cached/loading PostgreSQL metadata counts. See the
-[metric reference](../../internal/metrics/README.md). These use the same provider
+[metric reference](../../pkg/metrics/README.md). The executable explicitly selects
+the OpenTelemetry adapter. These use the same provider
 and OTLP exporter as framework metrics; no separate metrics listener is started.
 For example, set `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318` for a local
 collector, or `OTEL_METRICS_EXPORTER=none` to disable metric exports alone.
