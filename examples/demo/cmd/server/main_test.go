@@ -4,6 +4,7 @@ import (
 	"io"
 	"log/slog"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/adiom-data/weave/pkg/server"
@@ -30,5 +31,14 @@ func TestCheckConfigDoesNotConnectToDatabase(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	if err := execute(logger, []string{"-config", filepath.Join("..", "..", "server.yaml"), "-check-config"}); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestCheckConfigRejectsInvalidListener(t *testing.T) {
+	t.Setenv("WEAVE_ADDRESS", "")
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	err := execute(logger, []string{"-config", filepath.Join("..", "..", "server.yaml"), "-check-config"})
+	if err == nil || !strings.Contains(err.Error(), "address is required") {
+		t.Fatalf("expected listener validation before startup: %v", err)
 	}
 }

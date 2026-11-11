@@ -1,4 +1,4 @@
-// Command server adds the demo's mutation endpoints to the public reactive host.
+// Command server mounts Weave and the demo's mutation endpoints on its HTTP server.
 package main
 
 import (
@@ -9,6 +9,7 @@ import (
 	"os"
 
 	"github.com/adiom-data/framework/httpapp"
+	"github.com/adiom-data/framework/telemetry"
 	"github.com/adiom-data/weave/examples/demo/internal/demomutations"
 	"github.com/adiom-data/weave/pkg/server"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -40,6 +41,9 @@ func execute(logger *slog.Logger, args []string) error {
 	if err != nil {
 		return err
 	}
+	if err := cfg.ValidateListener(); err != nil {
+		return err
+	}
 	if *check {
 		if err := server.ValidateConfig(cfg); err != nil {
 			return err
@@ -52,7 +56,16 @@ func execute(logger *slog.Logger, args []string) error {
 	return run(ctx, cfg, logger)
 }
 
-func run(ctx context.Context, cfg server.Config, logger *slog.Logger) error {
+func run(ctx context.Context, cfg server.Config, logger *slog.Logger) (runErr error) {
+	shutdownTelemetry, err := telemetry.Setup(ctx, telemetry.DefaultConfig("weave-demo"))
+	if err != nil {
+		return err
+	}
+	defer func() {
+		shutdownCtx, stop := context.WithTimeout(context.Background(), telemetry.DefaultShutdownTimeout)
+		defer stop()
+		runErr = errors.Join(runErr, shutdownTelemetry(shutdownCtx))
+	}()
 	// The mutation pool is application-owned and closes after the reactive host.
 	pool, err := pgxpool.New(ctx, cfg.Storage.Postgres.URL)
 	if err != nil {
@@ -69,6 +82,30 @@ func run(ctx context.Context, cfg server.Config, logger *slog.Logger) error {
 	if err != nil {
 		return err
 	}
-	defer host.Close()
-	return host.Run(ctx)
+	defer func() { runErr = errors.Join(runErr, host.Close()) }()
+	app := httpapp.NewService(
+		httpapp.WithServiceAddr(cfg.Address), httpapp.WithServiceLogger(logger),
+		httpapp.WithServiceTimeouts(cfg.ReadHeaderTimeout, cfg.ShutdownTimeout),
+		httpapp.WithServiceIdleTimeout(cfg.IdleTimeout),
+		httpapp.WithServices(host.Services()...), httpapp.WithServiceRoutes(host.Routes()...),
+	)
+	return serve(ctx, app, host)
+}
+
+func serve(ctx context.Context, app httpapp.Service, reactive server.Server) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		err := reactive.Wait(ctx)
+		if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+			err = nil
+		}
+		done <- err
+		cancel()
+	}()
+	httpErr := app.Run(ctx)
+	cancel()
+	reactiveErr := <-done
+	return errors.Join(httpErr, reactiveErr)
 }

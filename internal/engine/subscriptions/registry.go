@@ -72,6 +72,8 @@ func (r *Registry) BeginInitialization(id string, plan datastore.PreparedQuery) 
 	r.initializing[id] = Initialization{Fingerprint: plan.Fingerprint(), Relation: plan.Relation(), Epoch: r.epochs[plan.Relation()], Phase: OperationPlanning}
 }
 
+func (r *Registry) Counts() (active, initializing int) { return len(r.active), len(r.initializing) }
+
 func (r *Registry) Initialization(id string) (Initialization, bool) {
 	state, ok := r.initializing[id]
 	state.Reads = append([]datastore.Bounds(nil), state.Reads...)

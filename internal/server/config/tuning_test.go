@@ -52,6 +52,9 @@ func TestEveryNumericTuningRejectsInvalidValues(t *testing.T) {
 						c := validConfig()
 						reflect.ValueOf(&c).Elem().FieldByIndex(index).SetInt(invalid)
 						err := c.Validate()
+						if name == "shutdown_timeout" || name == "read_header_timeout" || name == "idle_timeout" {
+							err = c.ValidateListener()
+						}
 						if name == "query.limits.progress_barrier_delay" && invalid == 0 {
 							if err != nil {
 								t.Fatal(err)

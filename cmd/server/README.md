@@ -51,7 +51,7 @@ docker run --rm --env-file /path/to/server.env \
   weave-server -config /config/server.yaml
 ```
 
-Only the projection service is publicly registered; raw query/message RPCs would
+By default only the projection service is publicly registered; raw query/message RPCs would
 bypass visibility. Unary `GetProjectionSnapshot` and live `Open` use the same
 policies and trusted claims. No schema, application mutations, or browser login
 flow is installed.
@@ -61,6 +61,42 @@ Health uses `grpc.health.v1.Health/Check` with service labels `liveness` and
 A terminal component error stops the host. SIGINT/SIGTERM cancel active RPCs and
 WebSockets before framework graceful shutdown, then close caches and storage.
 The replication slot is not deleted.
+
+## Management
+
+`management.enabled` defaults to `false`. When enabled, the same listener also
+hosts `management.v1.Management`, secured by a **separate administrative bearer
+token**, not projection JWTs, claims, or visibility policies:
+
+```sh
+export WEAVE_MANAGEMENT_ENABLED=true
+export WEAVE_MANAGEMENT_TOKEN='your-separate-strong-random-admin-secret'
+```
+
+Alternatively set `management.enabled` and `management.bearer_token` in YAML;
+environment values override them. Keep this endpoint on a trusted network and
+terminate TLS upstream, just like the rest of the listener. Never put the admin
+credential in browser code. An enabled service without an admin token fails
+configuration validation; when disabled the service is not mounted at all.
+
+The unary methods accept Connect JSON as well as protobuf:
+
+```sh
+curl http://127.0.0.1:8080/management.v1.Management/InvalidateMetadata \
+  -H "Authorization: Bearer $WEAVE_MANAGEMENT_TOKEN" \
+  -H 'Content-Type: application/json' \
+  -d '{"table":{"namespace":"app","name":"tasks"}}'
+```
+
+`InvalidateMetadata` accepts an optional `table`; sending `{}` invalidates all
+metadata. A present table must include both `namespace` and `name`, so `{"table":{}}`
+is an error rather than an all-tables request. Invalidation only affects future
+preparation; existing plans, subscriptions, and cached data are left alone.
+Incompatible schema changes affecting live subscriptions require a server restart.
+Operational counts are exported as metrics. Management operations are local
+to this instance; there is no fleet-wide broadcast or replay/slot manipulation.
+
+See [`pkg/management`](../../pkg/management/README.md) for Go composition and details.
 
 ## Claims
 
@@ -203,11 +239,19 @@ there is no expiring credential. Disabled WebSockets cannot enable it either.
 JWT revalidation alone is not immediate revocation detection; that still depends
 on the identity provider/upstream or an application-owned verifier.
 
-Telemetry uses the framework's normal OpenTelemetry configuration. Set
+This executable installs and shuts down framework telemetry around the Weave
+host. Set
 `OTEL_SDK_DISABLED=true` to disable instrumentation and exports, or set
 `OTEL_EXPORTER_OTLP_ENDPOINT` to your collector. Without overrides the framework
 enables telemetry and targets `http://otel-collector:4318`. Structured application
 and HTTP request logs remain enabled independently.
+
+Weave exports active/initializing subscription counts, retained query/entity-cache
+sizes, and cached/loading PostgreSQL metadata counts. See the
+[metric reference](../../internal/metrics/README.md). These use the same provider
+and OTLP exporter as framework metrics; no separate metrics listener is started.
+For example, set `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318` for a local
+collector, or `OTEL_METRICS_EXPORTER=none` to disable metric exports alone.
 
 The framework derives HTTP request base contexts from `Run(ctx)`, so cancelling
 the host context also cancels active RPCs and WebSockets. WebSocket adapters close

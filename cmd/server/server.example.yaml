@@ -2,6 +2,9 @@
 # Supply WEAVE_DATABASE_URL in the environment.
 address: 127.0.0.1:8080 # Connect/gRPC, WebSocket, and health on one listener.
 web_origin: http://localhost:5173
+management:
+  enabled: false
+  # When enabled, supply a separate strong secret via WEAVE_MANAGEMENT_TOKEN.
 storage:
   type: postgres
   postgres:

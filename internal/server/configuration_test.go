@@ -23,20 +23,32 @@ func TestConfigValidationDoesNotConnectAndNewRejectsInvalidPolicy(t *testing.T) 
 	}
 }
 
+func TestLibraryValidationIgnoresCallerOwnedListener(t *testing.T) {
+	c := validConfig()
+	c.Address = ""
+	c.ShutdownTimeout, c.ReadHeaderTimeout, c.IdleTimeout = 0, 0, 0
+	if err := ValidateConfig(c); err != nil {
+		t.Fatal("library required unused listener settings:", err)
+	}
+	c.MaxMessageBytes = 0
+	if err := ValidateConfig(c); err == nil {
+		t.Fatal("library accepted an invalid reactive message limit")
+	}
+}
+
 func TestExtensionServiceNamesMustBeUniqueAndUnreserved(t *testing.T) {
 	factory := func(...connect.HandlerOption) (string, http.Handler) { return "/test/", http.NotFoundHandler() }
 	custom := httpapp.Connect("app.v1.Commands", factory)
 	for _, options := range []Options{
-		{Services: []httpapp.ConnectService{{Name: "missing handler"}}},
-		{Services: []httpapp.ConnectService{httpapp.Connect("reactive.v1.ReactiveQueries", factory)}},
-		{Services: []httpapp.ConnectService{custom}, AuthenticatedServices: []httpapp.ConnectService{custom}},
-		{Routes: []httpapp.Route{{Pattern: "/missing-handler"}}},
+		{AuthenticatedServices: []httpapp.ConnectService{{Name: "missing handler"}}},
+		{AuthenticatedServices: []httpapp.ConnectService{httpapp.Connect("reactive.v1.ReactiveQueries", factory)}},
+		{AuthenticatedServices: []httpapp.ConnectService{custom, custom}},
 	} {
 		if err := validateEndpoints(options); err == nil {
 			t.Fatal("invalid endpoint accepted")
 		}
 	}
-	if err := validateEndpoints(Options{Services: []httpapp.ConnectService{custom}}); err != nil {
+	if err := validateEndpoints(Options{AuthenticatedServices: []httpapp.ConnectService{custom}}); err != nil {
 		t.Fatal(err)
 	}
 }

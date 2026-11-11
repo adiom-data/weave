@@ -1,0 +1,21 @@
+syntax = "proto3";
+
+package management.v1;
+
+option go_package = "github.com/adiom-data/weave/pkg/gen/management/v1;managementv1";
+
+// Privileged, instance-local administration. Mount only behind independent
+// administrative authentication; end-user projection claims grant no access.
+service Management {
+  // Affects future preparations only; existing plans remain unchanged.
+  rpc InvalidateMetadata(InvalidateMetadataRequest) returns (InvalidateMetadataResponse);
+}
+
+message Table { string namespace = 1; string name = 2; }
+
+message InvalidateMetadataRequest {
+  // Omitted means all tables. A present table requires namespace and name.
+  Table table = 1;
+}
+
+message InvalidateMetadataResponse {}

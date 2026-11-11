@@ -159,6 +159,7 @@ type BoundaryChange struct {
 // source feed. Snapshot IO is performed outside the actor and reconciled back
 // through commands, so slow database reads never pause CDC consumption.
 type Coordinator struct {
+	metrics   coordinatorMetrics
 	source    datastore.DataSource
 	feed      datastore.ChangeFeed
 	entities  entityState
@@ -211,6 +212,7 @@ func StartCoordinatorWithOptions(ctx context.Context, source datastore.DataSourc
 		commands: make(chan coordinatorCommand), done: make(chan struct{}), subscriptions: subscriptions.NewRegistry(), recovery: recovery.NewManager(options.MaxHydrations, options.MaxResyncTransactions, options.MaxResyncChanges), resyncResults: make(chan resyncReadResult, options.ResyncResultBuffer), hydrationResults: make(chan hydrationReadResult, options.HydrationResultBuffer), options: options, progressResults: make(chan progressResult, 1), pendingInitial: make(map[string]*pendingInitialActivation), pendingWindows: make(map[string]*pendingWindowActivation),
 	}
 	coordinator.prefetch = prefetchcache.New(entities, options.QueryIdleTTL)
+	coordinator.metrics = newCoordinatorMetrics()
 	runCtx, cancelRun := context.WithCancel(ctx)
 	go coordinator.run(runCtx, cancelRun)
 	return coordinator, nil

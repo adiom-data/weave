@@ -15,6 +15,7 @@ import (
 
 func (c *Coordinator) run(ctx context.Context, cancel context.CancelFunc) {
 	defer close(c.done)
+	defer c.metrics.close()
 	defer func() {
 		cause := c.terminalError()
 		if cause == nil {
@@ -87,6 +88,7 @@ func (c *Coordinator) run(ctx context.Context, cancel context.CancelFunc) {
 	for {
 		c.tryCompleteReferenceReads()
 		c.tryCompleteActivations(ctx)
+		c.recordMetrics()
 		pendingFence := c.pendingProgressFence()
 		if c.progressFence != nil && (c.appliedThrough(c.progressFence) || pendingFence == nil) {
 			c.progressFence = nil

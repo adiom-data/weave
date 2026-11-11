@@ -48,7 +48,7 @@ database mutation permission checks still run against those claims.
 - [React app](web/src/App.tsx): owns the connection with `useConnection`, reads
   generated projections, and uses the optional mutation harness.
 - [Server](cmd/server/main.go): uses the public config-driven
-  [`pkg/server`](../../pkg/server/README.md) host and adds demo mutation RPCs.
+  [`pkg/server`](../../pkg/server/README.md) stack and mounts it alongside demo mutation RPCs.
   Projection RPCs, mutations, WebSocket, and health share one listener. Database
   pools and write authorization for mutations remain application-owned.
 

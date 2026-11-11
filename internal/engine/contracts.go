@@ -28,6 +28,7 @@ type entityLoadState interface {
 }
 
 type entityMaintenance interface {
+	Size() int
 	PrepareRelationRefresh(storage.RelationKey)
 	EvictIdle(time.Time, int) ([]storage.EntityKey, bool)
 	InvalidateRelation(storage.RelationKey) []storage.EntityKey
@@ -43,6 +44,7 @@ type entityState interface {
 }
 
 type queryLifecycle interface {
+	Size() int
 	HasRelation(storage.RelationKey) bool
 	Acquire(datastore.PreparedQuery) (queryregistry.QueryDescriptor, bool)
 	Release(datastore.QueryFingerprint) (bool, error)

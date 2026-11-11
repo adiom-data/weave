@@ -42,17 +42,46 @@ func TestGenericPackagesNeverImportExamples(t *testing.T) {
 	}
 }
 
+func TestRuntimeMetricsHideOpenTelemetry(t *testing.T) {
+	err := filepath.WalkDir("../../internal", func(path string, entry fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") || strings.Contains(filepath.ToSlash(path), "/metrics/") {
+			return nil
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ImportsOnly)
+		if err != nil {
+			return err
+		}
+		for _, imp := range file.Imports {
+			value, err := strconv.Unquote(imp.Path.Value)
+			if err != nil {
+				return err
+			}
+			if strings.HasPrefix(value, "go.opentelemetry.io/") {
+				t.Errorf("%s imports %s directly; runtime instrumentation belongs in internal/metrics", path, value)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 // These are deliberately supported contracts/configuration, not arbitrary
 // internal structs. Adding a forwarded type requires an explicit API decision.
 var publicTypes = map[string]string{
-	"server":                     "AuthConfig Config Host JSONClaims Options",
+	"server":                     "AuthConfig Config JSONClaims Options Server",
+	"management":                 "Server",
 	"mutation":                   "Context HeaderNames",
 	"projectionserver":           "DependencyOptions MessageOptions Options RelationOptions ProjectionLimits Server Stream",
 	"relation":                   "Binding Definitions Relation Computed Propagation Incoming Fact Limits Projection Store",
 	"projectionserver/websocket": "Authentication AuthenticationOptions ClientVersionPolicy ClientVersionOptions ServeStream SocketConfig Stream",
 	"querysubscription":          "Batch Boundary BoundaryChange BoundaryKind BoundaryOperation BoundarySide Bounds Change ChangeKind Client DeliveryEnvelope DeliveryKind DeliveryMetadata EntitySnapshot EntitySnapshotInstaller EntitySubscribeRequest EntitySubscription Event Feed FeedOptions InitialWindow Insertion MembershipDelta Position Progress QueryRow QuerySnapshot QuerySnapshotInstaller QuerySubscribeRequest QuerySubscription RecordVersion ReferenceSource ReferenceRoute EntityTarget EntityDelta EntityEffect EntityInstallation Row Subscription SubscriptionEffect SubscriptionFailure WindowTransition",
 	"querysubscription/grpc":     "Server TransportOptions",
-	"storage":                    "AppliedChange AppliedKind AuthoritativeRecord Boundary BoundaryKind Bounds Change ChangeEvent ChangeFeed ChangeKind Checkpoint CommittedChanges Comparison ComparisonOperator DataSource EncodedSortKey EntityKey Fence FieldPath IdentityPreparer IdentityQuery Junction JunctionOperator Literal MessageEvent MessageFeed MessageLimits MessageSource NullTest OrderTerm PostgresOptions PostgresStorage Predicate PreparedQuery PreparedReference PreparedReferenceFetch ProgressRequester QueryFingerprint QueryLimits QuerySpec Record ReferenceBinding ReferenceFetch ReferenceLookup ReferencePreparer ReferenceWindowReader ReferenceWindowRow RelationKey RelationName ReplicationOptions SnapshotSession SortKey SourceID SourcePosition Storage TransactionMessage Value ValueState ValueType WindowRequest",
+	"storage":                    "AppliedChange AppliedKind AuthoritativeRecord Boundary BoundaryKind Bounds Change ChangeEvent ChangeFeed ChangeKind Checkpoint CommittedChanges Comparison ComparisonOperator DataSource EncodedSortKey EntityKey Fence FieldPath IdentityPreparer IdentityQuery Junction JunctionOperator Literal MessageEvent MessageFeed MessageLimits MessageSource MetadataManager NullTest OrderTerm PostgresOptions PostgresStorage Predicate PreparedQuery PreparedReference PreparedReferenceFetch ProgressRequester QueryFingerprint QueryLimits QuerySpec Record ReferenceBinding ReferenceFetch ReferenceLookup ReferencePreparer ReferenceWindowReader ReferenceWindowRow RelationKey RelationName ReplicationOptions SnapshotSession SortKey SourceID SourcePosition Storage TransactionMessage Value ValueState ValueType WindowRequest",
 	"transactionmessage":         "Batch Client Feed MessageLimits Options Service Stream Transaction",
 	"transactionmessage/grpc":    "Server",
 	"accesscontrol":              "Candidate Decision Checkpoint Controller Invalidation InvalidationTarget PrepareRequest Prepared PreparedID ProjectionPath ProjectionStep Scope SnapshotCheckpoint Claims View",

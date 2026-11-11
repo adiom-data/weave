@@ -127,3 +127,5 @@ type DataSource = impl.DataSource
 // Storage is the constructed source boundary consumed by a query server.
 // Source capture and resource lifetime belong to its creator, not the server.
 type Storage = impl.Storage
+
+type MetadataManager = impl.MetadataManager

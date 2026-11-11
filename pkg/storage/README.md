@@ -52,6 +52,14 @@ Configuration belongs to storage: publication/slot, allowed tables,
 query-preparation limits, capture-side message limits, and logging.
 Query execution/cache limits and message fan-out queues belong to the query server.
 
+Successful table metadata and publication validation are discovered once and
+retained for the storage instance's lifetime. New tables are discovered on first
+request; failures are not cached. Existing tables' schema/publication changes are
+picked up after explicit `InvalidateMetadata` or restart. Query validation remains
+per-request against immutable cached metadata. Incompatible changes with active
+subscriptions require a server restart, not just metadata invalidation.
+See [instance management](../management/README.md).
+
 The application must already have created the schema and publication. A running
 storage needs an exclusive replication slot; shutdown retains that slot for
 restart. Operators must remove permanently unused slots to avoid retaining WAL.

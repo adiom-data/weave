@@ -24,6 +24,56 @@ func writeTestFile(t *testing.T, name, contents string) string {
 }
 func noEnv(string) (string, bool) { return "", false }
 
+func TestListenerSettingsAreValidatedSeparately(t *testing.T) {
+	c := validConfig()
+	if err := c.ValidateListener(); err != nil {
+		t.Fatal(err)
+	}
+	for name, mutate := range map[string]func(*Config){
+		"empty address":    func(c *Config) { c.Address = "" },
+		"invalid address":  func(c *Config) { c.Address = "invalid" },
+		"shutdown timeout": func(c *Config) { c.ShutdownTimeout = 0 },
+		"header timeout":   func(c *Config) { c.ReadHeaderTimeout = 0 },
+		"idle timeout":     func(c *Config) { c.IdleTimeout = 0 },
+	} {
+		t.Run(name, func(t *testing.T) {
+			invalid := c
+			mutate(&invalid)
+			if err := invalid.Validate(); err != nil {
+				t.Fatal("listener settings gated the reactive stack:", err)
+			}
+			if err := invalid.ValidateListener(); err == nil {
+				t.Fatal("invalid listener settings accepted")
+			}
+		})
+	}
+}
+
+func TestLoadDoesNotRequireListenerSettings(t *testing.T) {
+	path := writeTestFile(t, "server.yaml", `
+address: ""
+shutdown_timeout: 0s
+read_header_timeout: 0s
+idle_timeout: 0s
+storage:
+  postgres:
+    url: postgres://localhost/app
+    publication: pub
+    slot: slot
+auth:
+  mode: fixed
+visibility:
+  mode: allow_all
+`)
+	c, err := Load(path, noEnv)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := c.ValidateListener(); err == nil {
+		t.Fatal("load erased the invalid listener settings")
+	}
+}
+
 func TestClientRevisionConfiguration(t *testing.T) {
 	path := writeTestFile(t, "server.yaml", `
 storage:

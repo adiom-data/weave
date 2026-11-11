@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+	"unicode"
 
 	projectionws "github.com/adiom-data/weave/pkg/projectionserver/websocket"
 	"go.yaml.in/yaml/v3"
@@ -24,7 +25,11 @@ type Config struct {
 	ReadHeaderTimeout time.Duration `yaml:"read_header_timeout"`
 	IdleTimeout       time.Duration `yaml:"idle_timeout"`
 	MaxMessageBytes   int           `yaml:"max_message_bytes"`
-	Socket            struct {
+	Management        struct {
+		Enabled     bool   `yaml:"enabled"`
+		BearerToken string `yaml:"bearer_token"`
+	} `yaml:"management"`
+	Socket struct {
 		Enabled                   bool          `yaml:"enabled"`
 		WriteTimeout              time.Duration `yaml:"write_timeout"`
 		IdleTimeout               time.Duration `yaml:"idle_timeout"`
@@ -146,9 +151,20 @@ func Load(path string, lookup func(string) (string, bool)) (Config, error) {
 		"WEAVE_AUTH_MODE":    &c.Auth.Mode,
 		"WEAVE_JWT_ISSUER":   &c.Auth.Issuer, "WEAVE_JWT_AUDIENCE": &c.Auth.Audience,
 		"WEAVE_VISIBILITY_MODE": &c.Visibility.Mode, "WEAVE_RELATIONS_FILE": &c.Relations.File,
+		"WEAVE_MANAGEMENT_TOKEN": &c.Management.BearerToken,
 	} {
 		if override, ok := lookup(name); ok {
 			*value = override
+		}
+	}
+	if raw, ok := lookup("WEAVE_MANAGEMENT_ENABLED"); ok {
+		switch raw {
+		case "true":
+			c.Management.Enabled = true
+		case "false":
+			c.Management.Enabled = false
+		default:
+			return c, errors.New("WEAVE_MANAGEMENT_ENABLED must be true or false")
 		}
 	}
 	if raw, ok := lookup("WEAVE_FIXED_CLAIMS"); ok {
@@ -162,7 +178,12 @@ func Load(path string, lookup func(string) (string, bool)) (Config, error) {
 	return c, c.Validate()
 }
 
+// Validate checks settings consumed by the reactive stack. Applications that
+// use the optional listener fields validate those separately with ValidateListener.
 func (c Config) Validate() error {
+	if c.Management.Enabled && (c.Management.BearerToken == "" || strings.IndexFunc(c.Management.BearerToken, unicode.IsSpace) >= 0) {
+		return errors.New("enabled management requires a nonempty bearer_token without whitespace")
+	}
 	if c.Socket.RecommendedClientRevision != 0 && c.Socket.RecommendedClientRevision < c.Socket.MinimumClientRevision {
 		return errors.New("websocket.recommended_client_revision must be zero or at least minimum_client_revision")
 	}
@@ -185,17 +206,25 @@ func (c Config) Validate() error {
 	if err := c.validateRenewal(); err != nil {
 		return err
 	}
+	if c.MaxMessageBytes <= 0 || c.Socket.WriteTimeout <= 0 || c.Socket.IdleTimeout <= 0 || c.Socket.MaxMessageBytes <= 0 || c.Socket.MaxMessageDepth <= 0 {
+		return errors.New("reactive message limits and websocket timeouts must be positive")
+	}
+	return c.validateTuning()
+}
+
+// ValidateListener checks the HTTP settings used by the standalone commands.
+// Callers mounting endpoints on a differently configured HTTP server can ignore them.
+func (c Config) ValidateListener() error {
 	if c.Address == "" {
 		return errors.New("address is required")
 	}
 	if _, _, err := net.SplitHostPort(c.Address); err != nil {
 		return fmt.Errorf("invalid listen address: %w", err)
 	}
-
-	if c.ShutdownTimeout <= 0 || c.ReadHeaderTimeout <= 0 || c.IdleTimeout <= 0 || c.MaxMessageBytes <= 0 || c.Socket.WriteTimeout <= 0 || c.Socket.IdleTimeout <= 0 || c.Socket.MaxMessageBytes <= 0 || c.Socket.MaxMessageDepth <= 0 {
-		return errors.New("server timeouts and message limits must be positive")
+	if c.ShutdownTimeout <= 0 || c.ReadHeaderTimeout <= 0 || c.IdleTimeout <= 0 {
+		return errors.New("HTTP listener timeouts must be positive")
 	}
-	return c.validateTuning()
+	return nil
 }
 
 func (c Config) validateRenewal() error {

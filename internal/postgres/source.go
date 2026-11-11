@@ -27,6 +27,7 @@ type PostgresDataSource struct {
 	allow       map[string]struct{}
 	publication string
 	queryLimits QueryLimits
+	metadata    metadataCache
 }
 
 type DataSourceOptions struct {
@@ -94,14 +95,31 @@ func (s *PostgresDataSource) PrepareQuery(ctx context.Context, spec storage.Quer
 	if err := s.queryLimits.validate(); err != nil {
 		return nil, err
 	}
-	compiled, err := compileCompletePlan(ctx, s.db, s.adapter, spec, s.allow, s.queryLimits)
+	if err := validateRelationName(spec.Relation); err != nil {
+		return nil, err
+	}
+	qualified := spec.Relation.Namespace + "." + spec.Relation.Name
+	if _, ok := s.allow[qualified]; len(s.allow) > 0 && !ok {
+		return nil, fmt.Errorf("table %s is not permitted", qualified)
+	}
+	metadata, err := s.metadata.get(ctx, spec.Relation, func(ctx context.Context) (*plan, error) {
+		p, err := loadTablePlan(ctx, s.db, s.adapter, spec.Relation)
+		if err != nil {
+			return nil, err
+		}
+		if s.publication != "" {
+			if err := validatePublication(ctx, s.db, s.publication, p); err != nil {
+				return nil, err
+			}
+		}
+		return p, nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	if s.publication != "" {
-		if err := validatePublication(ctx, s.db, s.publication, compiled); err != nil {
-			return nil, err
-		}
+	compiled, err := compileCompletePlan(metadata, spec, s.queryLimits)
+	if err != nil {
+		return nil, err
 	}
 	prepared := &postgresPrepared{plan: compiled}
 	return prepared, nil

@@ -12,6 +12,7 @@ import (
 
 	"github.com/adiom-data/weave/internal/datastore"
 	"github.com/adiom-data/weave/internal/messagebudget"
+	"github.com/adiom-data/weave/internal/metrics"
 	"github.com/adiom-data/weave/internal/postgres/cdc"
 )
 
@@ -40,6 +41,7 @@ type Options struct {
 // Storage owns the PostgreSQL source consumed by the query server.
 type Storage interface {
 	datastore.Storage
+	datastore.MetadataManager
 }
 
 type postgresStorage struct {
@@ -122,8 +124,12 @@ func NewStorage(ctx context.Context, databaseURL string, options Options) (Stora
 	store := &postgresStorage{PostgresDataSource: NewPostgresDataSourceWithOptions(pool, broker, DataSourceOptions{
 		AllowedTables: append([]string(nil), options.AllowedTables...), Publication: options.Publication, QueryLimits: options.QueryLimits,
 	}), cancel: cancel, done: make(chan struct{})}
+	store.metadata.ready = metrics.NewGauge(metrics.CachedMetadata)
+	store.metadata.loading = metrics.NewGauge(metrics.LoadingMetadata)
 	go func() {
 		defer close(store.done)
+		defer store.metadata.ready.Close()
+		defer store.metadata.loading.Close()
 		defer pool.Close()
 		replicator.Run(runCtx)
 		store.err = runCtx.Err()

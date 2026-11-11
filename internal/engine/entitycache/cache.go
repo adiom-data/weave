@@ -121,6 +121,8 @@ type EntityCache struct {
 	idle           expiryindex.Index[storage.EntityKey]
 }
 
+func (c *EntityCache) Size() int { c.mu.RLock(); defer c.mu.RUnlock(); return len(c.entries) }
+
 func NewEntityCache() *EntityCache {
 	return &EntityCache{entries: make(map[storage.EntityKey]*cacheEntry), now: time.Now}
 }

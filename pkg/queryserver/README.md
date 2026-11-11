@@ -1,5 +1,11 @@
 # Query server library
 
+`Backend` owns shared reactive computation. `Register` mounts the query and
+transaction-message protocols, but does not expose management RPCs. An application
+can optionally mount [`pkg/management`](../management/README.md) behind its own
+administrative authentication. The standalone host provides a disabled-by-default
+configuration for that service.
+
 Construct storage independently, then pass it to the query server:
 
 ```go

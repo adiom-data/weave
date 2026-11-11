@@ -119,18 +119,9 @@ func resolveQueryOrder(query *storage.QuerySpec, primary []string) []storage.Ord
 	return order
 }
 
-// compileCompletePlan compiles the storage-neutral query model into native
-// PostgreSQL comparison, cursor, and SQL semantics. Cached entities always
-// contain every relation column, independently of the client's selection.
-func compileCompletePlan(ctx context.Context, db *pgxpool.Pool, adapter *postgresTypeAdapter, query storage.QuerySpec, allow map[string]struct{}, limits QueryLimits) (*plan, error) {
-	query = cloneQuerySpec(query)
-	if query.Relation.Namespace == "" || query.Relation.Name == "" {
-		return nil, errors.New("schema and table are required")
-	}
-	qualified := query.Relation.Namespace + "." + query.Relation.Name
-	if _, ok := allow[qualified]; len(allow) > 0 && !ok {
-		return nil, fmt.Errorf("table %s is not permitted", qualified)
-	}
+// loadTablePlan discovers immutable relation metadata only. Query expressions
+// and their normalized comparisons are never shared between preparations.
+func loadTablePlan(ctx context.Context, db *pgxpool.Pool, adapter *postgresTypeAdapter, relation storage.RelationName) (*plan, error) {
 	rows, err := db.Query(ctx, `
 		SELECT c.oid, c.relreplident::text, a.attname, a.atttypid,
 		       COALESCE((
@@ -148,12 +139,12 @@ func compileCompletePlan(ctx context.Context, db *pgxpool.Pool, adapter *postgre
 		LEFT JOIN pg_collation coll ON coll.oid = a.attcollation
 		WHERE n.nspname = $1 AND c.relname = $2
 		  AND c.relkind IN ('r', 'p') AND a.attnum > 0 AND NOT a.attisdropped
-		ORDER BY a.attnum`, query.Relation.Namespace, query.Relation.Name)
+		ORDER BY a.attnum`, relation.Namespace, relation.Name)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	p := &plan{adapter: adapter, query: query, schema: query.Relation.Namespace, table: query.Relation.Name, columns: make(map[string]column), comparisons: make(map[*storage.Comparison]postgresComparison)}
+	p := &plan{adapter: adapter, schema: relation.Namespace, table: relation.Name, columns: make(map[string]column)}
 	var allColumns []string
 	var primaryColumns []primaryColumn
 	for rows.Next() {
@@ -196,6 +187,20 @@ func compileCompletePlan(ctx context.Context, db *pgxpool.Pool, adapter *postgre
 	if p.replicaIdentity != 'd' {
 		return nil, errors.New("table must use the primary key as REPLICA IDENTITY DEFAULT")
 	}
+	p.needed = append([]string(nil), allColumns...)
+	sort.Strings(p.needed)
+	p.schemaFingerprint, err = relationSchemaFingerprint(p.columns)
+	if err != nil {
+		return nil, fmt.Errorf("fingerprint relation schema: %w", err)
+	}
+	return p, nil
+}
+
+func compileCompletePlan(metadata *plan, query storage.QuerySpec, limits QueryLimits) (*plan, error) {
+	copy := *metadata
+	p := &copy
+	p.query = cloneQuerySpec(query)
+	p.comparisons = make(map[*storage.Comparison]postgresComparison)
 	p.order = resolveQueryOrder(&p.query, p.primary)
 	if len(p.order) > limits.MaxOrderTerms {
 		return nil, fmt.Errorf("resolved ordering must contain at most %d terms", limits.MaxOrderTerms)
@@ -233,14 +238,7 @@ func compileCompletePlan(ctx context.Context, db *pgxpool.Pool, adapter *postgre
 			return nil, fmt.Errorf("ordering column %q uses PostgreSQL type %d or collation %q whose ordering cannot be reproduced safely", name, p.columns[name].typeOID, p.columns[name].collation)
 		}
 	}
-	// Every source read materializes the complete row. Output shaping belongs to
-	// the projection/client layer and cannot affect shared query state.
-	p.needed = append([]string(nil), allColumns...)
-	sort.Strings(p.needed)
-	p.schemaFingerprint, err = relationSchemaFingerprint(p.columns)
-	if err != nil {
-		return nil, fmt.Errorf("fingerprint relation schema: %w", err)
-	}
+	var err error
 	p.fingerprint, err = queryFingerprint(p.query, p.relationID, p.schemaFingerprint)
 	if err != nil {
 		return nil, fmt.Errorf("fingerprint query: %w", err)

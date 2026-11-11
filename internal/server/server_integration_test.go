@@ -1,9 +1,11 @@
 package server
 
 import (
+	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -16,8 +18,12 @@ import (
 
 	"connectrpc.com/connect"
 	"github.com/adiom-data/framework/httpapp"
+	"github.com/adiom-data/framework/telemetry"
 	"github.com/gorilla/websocket"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"go.opentelemetry.io/otel"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	collectormetrics "go.opentelemetry.io/proto/otlp/collector/metrics/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -27,8 +33,11 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
 
+	"github.com/adiom-data/weave/internal/metrics"
 	"github.com/adiom-data/weave/internal/server/config"
 	"github.com/adiom-data/weave/pkg/accesscontrol"
+	managementv1 "github.com/adiom-data/weave/pkg/gen/management/v1"
+	"github.com/adiom-data/weave/pkg/gen/management/v1/managementv1connect"
 	queryv1 "github.com/adiom-data/weave/pkg/gen/querysubscription/v1"
 	reactivev1 "github.com/adiom-data/weave/pkg/gen/reactive/v1"
 )
@@ -61,11 +70,43 @@ func TestStandalonePostgres(t *testing.T) {
 	if databaseURL == "" {
 		t.Skip("set WEAVE_SERVER_TEST_DATABASE_URL to a disposable logical-replication database")
 	}
-	// Exercise the framework's real stream instrumentation and provider shutdown
-	// without requiring a collector or sending test data outside this process.
+	// The caller owns telemetry for both host lifetimes.
 	var exports atomic.Int32
+	var exportedMetrics sync.Map
 	collector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		exports.Add(1)
+		if r.URL.Path == "/v1/metrics" {
+			var body io.Reader = r.Body
+			if r.Header.Get("Content-Encoding") == "gzip" {
+				decoder, err := gzip.NewReader(r.Body)
+				if err != nil {
+					t.Error(err)
+					w.WriteHeader(http.StatusBadRequest)
+					return
+				}
+				defer decoder.Close()
+				body = decoder
+			}
+			raw, err := io.ReadAll(body)
+			var request collectormetrics.ExportMetricsServiceRequest
+			if err != nil {
+				t.Error(err)
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			if err := proto.Unmarshal(raw, &request); err != nil {
+				t.Error(err)
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			for _, resource := range request.ResourceMetrics {
+				for _, scope := range resource.ScopeMetrics {
+					for _, metric := range scope.Metrics {
+						exportedMetrics.Store(metric.Name, true)
+					}
+				}
+			}
+		}
 		w.Header().Set("Content-Type", "application/x-protobuf")
 		w.WriteHeader(http.StatusOK) // Empty protobuf ExportResponse is valid OTLP.
 	}))
@@ -79,6 +120,21 @@ func TestStandalonePostgres(t *testing.T) {
 	t.Setenv("OTEL_TRACES_SAMPLER_ARG", "1")
 	ctx, cancel := context.WithTimeout(t.Context(), 45*time.Second)
 	defer cancel()
+	shutdownTelemetry, err := telemetry.Setup(ctx, telemetry.DefaultConfig("weave-test"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		shutdownCtx, stop := context.WithTimeout(context.Background(), telemetry.DefaultShutdownTimeout)
+		defer stop()
+		if err := shutdownTelemetry(shutdownCtx); err != nil {
+			t.Error(err)
+		}
+	}()
+	provider, ok := otel.GetMeterProvider().(*sdkmetric.MeterProvider)
+	if !ok {
+		t.Fatal("external telemetry setup did not install an SDK meter provider")
+	}
 	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {
 		t.Fatal(err)
@@ -140,17 +196,24 @@ func TestStandalonePostgres(t *testing.T) {
 				}, options...)
 			})
 		}
-		host, err := New(runCtx, c, Options{
+		stackConfig := c
+		stackConfig.Address = ""
+		stackConfig.ShutdownTimeout, stackConfig.ReadHeaderTimeout, stackConfig.IdleTimeout = 0, 0, 0
+		host, err := New(runCtx, stackConfig, Options{
 			Logger:                slog.New(readyLogHandler{ready}),
-			Services:              []httpapp.ConnectService{claimsService("app.v1.OwnAdmission")},
 			AuthenticatedServices: []httpapp.ConnectService{claimsService("app.v1.HostAdmission")},
-			Routes:                []httpapp.Route{httpapp.Handle("GET /demo-status", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) }))},
 		})
 		if err != nil {
 			stop()
 			t.Fatal(err)
 		}
-		go func() { err := host.Run(runCtx); done <- errors.Join(err, host.Close()) }()
+		app := httpapp.NewService(
+			httpapp.WithServiceAddr(c.Address), httpapp.WithServiceLogger(slog.New(readyLogHandler{ready})),
+			httpapp.WithServiceTimeouts(c.ReadHeaderTimeout, c.ShutdownTimeout), httpapp.WithServiceIdleTimeout(c.IdleTimeout),
+			httpapp.WithServices(append(host.Services(), claimsService("app.v1.OwnAdmission"))...),
+			httpapp.WithServiceRoutes(append(host.Routes(), httpapp.Handle("GET /demo-status", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusNoContent) })))...),
+		)
+		go func() { err := serveTestServer(runCtx, app, host); done <- errors.Join(err, host.Close()) }()
 		var once sync.Once
 		shutdown := func() {
 			once.Do(func() {
@@ -180,6 +243,10 @@ func TestStandalonePostgres(t *testing.T) {
 	}
 	a, stop := start()
 	defer stop()
+	admin := managementv1connect.NewManagementClient(http.DefaultClient, "http://"+a.address)
+	if _, err := admin.InvalidateMetadata(ctx, connect.NewRequest(&managementv1.InvalidateMetadataRequest{})); connect.CodeOf(err) != connect.CodeUnimplemented {
+		t.Fatalf("disabled management was mounted: %v", err)
+	}
 	for _, test := range []struct{ name, want string }{
 		{"app.v1.OwnAdmission", "no host admission"},
 		{"app.v1.HostAdmission", "one"},
@@ -316,7 +383,16 @@ func TestStandalonePostgres(t *testing.T) {
 	}
 	// Stop with both transports still open: host context cancellation must
 	// release active RPC handlers and close hijacked WebSockets on its own.
+	if err := provider.ForceFlush(ctx); err != nil {
+		t.Fatal(err)
+	}
 	stop()
+	if otel.GetMeterProvider() != provider {
+		t.Fatal("host changed the caller's telemetry provider")
+	}
+	if err := provider.ForceFlush(ctx); err != nil {
+		t.Fatal("host shut down the caller's telemetry provider:", err)
+	}
 	if err := socket.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
 		t.Fatal(err)
 	}
@@ -330,13 +406,39 @@ func TestStandalonePostgres(t *testing.T) {
 	}
 	socket.Close()
 	connection.Close()
+	metricNames := []string{metrics.ActiveSubscriptions, metrics.InitializingSubscriptions, metrics.CachedQueries, metrics.CachedEntities, metrics.CachedMetadata, metrics.LoadingMetadata}
+	assertExportedMetrics := func() {
+		t.Helper()
+		if exports.Load() == 0 {
+			t.Fatal("framework telemetry never exported to the test collector")
+		}
+		for _, name := range metricNames {
+			if _, ok := exportedMetrics.Load(name); !ok {
+				t.Errorf("Weave metric %s never exported", name)
+			}
+		}
+	}
+	assertExportedMetrics()
+	exports.Store(0)
+	exportedMetrics.Clear()
 	var retained bool
 	if err := pool.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM pg_replication_slots WHERE slot_name=$1)`, name).Scan(&retained); err != nil || !retained {
 		t.Fatalf("slot not retained: %v", err)
 	}
 	// Reusing the same slot must successfully restart and reload visible state.
+	c.Management.Enabled = true
+	c.Management.BearerToken = "separate-integration-admin-token"
 	a, stopAgain := start()
 	defer stopAgain()
+	admin = managementv1connect.NewManagementClient(http.DefaultClient, "http://"+a.address)
+	if _, err := admin.InvalidateMetadata(ctx, connect.NewRequest(&managementv1.InvalidateMetadataRequest{})); connect.CodeOf(err) != connect.CodeUnauthenticated {
+		t.Fatalf("fixed user claims granted administrative access: %v", err)
+	}
+	adminRequest := connect.NewRequest(&managementv1.InvalidateMetadataRequest{})
+	adminRequest.Header().Set("Authorization", "Bearer "+c.Management.BearerToken)
+	if response, err := admin.InvalidateMetadata(ctx, adminRequest); err != nil {
+		t.Fatal(response, err)
+	}
 	connection2, err := grpc.NewClient(a.address, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		t.Fatal(err)
@@ -347,10 +449,32 @@ func TestStandalonePostgres(t *testing.T) {
 		t.Fatal(err)
 	}
 	assertVisibleSnapshot(t, image, "updated")
-	stopAgain()
-	if exports.Load() == 0 {
-		t.Fatal("framework telemetry never exported to the test collector")
+	invalidate := connect.NewRequest(&managementv1.InvalidateMetadataRequest{Table: &managementv1.Table{Namespace: "public", Name: name}})
+	invalidate.Header().Set("Authorization", "Bearer "+c.Management.BearerToken)
+	if _, err := admin.InvalidateMetadata(ctx, invalidate); err != nil {
+		t.Fatal(err)
 	}
+	invalidateAll := connect.NewRequest(&managementv1.InvalidateMetadataRequest{})
+	invalidateAll.Header().Set("Authorization", "Bearer "+c.Management.BearerToken)
+	if _, err := admin.InvalidateMetadata(ctx, invalidateAll); err != nil {
+		t.Fatal(err)
+	}
+	image, err = reactivev1.NewReactiveQueriesClient(connection2).GetProjectionSnapshot(ctx, &reactivev1.ProjectionSnapshotRequest{Root: root, WaitForSync: true})
+	if err != nil {
+		t.Fatal("snapshot after metadata invalidation", err)
+	}
+	assertVisibleSnapshot(t, image, "updated")
+	if err := provider.ForceFlush(ctx); err != nil {
+		t.Fatal(err)
+	}
+	stopAgain()
+	if otel.GetMeterProvider() != provider {
+		t.Fatal("restarted host changed the caller's telemetry provider")
+	}
+	if err := provider.ForceFlush(ctx); err != nil {
+		t.Fatal("restarted host shut down the caller's telemetry provider:", err)
+	}
+	assertExportedMetrics()
 }
 
 func assertVisibleSnapshot(t *testing.T, image *reactivev1.ProjectionSnapshotResponse, title string) {

@@ -2,6 +2,7 @@ package server_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -28,6 +29,9 @@ func ExampleNew() {
 	if err != nil {
 		panic(err)
 	}
+	if err := cfg.ValidateListener(); err != nil {
+		panic(err)
+	}
 	custom := httpapp.Connect("app.v1.Commands", func(options ...connect.HandlerOption) (string, http.Handler) {
 		return "/app.v1.Commands/", connect.NewUnaryHandler("/app.v1.Commands/Execute",
 			func(ctx context.Context, request *connect.Request[emptypb.Empty]) (*connect.Response[emptypb.Empty], error) {
@@ -40,13 +44,36 @@ func ExampleNew() {
 				return connect.NewResponse(&emptypb.Empty{}), nil
 			}, options...)
 	})
-	ctx := context.Background()
+	runtime, err := httpapp.Init(context.Background())
+	if err != nil {
+		panic(err)
+	}
+	defer runtime.Shutdown(context.Background())
+	ctx, cancel := context.WithCancel(runtime.Context())
+	defer cancel()
 	host, err := server.New(ctx, cfg, server.Options{AuthenticatedServices: []httpapp.ConnectService{custom}})
 	if err != nil {
 		panic(err)
 	}
 	defer host.Close()
-	if err := host.Run(ctx); err != nil {
+	app := runtime.NewService(
+		httpapp.WithServiceAddr(cfg.Address), httpapp.WithServiceTimeouts(cfg.ReadHeaderTimeout, cfg.ShutdownTimeout),
+		httpapp.WithServiceIdleTimeout(cfg.IdleTimeout),
+		httpapp.WithServices(host.Services()...), httpapp.WithServiceRoutes(host.Routes()...),
+	)
+	done := make(chan error, 1)
+	go func() {
+		err := host.Wait(ctx)
+		if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+			err = nil
+		}
+		done <- err
+		cancel()
+	}()
+	httpErr := app.Run(ctx)
+	cancel()
+	reactiveErr := <-done
+	if err := errors.Join(httpErr, reactiveErr); err != nil {
 		panic(err)
 	}
 }

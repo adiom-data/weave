@@ -83,6 +83,8 @@ type QueryRegistry struct {
 	pruning       []*pruneJob
 }
 
+func (r *QueryRegistry) Size() int { r.mu.RLock(); defer r.mu.RUnlock(); return len(r.queries) }
+
 type routingFieldKey struct {
 	relation storage.RelationKey
 	field    storage.FieldPath

@@ -81,8 +81,8 @@ func projectionOptions(c Config, store *relationdef.Store) projectionserver.Opti
 	return o
 }
 
-// ValidateConfig compiles fixed policies and checks configuration without
-// connecting to the datastore or OIDC issuer.
+// ValidateConfig compiles fixed policies and checks reactive configuration without
+// connecting to the datastore or OIDC issuer. Listener settings are caller-owned.
 func ValidateConfig(c Config) error {
 	_, err := prepareConfig(c)
 	return err

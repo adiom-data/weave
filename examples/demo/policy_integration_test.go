@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/adiom-data/framework/httpapp"
 	reactivev1 "github.com/adiom-data/weave/pkg/gen/reactive/v1"
 	"github.com/adiom-data/weave/pkg/server"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -105,17 +106,21 @@ CREATE PUBLICATION %[1]s FOR ALL TABLES;`, name)
 		t.Fatal(err)
 	}
 	done := make(chan error, 1)
-	go func() { done <- host.Run(runCtx) }()
+	app := httpapp.NewService(
+		httpapp.WithServiceAddr(cfg.Address), httpapp.WithServiceLogger(slog.New(demoReadyHandler{ready})),
+		httpapp.WithServices(host.Services()...), httpapp.WithServiceRoutes(host.Routes()...),
+	)
+	go func() { done <- app.Run(runCtx) }()
 	resultRead := false
 	defer func() {
 		stop()
-		if err := host.Close(); err != nil {
-			t.Error(err)
-		}
 		if !resultRead {
 			if err := <-done; err != nil {
 				t.Error(err)
 			}
+		}
+		if err := host.Close(); err != nil {
+			t.Error(err)
 		}
 	}()
 	var address string
