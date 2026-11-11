@@ -172,8 +172,15 @@ func (v *projectionVisibility) filterInitial(ctx context.Context, controller acc
 		}
 	}()
 	rowsByInstance := make(map[string][]int)
+	for index, event := range events {
+		if requiresProjectionDecision(event) {
+			rowsByInstance[event.InstanceID] = append(rowsByInstance[event.InstanceID], index)
+		}
+	}
 	for _, event := range events {
-		if event.Type != projection.ProjectionInstanceOpened {
+		// Empty topology has no candidates to authorize and may be derived
+		// locally from a null binding rather than from a database snapshot.
+		if event.Type != projection.ProjectionInstanceOpened || len(rowsByInstance[event.InstanceID]) == 0 {
 			continue
 		}
 		if v.partial && event.Checkpoint == nil && event.Fence == nil {
@@ -192,11 +199,6 @@ func (v *projectionVisibility) filterInitial(ctx context.Context, controller acc
 			sharedViews[point] = view
 		}
 		views[event.InstanceID] = view
-	}
-	for index, event := range events {
-		if requiresProjectionDecision(event) {
-			rowsByInstance[event.InstanceID] = append(rowsByInstance[event.InstanceID], index)
-		}
 	}
 	decisions := make(map[int]projectionRowAction)
 	var targets []*projectionAuthorizationTarget

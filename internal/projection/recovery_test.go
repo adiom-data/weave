@@ -36,8 +36,8 @@ func (f *recoveryFeed) SubscribeQuery(_ context.Context, request q.QuerySubscrib
 }
 
 func recoveryNode(name string, children ...*ProjectionNode) *ProjectionNode {
-	return &ProjectionNode{Name: name, Window: q.InitialWindow{Count: 10}, Children: children, BuildQuery: func(storage.Record) (storage.QuerySpec, error) {
-		return storage.QuerySpec{Relation: storage.RelationName{Name: name}}, nil
+	return &ProjectionNode{Name: name, Window: q.InitialWindow{Count: 10}, Children: children, BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) {
+		return storage.QuerySpec{Relation: storage.RelationName{Name: name}}, true, nil
 	}}
 }
 
@@ -337,12 +337,12 @@ func TestRebindingFailedBranchStartsNewRecoveryBudget(t *testing.T) {
 	feed := &recoveryFeed{failTable: "bad", requests: make(chan q.QuerySubscribeRequest, 100)}
 	feed.fail.Store(true)
 	child := recoveryNode("bad")
-	child.BuildQuery = func(parent storage.Record) (storage.QuerySpec, error) {
+	child.BuildQuery = func(parent storage.Record) (storage.QuerySpec, bool, error) {
 		group := "old"
 		if value, ok := parent["group"]; ok {
 			group = string(value.Data)
 		}
-		return storage.QuerySpec{Relation: storage.RelationName{Name: "bad"}, Filter: &storage.Predicate{Comparison: &storage.Comparison{Field: "group", Operator: storage.ComparisonEqual, Value: storage.Literal{Type: storage.TypeText, Data: []byte(group)}}}}, nil
+		return storage.QuerySpec{Relation: storage.RelationName{Name: "bad"}, Filter: &storage.Predicate{Comparison: &storage.Comparison{Field: "group", Operator: storage.ComparisonEqual, Value: storage.Literal{Type: storage.TypeText, Data: []byte(group)}}}}, true, nil
 	}
 	p, err := BeginProjection(ctx, feed, recoveryNode("root", child), StartOptions{AllowPartialErrors: true, QueueLimit: 8, Limits: Limits{RecoveryInitialDelay: time.Millisecond, RecoveryMaxDelay: time.Millisecond, RecoveryMaxAttempts: 1}})
 	if err != nil {

@@ -86,6 +86,41 @@ func TestCompileReferenceFetchHint(t *testing.T) {
 	}
 }
 
+func TestNullableRelationBindingsCompileForEntitiesListsAndHints(t *testing.T) {
+	schema := `type Query { tasks: [Task!]! }
+type Task @table(schema:"app",name:"tasks") {
+  id: UUID!
+  organizationId: UUID! @column(path:["organization_id"])
+  parentId: UUID @column(path:["parent_id"])
+  parent: Task @relation(parent:["organizationId","parentId"],child:["organizationId","id"])
+  siblings: [Task!]! @relation(parent:["organizationId","parentId"],child:["organizationId","parentId"])
+}`
+	for _, hint := range []string{"", `@fetchReference(child:"parent")`} {
+		t.Run(hint, func(t *testing.T) {
+			ops, err := compileTest(t, schema, `query Tasks { tasks @window(initialCount:10) `+hint+` {
+  id parentId parent { id } siblings @window(initialCount:5) { id }
+} }`)
+			if err != nil {
+				t.Fatal(err)
+			}
+			children := ops[0].Root.Children
+			for i, bindings := range [][]*reactivev1.ProjectionBinding{children[0].GetEntity().Bindings, children[1].GetList().Bindings} {
+				want := "id"
+				if i == 1 {
+					want = "parent_id"
+				}
+				if len(bindings) != 2 || !reflect.DeepEqual(bindings[1].GetParentColumn().Segments, []string{"parent_id"}) || !reflect.DeepEqual(bindings[1].Column.Segments, []string{want}) {
+					t.Fatalf("nullable binding was not preserved: %v", bindings)
+				}
+			}
+			generated, _, err := GenerateTypeScript(ops, "@adiom-data/weave", "./index.js")
+			if err != nil || !strings.Contains(string(generated), `readonly "parentId": string | null | undefined`) {
+				t.Fatalf("nullable source field lost its generated type: %s; %v", generated, err)
+			}
+		})
+	}
+}
+
 func TestEmbeddedMasksUseStoredNamesAndTraverseArrays(t *testing.T) {
 	schema := strings.Replace(testSchema, "type Metadata {", "type Member { name: String secret: String }\ntype Metadata { members: [[Member]]", 1)
 	ops, err := compileTest(t, schema, `query Details($id: UUID!) { project(id:$id) { id tasks @window(initialCount:1) { id first:meta { owner } second:meta { members { display:name } } } } }`)

@@ -11,12 +11,18 @@ import (
 // comparison and asynchronous expansion use exactly the same bound queries.
 type memberBindings struct {
 	once    sync.Once
-	queries map[*ProjectionNode]storage.QuerySpec
+	queries map[*ProjectionNode]boundQuery
 	errors  map[*ProjectionNode]error
 	err     error
 }
 
-func (p *Projection) childBindings(node *ProjectionNode, member *projectionMember) (map[*ProjectionNode]storage.QuerySpec, error) {
+// An unmatched binding is a known empty selection, not a failed query.
+type boundQuery struct {
+	spec      storage.QuerySpec
+	matchable bool
+}
+
+func (p *Projection) childBindings(node *ProjectionNode, member *projectionMember) (map[*ProjectionNode]boundQuery, error) {
 	if len(node.Children) == 0 {
 		return nil, nil
 	}
@@ -27,10 +33,10 @@ func (p *Projection) childBindings(node *ProjectionNode, member *projectionMembe
 	bindings := member.bindings
 	p.mu.Unlock()
 	bindings.once.Do(func() {
-		bindings.queries = make(map[*ProjectionNode]storage.QuerySpec, len(node.Children))
+		bindings.queries = make(map[*ProjectionNode]boundQuery, len(node.Children))
 		bindings.errors = make(map[*ProjectionNode]error)
 		for _, child := range node.Children {
-			query, err := child.BuildQuery(member.record)
+			query, matchable, err := child.BuildQuery(member.record)
 			if err != nil {
 				if p.partialErrors {
 					bindings.errors[child] = err
@@ -39,7 +45,7 @@ func (p *Projection) childBindings(node *ProjectionNode, member *projectionMembe
 				bindings.err = err
 				return
 			}
-			bindings.queries[child] = query
+			bindings.queries[child] = boundQuery{spec: query, matchable: matchable}
 		}
 	})
 	return bindings.queries, bindings.err

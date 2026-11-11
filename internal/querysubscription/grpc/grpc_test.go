@@ -558,13 +558,13 @@ func TestProjectionRunsAcrossRemoteQuerySession(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer session.Close(context.Background())
-	root := &projection.ProjectionNode{Name: "projects", BuildQuery: func(storage.Record) (storage.QuerySpec, error) {
-		return storage.QuerySpec{Relation: storage.RelationName{Name: "projects"}}, nil
-	}, Children: []*projection.ProjectionNode{{Name: "tasks", BuildQuery: func(parent storage.Record) (storage.QuerySpec, error) {
+	root := &projection.ProjectionNode{Name: "projects", BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) {
+		return storage.QuerySpec{Relation: storage.RelationName{Name: "projects"}}, true, nil
+	}, Children: []*projection.ProjectionNode{{Name: "tasks", BuildQuery: func(parent storage.Record) (storage.QuerySpec, bool, error) {
 		if string(parent["id"].Data) != "p1" {
-			return storage.QuerySpec{}, errors.New("parent record was not preserved")
+			return storage.QuerySpec{}, false, errors.New("parent record was not preserved")
 		}
-		return storage.QuerySpec{Relation: storage.RelationName{Name: "tasks"}}, nil
+		return storage.QuerySpec{Relation: storage.RelationName{Name: "tasks"}}, true, nil
 	}}}}
 	result, err := projection.BeginProjection(ctx, session, root, projection.StartOptions{Prefix: "remote", QueueLimit: 16})
 	if err != nil {

@@ -88,7 +88,7 @@ func TestConcurrentInitialConsumersHaveOneOwner(t *testing.T) {
 func TestClosingProjectionReleasesUntakenImage(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	p, err := BeginProjection(ctx, &admissionTreeFeed{}, &ProjectionNode{Name: "items", BuildQuery: func(storage.Record) (storage.QuerySpec, error) { return storage.QuerySpec{}, nil }}, StartOptions{QueueLimit: 4})
+	p, err := BeginProjection(ctx, &admissionTreeFeed{}, &ProjectionNode{Name: "items", BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) { return storage.QuerySpec{}, true, nil }}, StartOptions{QueueLimit: 4})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -38,11 +38,11 @@ func TestChildLoadFailureFollowsExpansionGeneration(t *testing.T) {
 			defer cancel()
 			failure := errors.New("child load failed")
 			feed := &failingChildBindingFeed{childBindingFeed: &childBindingFeed{loads: map[string]int{}, started: make(chan struct{}, 1), release: make(chan struct{})}, failure: failure}
-			child := &ProjectionNode{Name: "child", BuildQuery: func(parent storage.Record) (storage.QuerySpec, error) {
-				return storage.QuerySpec{Relation: storage.RelationName{Name: string(parent["target"].Data)}}, nil
+			child := &ProjectionNode{Name: "child", BuildQuery: func(parent storage.Record) (storage.QuerySpec, bool, error) {
+				return storage.QuerySpec{Relation: storage.RelationName{Name: string(parent["target"].Data)}}, true, nil
 			}}
-			root := &ProjectionNode{Name: "parents", Children: []*ProjectionNode{child}, BuildQuery: func(storage.Record) (storage.QuerySpec, error) {
-				return storage.QuerySpec{Relation: storage.RelationName{Name: "parents"}}, nil
+			root := &ProjectionNode{Name: "parents", Children: []*ProjectionNode{child}, BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) {
+				return storage.QuerySpec{Relation: storage.RelationName{Name: "parents"}}, true, nil
 			}}
 			p, _, err := startTestProjection(ctx, feed, root, StartOptions{QueueLimit: 16})
 			if err != nil {
@@ -89,12 +89,12 @@ func TestChildBindingsAreSharedBetweenExpansionAndParentUpdates(t *testing.T) {
 	defer cancel()
 	feed := &childBindingFeed{loads: map[string]int{}, started: make(chan struct{}, 1), release: make(chan struct{})}
 	var calls atomic.Int32
-	child := &ProjectionNode{Name: "child", BuildQuery: func(parent storage.Record) (storage.QuerySpec, error) {
+	child := &ProjectionNode{Name: "child", BuildQuery: func(parent storage.Record) (storage.QuerySpec, bool, error) {
 		calls.Add(1)
-		return storage.QuerySpec{Relation: storage.RelationName{Name: string(parent["target"].Data)}}, nil
+		return storage.QuerySpec{Relation: storage.RelationName{Name: string(parent["target"].Data)}}, true, nil
 	}}
-	root := &ProjectionNode{Name: "parents", Children: []*ProjectionNode{child}, BuildQuery: func(storage.Record) (storage.QuerySpec, error) {
-		return storage.QuerySpec{Relation: storage.RelationName{Name: "parents"}}, nil
+	root := &ProjectionNode{Name: "parents", Children: []*ProjectionNode{child}, BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) {
+		return storage.QuerySpec{Relation: storage.RelationName{Name: "parents"}}, true, nil
 	}}
 	p, _, err := startTestProjection(ctx, feed, root, StartOptions{QueueLimit: 16})
 	if err != nil {
@@ -134,12 +134,12 @@ func TestChildBindingsBorrowOwnedImageAndBindOnceConcurrently(t *testing.T) {
 	// are removed. External mutations cannot change the retained parent image.
 	record["target"].Data[0] = 'X'
 	var calls atomic.Int32
-	child := &ProjectionNode{BuildQuery: func(parent storage.Record) (storage.QuerySpec, error) {
+	child := &ProjectionNode{BuildQuery: func(parent storage.Record) (storage.QuerySpec, bool, error) {
 		calls.Add(1)
 		if &parent["payload"].Data[0] != &member.record["payload"].Data[0] {
 			t.Error("binding copied the immutable parent payload")
 		}
-		return storage.QuerySpec{Relation: storage.RelationName{Name: string(parent["target"].Data)}}, nil
+		return storage.QuerySpec{Relation: storage.RelationName{Name: string(parent["target"].Data)}}, true, nil
 	}}
 	node := &ProjectionNode{Children: []*ProjectionNode{child}}
 	p := &Projection{}
@@ -147,7 +147,7 @@ func TestChildBindingsBorrowOwnedImageAndBindOnceConcurrently(t *testing.T) {
 	for range 32 {
 		workers.Go(func() {
 			queries, err := p.childBindings(node, member)
-			if err != nil || queries[child].Relation.Name != "old" {
+			if err != nil || queries[child].spec.Relation.Name != "old" {
 				t.Errorf("binding changed the owned image: %v %v", queries, err)
 			}
 		})
@@ -162,8 +162,8 @@ func TestInlineExpansionIgnoresRetiredLoadFailure(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	feed := &failingChildBindingFeed{childBindingFeed: &childBindingFeed{started: make(chan struct{}, 1), release: make(chan struct{})}, failure: errors.New("obsolete load failed")}
-	child := &ProjectionNode{Name: "child", BuildQuery: func(storage.Record) (storage.QuerySpec, error) {
-		return storage.QuerySpec{Relation: storage.RelationName{Name: "new"}}, nil
+	child := &ProjectionNode{Name: "child", BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) {
+		return storage.QuerySpec{Relation: storage.RelationName{Name: "new"}}, true, nil
 	}}
 	key := storage.EntityKey{Value: "parent"}
 	member := newProjectionMember(nil, q.RecordVersion{}, nil, false)
@@ -237,8 +237,8 @@ func BenchmarkReconcileChildBindings(b *testing.B) {
 			record["payload"] = storage.Value{State: storage.ValuePresent, Type: storage.TypeBytes, Data: make([]byte, size)}
 			parent := &projectionInstance{node: &ProjectionNode{}}
 			for range 8 {
-				parent.node.Children = append(parent.node.Children, &ProjectionNode{BuildQuery: func(parent storage.Record) (storage.QuerySpec, error) {
-					return storage.QuerySpec{Relation: storage.RelationName{Name: string(parent["target"].Data)}}, nil
+				parent.node.Children = append(parent.node.Children, &ProjectionNode{BuildQuery: func(parent storage.Record) (storage.QuerySpec, bool, error) {
+					return storage.QuerySpec{Relation: storage.RelationName{Name: string(parent["target"].Data)}}, true, nil
 				}})
 			}
 			p := &Projection{}
@@ -296,14 +296,14 @@ func bindingProjection(t *testing.T) (*Projection, *childBindingFeed, storage.En
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	t.Cleanup(cancel)
 	f := &childBindingFeed{loads: map[string]int{}, started: make(chan struct{}, 10), release: make(chan struct{})}
-	stable := &ProjectionNode{Name: "stable", BuildQuery: func(storage.Record) (storage.QuerySpec, error) {
-		return storage.QuerySpec{Relation: storage.RelationName{Name: "stable"}}, nil
+	stable := &ProjectionNode{Name: "stable", BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) {
+		return storage.QuerySpec{Relation: storage.RelationName{Name: "stable"}}, true, nil
 	}}
-	bound := &ProjectionNode{Name: "bound", BuildQuery: func(parent storage.Record) (storage.QuerySpec, error) {
-		return storage.QuerySpec{Relation: storage.RelationName{Name: string(parent["target"].Data)}}, nil
+	bound := &ProjectionNode{Name: "bound", BuildQuery: func(parent storage.Record) (storage.QuerySpec, bool, error) {
+		return storage.QuerySpec{Relation: storage.RelationName{Name: string(parent["target"].Data)}}, true, nil
 	}}
-	root := &ProjectionNode{Name: "parents", Children: []*ProjectionNode{stable, bound}, BuildQuery: func(storage.Record) (storage.QuerySpec, error) {
-		return storage.QuerySpec{Relation: storage.RelationName{Name: "parents"}}, nil
+	root := &ProjectionNode{Name: "parents", Children: []*ProjectionNode{stable, bound}, BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) {
+		return storage.QuerySpec{Relation: storage.RelationName{Name: "parents"}}, true, nil
 	}}
 	p, _, err := startTestProjection(ctx, f, root, StartOptions{QueueLimit: 32})
 	if err != nil {
@@ -488,8 +488,8 @@ func TestSiblingPublicationDoesNotDetachAnotherPendingReplacement(t *testing.T) 
 }
 
 func TestRetiringUnpublishedLoadsDoesNotAccumulateReplacements(t *testing.T) {
-	child := &ProjectionNode{Name: "child", BuildQuery: func(parent storage.Record) (storage.QuerySpec, error) {
-		return storage.QuerySpec{Relation: storage.RelationName{Name: string(parent["target"].Data)}}, nil
+	child := &ProjectionNode{Name: "child", BuildQuery: func(parent storage.Record) (storage.QuerySpec, bool, error) {
+		return storage.QuerySpec{Relation: storage.RelationName{Name: string(parent["target"].Data)}}, true, nil
 	}}
 	parent := &projectionInstance{id: "parent", node: &ProjectionNode{Name: "parent", Children: []*ProjectionNode{child}}}
 	p := &Projection{ctx: context.Background(), instances: make(map[string]*projectionInstance), outputReleased: true}

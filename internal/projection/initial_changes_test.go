@@ -95,7 +95,7 @@ func TestInitialDeltasCoalesceMembershipAndKeepRecordVersions(t *testing.T) {
 	for n := 0; n < 100; n++ {
 		feed.rows = append(feed.rows, deltaRow(fmt.Sprint(n), "initial"))
 	}
-	p, err := BeginProjection(ctx, feed, &ProjectionNode{Name: "items", BuildQuery: func(storage.Record) (storage.QuerySpec, error) { return storage.QuerySpec{}, nil }}, StartOptions{QueueLimit: 1, CurrentImageAdmission: true})
+	p, err := BeginProjection(ctx, feed, &ProjectionNode{Name: "items", BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) { return storage.QuerySpec{}, true, nil }}, StartOptions{QueueLimit: 1, CurrentImageAdmission: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +182,7 @@ func BenchmarkInitialAdmissionHotRow(b *testing.B) {
 	for n := 0; n < 1000; n++ {
 		feed.rows = append(feed.rows, deltaRow(fmt.Sprint(n), strings.Repeat("i", 1024)))
 	}
-	p, err := BeginProjection(ctx, feed, &ProjectionNode{Name: "items", BuildQuery: func(storage.Record) (storage.QuerySpec, error) { return storage.QuerySpec{}, nil }}, StartOptions{QueueLimit: 1, CurrentImageAdmission: true})
+	p, err := BeginProjection(ctx, feed, &ProjectionNode{Name: "items", BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) { return storage.QuerySpec{}, true, nil }}, StartOptions{QueueLimit: 1, CurrentImageAdmission: true})
 	if err != nil {
 		b.Fatal(err)
 	}

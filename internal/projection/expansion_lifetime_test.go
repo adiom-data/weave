@@ -46,19 +46,19 @@ func TestInstallingChildSeesCompleteParentReconciliation(t *testing.T) {
 	feed := &reconcilingExpansionFeed{childBindingFeed: &childBindingFeed{loads: map[string]int{}}, loading: make(chan struct{}), resume: make(chan struct{}), installing: make(chan struct{})}
 	binding, resumeBinding := make(chan struct{}), make(chan struct{})
 	var once sync.Once
-	child := &ProjectionNode{Name: "child", BuildQuery: func(parent storage.Record) (storage.QuerySpec, error) {
+	child := &ProjectionNode{Name: "child", BuildQuery: func(parent storage.Record) (storage.QuerySpec, bool, error) {
 		if string(parent["title"].Data) == "changed" {
 			once.Do(func() { close(binding) })
 			select {
 			case <-resumeBinding:
 			case <-ctx.Done():
-				return storage.QuerySpec{}, ctx.Err()
+				return storage.QuerySpec{}, true, ctx.Err()
 			}
 		}
-		return storage.QuerySpec{Relation: storage.RelationName{Name: string(parent["target"].Data)}}, nil
+		return storage.QuerySpec{Relation: storage.RelationName{Name: string(parent["target"].Data)}}, true, nil
 	}}
-	root := &ProjectionNode{Name: "parents", Children: []*ProjectionNode{child}, BuildQuery: func(storage.Record) (storage.QuerySpec, error) {
-		return storage.QuerySpec{Relation: storage.RelationName{Name: "parents"}}, nil
+	root := &ProjectionNode{Name: "parents", Children: []*ProjectionNode{child}, BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) {
+		return storage.QuerySpec{Relation: storage.RelationName{Name: "parents"}}, true, nil
 	}}
 	p, err := BeginProjection(ctx, feed, root, StartOptions{QueueLimit: 32})
 	if err != nil {
@@ -138,16 +138,16 @@ func TestInstalledInterestFailureFollowsOpeningAncestors(t *testing.T) {
 				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 				defer cancel()
 				feed := &partialExpansionFeed{childBindingFeed: &childBindingFeed{loads: map[string]int{}}, installed: make(chan string, 1), blocked: make(chan struct{}), resume: make(chan struct{}), nested: nested}
-				root := &ProjectionNode{Name: "parents", BuildQuery: func(storage.Record) (storage.QuerySpec, error) {
-					return storage.QuerySpec{Relation: storage.RelationName{Name: "parents"}}, nil
+				root := &ProjectionNode{Name: "parents", BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) {
+					return storage.QuerySpec{Relation: storage.RelationName{Name: "parents"}}, true, nil
 				}}
 				for _, suffix := range []string{"one", "two"} {
-					child := &ProjectionNode{Name: suffix, BuildQuery: func(parent storage.Record) (storage.QuerySpec, error) {
-						return storage.QuerySpec{Relation: storage.RelationName{Name: string(parent["target"].Data) + "_" + suffix}}, nil
+					child := &ProjectionNode{Name: suffix, BuildQuery: func(parent storage.Record) (storage.QuerySpec, bool, error) {
+						return storage.QuerySpec{Relation: storage.RelationName{Name: string(parent["target"].Data) + "_" + suffix}}, true, nil
 					}}
 					if nested && suffix == "one" {
-						child.Children = []*ProjectionNode{{Name: "leaf", BuildQuery: func(parent storage.Record) (storage.QuerySpec, error) {
-							return storage.QuerySpec{Relation: storage.RelationName{Name: string(parent["target"].Data) + "_leaf"}}, nil
+						child.Children = []*ProjectionNode{{Name: "leaf", BuildQuery: func(parent storage.Record) (storage.QuerySpec, bool, error) {
+							return storage.QuerySpec{Relation: storage.RelationName{Name: string(parent["target"].Data) + "_leaf"}}, true, nil
 						}}}
 					}
 					root.Children = append(root.Children, child)

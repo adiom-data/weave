@@ -42,6 +42,9 @@ func TestInitialVisibilitySharesEvidenceOnlyAtIdenticalBoundaries(t *testing.T) 
 		{Type: proj.ProjectionInstanceOpened, InstanceID: "d", Fence: point(10)},
 		{Type: proj.ProjectionInstanceOpened, InstanceID: "e", Checkpoint: point(5), Fence: point(10)},
 	}
+	for _, id := range []string{"a", "b", "c", "d", "e"} {
+		events = append(events, proj.ProjectionEvent{Type: proj.ProjectionRowChanged, InstanceID: id, Kind: q.Added, Key: policyRow("items", id, "").Key, Record: modelRecord(id, "1", "Item")})
+	}
 	if _, err := newProjectionVisibility().filterInitial(context.Background(), controller, prepared, events); err != nil {
 		t.Fatal(err)
 	}
@@ -54,6 +57,19 @@ func TestInitialVisibilitySharesEvidenceOnlyAtIdenticalBoundaries(t *testing.T) 
 		if view.closed != 1 {
 			t.Fatalf("shared view closed %d times", view.closed)
 		}
+	}
+}
+
+func TestInitialVisibilityNeedsNoViewForEmptyTopology(t *testing.T) {
+	controller := &countedVisibilityController{}
+	prepared := visibilityTestPrepared{decide: func(accesscontrol.Candidate) bool {
+		t.Fatal("empty topology requested an authorization decision")
+		return false
+	}}
+	events := []proj.ProjectionEvent{{Type: proj.ProjectionInstanceOpened, InstanceID: "empty"}}
+	filtered, err := newProjectionVisibility().filterInitial(context.Background(), controller, prepared, events)
+	if err != nil || len(filtered) != 1 || len(controller.views) != 0 {
+		t.Fatalf("empty topology acquired evidence: events=%v views=%d err=%v", filtered, len(controller.views), err)
 	}
 }
 

@@ -1,8 +1,6 @@
 package projection
 
 import (
-	"fmt"
-
 	"github.com/adiom-data/weave/internal/projection/plan"
 	q "github.com/adiom-data/weave/internal/querysubscription/model"
 	"github.com/adiom-data/weave/internal/storage"
@@ -16,15 +14,8 @@ func FromPlan(root *plan.Node, parameters storage.Record, windows map[string]q.I
 	// hint on the list rather than introducing another projection runtime path.
 	node.Reference, _ = plan.ReferenceHint(root)
 	node.ReferenceChild = root.FetchReference
-	node.BuildQuery = func(parent storage.Record) (storage.QuerySpec, error) {
-		query, matchable, err := plan.Bind(root, parameters, parent)
-		if err != nil {
-			return storage.QuerySpec{}, err
-		}
-		if !matchable {
-			return storage.QuerySpec{}, fmt.Errorf("projection %s has an absent or null binding", root.Name)
-		}
-		return query, nil
+	node.BuildQuery = func(parent storage.Record) (storage.QuerySpec, bool, error) {
+		return plan.Bind(root, parameters, parent)
 	}
 	for _, child := range root.Children {
 		node.Children = append(node.Children, FromPlan(child, parameters, windows))

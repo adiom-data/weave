@@ -131,8 +131,8 @@ func TestSynchronizedProjectionBuffersUpdatesBetweenInitialCutAndOutputRelease(t
 	defer feed.Close(context.Background())
 	p, err := projection.BeginProjection(ctx, feed, &projection.ProjectionNode{
 		Name: "project", Entity: true,
-		BuildQuery: func(storage.Record) (storage.QuerySpec, error) {
-			return storage.QuerySpec{Relation: storage.RelationName{Name: "projects"}}, nil
+		BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) {
+			return storage.QuerySpec{Relation: storage.RelationName{Name: "projects"}}, true, nil
 		},
 	}, projection.StartOptions{QueueLimit: 8, WaitForSync: true})
 	if err != nil {

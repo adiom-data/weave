@@ -24,8 +24,8 @@ func TestProjectionFailureRoutingUsesActiveInterests(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer feed.Close(ctx)
-			p, err := proj.BeginProjection(ctx, feed, &proj.ProjectionNode{Name: "root", BuildQuery: func(storage.Record) (storage.QuerySpec, error) {
-				return storage.QuerySpec{Relation: storage.RelationName{Name: "projects"}}, nil
+			p, err := proj.BeginProjection(ctx, feed, &proj.ProjectionNode{Name: "root", BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) {
+				return storage.QuerySpec{Relation: storage.RelationName{Name: "projects"}}, true, nil
 			}}, proj.StartOptions{Prefix: "view", QueueLimit: 10})
 			if err != nil {
 				t.Fatal(err)

@@ -192,7 +192,7 @@ func (p *Projection) recoverRoot(previous *projectionInstance) {
 		}
 		p.mu.Unlock()
 	}()
-	spec, err := previous.node.BuildQuery(nil)
+	spec, matchable, err := previous.node.BuildQuery(nil)
 	if err != nil {
 		return
 	}
@@ -202,7 +202,7 @@ func (p *Projection) recoverRoot(previous *projectionInstance) {
 		return
 	}
 	p.mu.Unlock()
-	next, err := p.loadNode(previous.node, spec, previous.path, nil)
+	next, err := p.loadNode(previous.node, boundQuery{spec: spec, matchable: matchable}, previous.path, nil)
 	if err != nil {
 		return
 	}

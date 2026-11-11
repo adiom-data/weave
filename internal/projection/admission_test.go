@@ -17,8 +17,8 @@ func TestAdmissionReadinessDoesNotCaptureAnUnusedImage(t *testing.T) {
 		t.Run(strconv.FormatBool(synchronize), func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
-			p, err := BeginProjection(ctx, &admissionTreeFeed{}, &ProjectionNode{Name: "items", BuildQuery: func(storage.Record) (storage.QuerySpec, error) {
-				return storage.QuerySpec{Relation: storage.RelationName{Name: "items"}}, nil
+			p, err := BeginProjection(ctx, &admissionTreeFeed{}, &ProjectionNode{Name: "items", BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) {
+				return storage.QuerySpec{Relation: storage.RelationName{Name: "items"}}, true, nil
 			}}, StartOptions{QueueLimit: 1, CurrentImageAdmission: true, WaitForSync: synchronize})
 			if err != nil {
 				t.Fatal(err)
@@ -57,7 +57,7 @@ func (*admissionFenceFeed) SubscribeEntity(_ context.Context, request q.EntitySu
 func TestCurrentImageAdmissionCompactsBeforeCutAndPreservesAfterCut(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	p, err := BeginProjection(ctx, &admissionFenceFeed{}, &ProjectionNode{Name: "item", Entity: true, BuildQuery: func(storage.Record) (storage.QuerySpec, error) { return storage.QuerySpec{}, nil }}, StartOptions{QueueLimit: 1, CurrentImageAdmission: true})
+	p, err := BeginProjection(ctx, &admissionFenceFeed{}, &ProjectionNode{Name: "item", Entity: true, BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) { return storage.QuerySpec{}, true, nil }}, StartOptions{QueueLimit: 1, CurrentImageAdmission: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -137,8 +137,8 @@ func TestCurrentImageAdmissionKeepsUnpublishedDescendantsCurrent(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	node := func(name string, children ...*ProjectionNode) *ProjectionNode {
-		return &ProjectionNode{Name: name, Children: children, BuildQuery: func(parent storage.Record) (storage.QuerySpec, error) {
-			return storage.QuerySpec{Relation: storage.RelationName{Name: name}, Filter: &storage.Predicate{Comparison: &storage.Comparison{Field: "binding", Operator: storage.ComparisonEqual, Value: storage.Literal{Data: parent["binding"].Data}}}}, nil
+		return &ProjectionNode{Name: name, Children: children, BuildQuery: func(parent storage.Record) (storage.QuerySpec, bool, error) {
+			return storage.QuerySpec{Relation: storage.RelationName{Name: name}, Filter: &storage.Predicate{Comparison: &storage.Comparison{Field: "binding", Operator: storage.ComparisonEqual, Value: storage.Literal{Data: parent["binding"].Data}}}}, true, nil
 		}}
 	}
 	p, err := BeginProjection(ctx, &admissionTreeFeed{}, node("roots", node("children", node("leaves"))), StartOptions{QueueLimit: 1, CurrentImageAdmission: true})
@@ -215,7 +215,7 @@ func TestCurrentImageAdmissionKeepsUnpublishedDescendantsCurrent(t *testing.T) {
 func TestAdmissionRequiresSourceProgressPastNewestSnapshotBound(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	p, err := BeginProjection(ctx, &admissionFenceFeed{}, &ProjectionNode{Name: "item", Entity: true, BuildQuery: func(storage.Record) (storage.QuerySpec, error) { return storage.QuerySpec{}, nil }}, StartOptions{QueueLimit: 10, CurrentImageAdmission: true})
+	p, err := BeginProjection(ctx, &admissionFenceFeed{}, &ProjectionNode{Name: "item", Entity: true, BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) { return storage.QuerySpec{}, true, nil }}, StartOptions{QueueLimit: 10, CurrentImageAdmission: true})
 	if err != nil {
 		t.Fatal(err)
 	}

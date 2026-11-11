@@ -66,10 +66,10 @@ func TestPublicationCaptureSeparatesRecordVersionAndAuthorizationProgress(t *tes
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 			defer cancel()
 			feed := &publicationFeed{childStarted: make(chan struct{}), childRelease: make(chan struct{})}
-			root := &ProjectionNode{Name: "parents", BuildQuery: func(storage.Record) (storage.QuerySpec, error) {
-				return storage.QuerySpec{Relation: storage.RelationName{Name: "parents"}}, nil
-			}, Children: []*ProjectionNode{{Name: "children", BuildQuery: func(storage.Record) (storage.QuerySpec, error) {
-				return storage.QuerySpec{Relation: storage.RelationName{Name: "children"}}, nil
+			root := &ProjectionNode{Name: "parents", BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) {
+				return storage.QuerySpec{Relation: storage.RelationName{Name: "parents"}}, true, nil
+			}, Children: []*ProjectionNode{{Name: "children", BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) {
+				return storage.QuerySpec{Relation: storage.RelationName{Name: "children"}}, true, nil
 			}}}}
 			p, err := BeginProjection(ctx, feed, root, StartOptions{QueueLimit: 4, WaitForSync: synchronize})
 			if err != nil {
@@ -147,7 +147,7 @@ func (*fencePublicationFeed) SubscribeEntity(_ context.Context, request querysub
 func TestSynchronizedSingleTableImageDoesNotTurnFenceIntoCheckpoint(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	p, err := BeginProjection(ctx, &fencePublicationFeed{}, &ProjectionNode{Name: "entity", Entity: true, BuildQuery: func(storage.Record) (storage.QuerySpec, error) { return storage.QuerySpec{}, nil }}, StartOptions{QueueLimit: 4, WaitForSync: true})
+	p, err := BeginProjection(ctx, &fencePublicationFeed{}, &ProjectionNode{Name: "entity", Entity: true, BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) { return storage.QuerySpec{}, true, nil }}, StartOptions{QueueLimit: 4, WaitForSync: true})
 	if err != nil {
 		t.Fatal(err)
 	}

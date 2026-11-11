@@ -21,18 +21,18 @@ type openingInterestFixture struct {
 
 // One child has installed (including its descendants), but its sibling still
 // loads. The selected occurrence has a normal plan binding that fails if its
-// nullable target becomes null. It must matter only while that path is live.
+// scalar target becomes an object. It must matter only while that path is live.
 func openingBoundInterest(t *testing.T, nested bool) openingInterestFixture {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	t.Cleanup(cancel)
 	feed := &partialExpansionFeed{childBindingFeed: &childBindingFeed{loads: map[string]int{}}, installed: make(chan string, 1), blocked: make(chan struct{}), resume: make(chan struct{})}
-	root := &ProjectionNode{Name: "parents", BuildQuery: func(storage.Record) (storage.QuerySpec, error) {
-		return storage.QuerySpec{Relation: storage.RelationName{Name: "parents"}}, nil
+	root := &ProjectionNode{Name: "parents", BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) {
+		return storage.QuerySpec{Relation: storage.RelationName{Name: "parents"}}, true, nil
 	}}
 	for _, suffix := range []string{"one", "two"} {
-		child := &ProjectionNode{Name: suffix, BuildQuery: func(parent storage.Record) (storage.QuerySpec, error) {
-			return storage.QuerySpec{Relation: storage.RelationName{Name: string(parent["target"].Data) + "_" + suffix}}, nil
+		child := &ProjectionNode{Name: suffix, BuildQuery: func(parent storage.Record) (storage.QuerySpec, bool, error) {
+			return storage.QuerySpec{Relation: storage.RelationName{Name: string(parent["target"].Data) + "_" + suffix}}, true, nil
 		}}
 		if suffix == "one" {
 			leaf := &plan.Node{Name: "leaf", Query: storage.QuerySpec{Relation: storage.RelationName{Name: "leaf"}}, Bindings: []plan.Binding{{Field: "owner_id", Operator: storage.ComparisonEqual, Parent: "target"}}}
@@ -70,7 +70,7 @@ func openingBoundInterest(t *testing.T, nested bool) openingInterestFixture {
 	key := instance.order[0]
 	record := storage.CloneRecord(instance.members[key].record)
 	p.mu.Unlock()
-	record["target"] = storage.Value{Type: storage.TypeText, State: storage.ValueNull}
+	record["target"] = storage.Value{Type: storage.TypeObject, State: storage.ValuePresent, Object: map[string]storage.Value{}}
 	return openingInterestFixture{projection: p, feed: feed, parentKey: parentKey, interestID: id, invalid: q.SubscriptionEffect{
 		SubscriptionID: id, Batch: q.Batch{Changes: []q.Change{{Kind: q.Updated, Row: q.Row{Key: key, Record: record}}}},
 	}}
@@ -113,7 +113,7 @@ func TestInterestDataAndFailuresUseTheSameOwnership(t *testing.T) {
 				metadata := interestCommit(13)
 				batch, out, err := p.ApplyDelivery(q.DeliveryEnvelope{Delivery: metadata, Effects: []q.SubscriptionEffect{f.invalid}})
 				if action == "current" || action == "unchanged" {
-					if err == nil || !strings.Contains(err.Error(), "absent or null binding") {
+					if err == nil || !strings.Contains(err.Error(), "query literal requires a present scalar value") {
 						t.Fatalf("current child binding failure was hidden: %v", err)
 					}
 					return

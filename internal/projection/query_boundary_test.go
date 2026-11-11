@@ -51,8 +51,8 @@ func TestProjectionEntityNodeUsesEntitySubscriptionContract(t *testing.T) {
 	session := &boundarySession{events: make(chan querysubscription.Event, 1)}
 	projection, _, err := startTestProjection(context.Background(), session, &ProjectionNode{
 		Name: "item", Entity: true,
-		BuildQuery: func(storage.Record) (storage.QuerySpec, error) {
-			return storage.QuerySpec{Relation: storage.RelationName{Name: "items"}}, nil
+		BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) {
+			return storage.QuerySpec{Relation: storage.RelationName{Name: "items"}}, true, nil
 		},
 	}, StartOptions{QueueLimit: 4})
 	if err != nil {
@@ -131,8 +131,8 @@ func TestProjectionUsesOnlyQuerySessionContract(t *testing.T) {
 	session := &boundarySession{events: make(chan querysubscription.Event, 1)}
 	projection, initial, err := startTestProjection(context.Background(), session, &ProjectionNode{
 		Name: "items",
-		BuildQuery: func(storage.Record) (storage.QuerySpec, error) {
-			return storage.QuerySpec{Relation: storage.RelationName{Name: "items"}}, nil
+		BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) {
+			return storage.QuerySpec{Relation: storage.RelationName{Name: "items"}}, true, nil
 		},
 	}, StartOptions{QueueLimit: 4})
 	if err != nil {

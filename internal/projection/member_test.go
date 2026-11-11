@@ -94,10 +94,10 @@ func TestInFlightExpansionCannotAttachToReaddedMember(t *testing.T) {
 	defer cancel()
 	key := storage.EntityKey{Relation: storage.RelationKey{Source: "test", Name: "parents"}, Value: "same-key"}
 	feed := &memberReloadFeed{key: key, old: make(chan string, 1), new: make(chan string, 1), release: make(chan struct{})}
-	root := &ProjectionNode{Name: "parents", BuildQuery: func(storage.Record) (storage.QuerySpec, error) {
-		return storage.QuerySpec{Relation: storage.RelationName{Name: "parents"}}, nil
-	}, Children: []*ProjectionNode{{Name: "children", BuildQuery: func(parent storage.Record) (storage.QuerySpec, error) {
-		return storage.QuerySpec{Relation: storage.RelationName{Name: string(parent["target"].Data)}}, nil
+	root := &ProjectionNode{Name: "parents", BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) {
+		return storage.QuerySpec{Relation: storage.RelationName{Name: "parents"}}, true, nil
+	}, Children: []*ProjectionNode{{Name: "children", BuildQuery: func(parent storage.Record) (storage.QuerySpec, bool, error) {
+		return storage.QuerySpec{Relation: storage.RelationName{Name: string(parent["target"].Data)}}, true, nil
 	}}}}
 	p, err := BeginProjection(ctx, feed, root, StartOptions{QueueLimit: 8})
 	if err != nil {

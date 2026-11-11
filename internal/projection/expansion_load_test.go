@@ -18,14 +18,14 @@ func TestChildRecoveryWindowFollowsReconciledOwnership(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			child := recoveryNode("child")
-			child.BuildQuery = func(parent storage.Record) (storage.QuerySpec, error) {
-				return storage.QuerySpec{Relation: storage.RelationName{Name: string(parent["target"].Data)}}, nil
+			child.BuildQuery = func(parent storage.Record) (storage.QuerySpec, bool, error) {
+				return storage.QuerySpec{Relation: storage.RelationName{Name: string(parent["target"].Data)}}, true, nil
 			}
 			node := recoveryNode("parent", child)
 			key := storage.EntityKey{Value: "parent"}
 			before := newProjectionMember(memberTarget("old"), q.RecordVersion{}, nil, false)
 			parent := &projectionInstance{id: "parent", node: node, published: true, members: map[storage.EntityKey]*projectionMember{key: before}}
-			spec, err := child.BuildQuery(before.record)
+			spec, matchable, err := child.BuildQuery(before.record)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -54,19 +54,19 @@ func TestChildRecoveryWindowFollowsReconciledOwnership(t *testing.T) {
 				t.Fatalf("reconcile ownership: same=%t err=%v", same, err)
 			}
 			if rebind {
-				if _, err := p.loadNode(child, spec, nil, &expansion); !errors.Is(err, q.ErrClosed) {
+				if _, err := p.loadNode(child, boundQuery{spec: spec, matchable: matchable}, nil, &expansion); !errors.Is(err, q.ErrClosed) {
 					t.Fatalf("obsolete recovery was admitted: %v", err)
 				}
 				if len(feed.requests) != 0 {
 					t.Fatal("obsolete selector reached the query feed")
 				}
 				expansion.member = next
-				spec, err = child.BuildQuery(next.record)
+				spec, matchable, err = child.BuildQuery(next.record)
 				if err != nil {
 					t.Fatal(err)
 				}
 			}
-			instance, err := p.loadNode(child, spec, nil, &expansion)
+			instance, err := p.loadNode(child, boundQuery{spec: spec, matchable: matchable}, nil, &expansion)
 			if err != nil {
 				t.Fatal(err)
 			}

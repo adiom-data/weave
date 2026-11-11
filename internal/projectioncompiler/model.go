@@ -227,8 +227,8 @@ func (c *Compiler) validateMappings() error {
 					if left.Type.Name() != right.Type.Name() || left.Type.Elem != nil || right.Type.Elem != nil || scalarKinds[left.Type.Name()] == "" {
 						return fmt.Errorf("%s.%s: relation binding types differ or are not scalar", def.Name, field.Name)
 					}
-					if !left.Type.NonNull || left.Type.Name() == "StructuredValue" {
-						return fmt.Errorf("%s.%s: parent relation bindings must be non-null concrete scalars", def.Name, field.Name)
+					if left.Type.Name() == "StructuredValue" {
+						return fmt.Errorf("%s.%s: parent relation bindings must be concrete scalars", def.Name, field.Name)
 					}
 				}
 			}

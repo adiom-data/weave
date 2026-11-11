@@ -158,11 +158,11 @@ func TestProjectionDrainsTransactionsWhileChildSnapshotLoads(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	mock := &projectionMock{blockParent: "p1", childStarted: make(chan struct{}, 1), childRelease: make(chan struct{})}
-	tasks := &ProjectionNode{Name: "tasks", BuildQuery: func(parent storage.Record) (storage.QuerySpec, error) {
-		return storage.QuerySpec{Relation: storage.RelationName{Name: "tasks"}, Filter: &storage.Predicate{Comparison: &storage.Comparison{Field: "project_id", Operator: storage.ComparisonEqual, Value: storage.Literal{Data: append([]byte(nil), parent["id"].Data...)}}}}, nil
+	tasks := &ProjectionNode{Name: "tasks", BuildQuery: func(parent storage.Record) (storage.QuerySpec, bool, error) {
+		return storage.QuerySpec{Relation: storage.RelationName{Name: "tasks"}, Filter: &storage.Predicate{Comparison: &storage.Comparison{Field: "project_id", Operator: storage.ComparisonEqual, Value: storage.Literal{Data: append([]byte(nil), parent["id"].Data...)}}}}, true, nil
 	}}
-	root := &ProjectionNode{Name: "projects", Children: []*ProjectionNode{tasks}, BuildQuery: func(storage.Record) (storage.QuerySpec, error) {
-		return storage.QuerySpec{Relation: storage.RelationName{Name: "projects"}}, nil
+	root := &ProjectionNode{Name: "projects", Children: []*ProjectionNode{tasks}, BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) {
+		return storage.QuerySpec{Relation: storage.RelationName{Name: "projects"}}, true, nil
 	}}
 	queries := projectionSessionWithLimit(t, mock, 4)
 	p, err := BeginProjection(ctx, queries, root, StartOptions{QueueLimit: 8})
@@ -251,15 +251,15 @@ func TestProjectionDrainsTransactionsWhileChildSnapshotLoads(t *testing.T) {
 func TestProjectionDefinitionLimitsAreConfigurable(t *testing.T) {
 	leaf := &ProjectionNode{
 		Name: "leaf",
-		BuildQuery: func(storage.Record) (storage.QuerySpec, error) {
-			return storage.QuerySpec{Relation: storage.RelationName{Name: "leaf"}}, nil
+		BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) {
+			return storage.QuerySpec{Relation: storage.RelationName{Name: "leaf"}}, true, nil
 		},
 	}
 	root := &ProjectionNode{
 		Name:     "root",
 		Children: []*ProjectionNode{leaf},
-		BuildQuery: func(storage.Record) (storage.QuerySpec, error) {
-			return storage.QuerySpec{Relation: storage.RelationName{Name: "root"}}, nil
+		BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) {
+			return storage.QuerySpec{Relation: storage.RelationName{Name: "root"}}, true, nil
 		},
 	}
 
@@ -419,11 +419,11 @@ func TestRetiredProjectionWatcherPreservesProgressWithoutStaleEvents(t *testing.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	mock := &projectionMock{}
-	tasks := &ProjectionNode{Name: "tasks", Window: querysubscription.InitialWindow{Count: 10}, BuildQuery: func(parent storage.Record) (storage.QuerySpec, error) {
-		return storage.QuerySpec{Relation: storage.RelationName{Name: "tasks"}, Filter: &storage.Predicate{Comparison: &storage.Comparison{Field: "project_id", Operator: storage.ComparisonEqual, Value: storage.Literal{Data: append([]byte(nil), parent["id"].Data...)}}}}, nil
+	tasks := &ProjectionNode{Name: "tasks", Window: querysubscription.InitialWindow{Count: 10}, BuildQuery: func(parent storage.Record) (storage.QuerySpec, bool, error) {
+		return storage.QuerySpec{Relation: storage.RelationName{Name: "tasks"}, Filter: &storage.Predicate{Comparison: &storage.Comparison{Field: "project_id", Operator: storage.ComparisonEqual, Value: storage.Literal{Data: append([]byte(nil), parent["id"].Data...)}}}}, true, nil
 	}}
-	root := &ProjectionNode{Name: "projects", Window: querysubscription.InitialWindow{Count: 10}, Children: []*ProjectionNode{tasks}, BuildQuery: func(storage.Record) (storage.QuerySpec, error) {
-		return storage.QuerySpec{Relation: storage.RelationName{Name: "projects"}}, nil
+	root := &ProjectionNode{Name: "projects", Window: querysubscription.InitialWindow{Count: 10}, Children: []*ProjectionNode{tasks}, BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) {
+		return storage.QuerySpec{Relation: storage.RelationName{Name: "projects"}}, true, nil
 	}}
 	p, _, err := startTestProjection(ctx, projectionSession(t, mock), root, StartOptions{QueueLimit: 8})
 	if err != nil {
@@ -480,11 +480,11 @@ func TestProjectionExpandsParameterizedChildrenAndTracksNewParents(t *testing.T)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	mock := &projectionMock{}
-	tasks := &ProjectionNode{Name: "tasks", Window: querysubscription.InitialWindow{Count: 10}, BuildQuery: func(parent storage.Record) (storage.QuerySpec, error) {
-		return storage.QuerySpec{Relation: storage.RelationName{Name: "tasks"}, Filter: &storage.Predicate{Comparison: &storage.Comparison{Field: "project_id", Operator: storage.ComparisonEqual, Value: storage.Literal{Data: append([]byte(nil), parent["id"].Data...)}}}}, nil
+	tasks := &ProjectionNode{Name: "tasks", Window: querysubscription.InitialWindow{Count: 10}, BuildQuery: func(parent storage.Record) (storage.QuerySpec, bool, error) {
+		return storage.QuerySpec{Relation: storage.RelationName{Name: "tasks"}, Filter: &storage.Predicate{Comparison: &storage.Comparison{Field: "project_id", Operator: storage.ComparisonEqual, Value: storage.Literal{Data: append([]byte(nil), parent["id"].Data...)}}}}, true, nil
 	}}
-	projects := &ProjectionNode{Name: "projects", Window: querysubscription.InitialWindow{Count: 10}, Children: []*ProjectionNode{tasks}, BuildQuery: func(storage.Record) (storage.QuerySpec, error) {
-		return storage.QuerySpec{Relation: storage.RelationName{Name: "projects"}}, nil
+	projects := &ProjectionNode{Name: "projects", Window: querysubscription.InitialWindow{Count: 10}, Children: []*ProjectionNode{tasks}, BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) {
+		return storage.QuerySpec{Relation: storage.RelationName{Name: "projects"}}, true, nil
 	}}
 	projection, initial, err := startTestProjection(ctx, projectionSession(t, mock), projects, StartOptions{QueueLimit: 16})
 	if err != nil {
@@ -552,11 +552,11 @@ func TestProjectionClosesExpandedChildrenWhenParentQueryIsCleared(t *testing.T) 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	mock := &projectionMock{}
-	tasks := &ProjectionNode{Name: "tasks", Window: querysubscription.InitialWindow{Count: 10}, BuildQuery: func(parent storage.Record) (storage.QuerySpec, error) {
-		return storage.QuerySpec{Relation: storage.RelationName{Name: "tasks"}, Filter: &storage.Predicate{Comparison: &storage.Comparison{Field: "project_id", Operator: storage.ComparisonEqual, Value: storage.Literal{Data: append([]byte(nil), parent["id"].Data...)}}}}, nil
+	tasks := &ProjectionNode{Name: "tasks", Window: querysubscription.InitialWindow{Count: 10}, BuildQuery: func(parent storage.Record) (storage.QuerySpec, bool, error) {
+		return storage.QuerySpec{Relation: storage.RelationName{Name: "tasks"}, Filter: &storage.Predicate{Comparison: &storage.Comparison{Field: "project_id", Operator: storage.ComparisonEqual, Value: storage.Literal{Data: append([]byte(nil), parent["id"].Data...)}}}}, true, nil
 	}}
-	projects := &ProjectionNode{Name: "projects", Window: querysubscription.InitialWindow{Count: 10}, Children: []*ProjectionNode{tasks}, BuildQuery: func(storage.Record) (storage.QuerySpec, error) {
-		return storage.QuerySpec{Relation: storage.RelationName{Name: "projects"}}, nil
+	projects := &ProjectionNode{Name: "projects", Window: querysubscription.InitialWindow{Count: 10}, Children: []*ProjectionNode{tasks}, BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) {
+		return storage.QuerySpec{Relation: storage.RelationName{Name: "projects"}}, true, nil
 	}}
 	projection, _, err := startTestProjection(ctx, projectionSession(t, mock), projects, StartOptions{QueueLimit: 16})
 	if err != nil {
@@ -586,11 +586,11 @@ func TestProjectionWatcherFailureUnsubscribesEveryInstance(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	mock := &projectionMock{}
-	tasks := &ProjectionNode{Name: "tasks", Window: querysubscription.InitialWindow{Count: 10}, BuildQuery: func(parent storage.Record) (storage.QuerySpec, error) {
-		return storage.QuerySpec{Relation: storage.RelationName{Name: "tasks"}, Filter: &storage.Predicate{Comparison: &storage.Comparison{Field: "project_id", Operator: storage.ComparisonEqual, Value: storage.Literal{Data: append([]byte(nil), parent["id"].Data...)}}}}, nil
+	tasks := &ProjectionNode{Name: "tasks", Window: querysubscription.InitialWindow{Count: 10}, BuildQuery: func(parent storage.Record) (storage.QuerySpec, bool, error) {
+		return storage.QuerySpec{Relation: storage.RelationName{Name: "tasks"}, Filter: &storage.Predicate{Comparison: &storage.Comparison{Field: "project_id", Operator: storage.ComparisonEqual, Value: storage.Literal{Data: append([]byte(nil), parent["id"].Data...)}}}}, true, nil
 	}}
-	root := &ProjectionNode{Name: "projects", Window: querysubscription.InitialWindow{Count: 10}, Children: []*ProjectionNode{tasks}, BuildQuery: func(storage.Record) (storage.QuerySpec, error) {
-		return storage.QuerySpec{Relation: storage.RelationName{Name: "projects"}}, nil
+	root := &ProjectionNode{Name: "projects", Window: querysubscription.InitialWindow{Count: 10}, Children: []*ProjectionNode{tasks}, BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) {
+		return storage.QuerySpec{Relation: storage.RelationName{Name: "projects"}}, true, nil
 	}}
 	projection, _, err := startTestProjection(ctx, projectionSession(t, mock), root, StartOptions{QueueLimit: 8})
 	if err != nil {
@@ -629,11 +629,11 @@ func TestProjectionChildSnapshotDoesNotBlockParentDelivery(t *testing.T) {
 	defer cancel()
 	mock := &projectionMock{blockParent: "p2", childStarted: make(chan struct{}, 1), childRelease: make(chan struct{})}
 	defer close(mock.childRelease)
-	tasks := &ProjectionNode{Name: "tasks", Window: querysubscription.InitialWindow{Count: 10}, BuildQuery: func(parent storage.Record) (storage.QuerySpec, error) {
-		return storage.QuerySpec{Relation: storage.RelationName{Name: "tasks"}, Filter: &storage.Predicate{Comparison: &storage.Comparison{Field: "project_id", Operator: storage.ComparisonEqual, Value: storage.Literal{Data: append([]byte(nil), parent["id"].Data...)}}}}, nil
+	tasks := &ProjectionNode{Name: "tasks", Window: querysubscription.InitialWindow{Count: 10}, BuildQuery: func(parent storage.Record) (storage.QuerySpec, bool, error) {
+		return storage.QuerySpec{Relation: storage.RelationName{Name: "tasks"}, Filter: &storage.Predicate{Comparison: &storage.Comparison{Field: "project_id", Operator: storage.ComparisonEqual, Value: storage.Literal{Data: append([]byte(nil), parent["id"].Data...)}}}}, true, nil
 	}}
-	rootNode := &ProjectionNode{Name: "projects", Window: querysubscription.InitialWindow{Count: 10}, Children: []*ProjectionNode{tasks}, BuildQuery: func(storage.Record) (storage.QuerySpec, error) {
-		return storage.QuerySpec{Relation: storage.RelationName{Name: "projects"}}, nil
+	rootNode := &ProjectionNode{Name: "projects", Window: querysubscription.InitialWindow{Count: 10}, Children: []*ProjectionNode{tasks}, BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) {
+		return storage.QuerySpec{Relation: storage.RelationName{Name: "projects"}}, true, nil
 	}}
 	projection, _, err := startTestProjection(ctx, projectionSession(t, mock), rootNode, StartOptions{QueueLimit: 16})
 	if err != nil {

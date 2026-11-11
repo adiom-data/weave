@@ -80,13 +80,13 @@ func (p *Projection) tryCurrentImage(initial bool, accept func(string) (bool, er
 	root := p.rootID
 	var progress []*q.Position
 	for _, instance := range p.instances {
-		if instance.failure != nil {
-			continue
-		}
-		target, err := q.SnapshotPosition(instance.checkpoint, instance.fence)
+		target, err := instance.snapshotPosition()
 		if err != nil {
 			p.mu.Unlock()
 			return AdmissionWait{}, err
+		}
+		if target == nil {
+			continue
 		}
 		current := p.latestCheckpoints[target.Source()]
 		if current == nil || current.Order() < target.Order() {

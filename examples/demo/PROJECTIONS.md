@@ -28,6 +28,12 @@ go run ./cmd/projectiongen \
 
 ## Using the generated library
 
+Relationship source fields may be nullable. For example, `parentId: UUID` can
+back `parent: Task @relation(parent:["parentId"],child:["id"])`. A null or missing
+binding produces an empty branch without a database subscription or branch error.
+When the source value changes, the branch reacts normally. A null value never
+turns the relationship into an unfiltered query.
+
 ### Computed values
 
 `Project` and `Task` expose `role` and `canEdit` using `@computed`. The
@@ -63,7 +69,8 @@ Additional equality guards (such as `organization_id`) are allowed. Static
 target filters such as soft-delete checks are supported and do not filter the
 association list. Parameter/literal bindings on the entity child, arbitrary joins,
 and recursive joined expansion are not supported by the hint. Source values must
-be present, as for ordinary projection bindings; dangling identities are allowed.
+be present to resolve a target; null or missing bindings produce an empty child,
+as for ordinary projection bindings. Dangling identities are allowed.
 
 The projection still opens ordinary child entity subscriptions, including over
 gRPC. Preloading removes their database reads, not their subscription messages.

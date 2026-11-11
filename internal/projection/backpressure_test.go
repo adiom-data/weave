@@ -16,7 +16,7 @@ func TestProjectionBoundsOutputBeforeRelease(t *testing.T) {
 	feed := &boundarySession{}
 	p, err := BeginProjection(ctx, feed, &ProjectionNode{
 		Name: "item", Entity: true,
-		BuildQuery: func(storage.Record) (storage.QuerySpec, error) { return storage.QuerySpec{}, nil },
+		BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) { return storage.QuerySpec{}, true, nil },
 	}, StartOptions{QueueLimit: 1})
 	if err != nil {
 		t.Fatal(err)
@@ -78,7 +78,7 @@ func TestProjectionReleaseDrainsStagedBatchesBeforeEnablingLiveDelivery(t *testi
 	defer cancel()
 	p, err := BeginProjection(ctx, &boundarySession{}, &ProjectionNode{
 		Name: "item", Entity: true,
-		BuildQuery: func(storage.Record) (storage.QuerySpec, error) { return storage.QuerySpec{}, nil },
+		BuildQuery: func(storage.Record) (storage.QuerySpec, bool, error) { return storage.QuerySpec{}, true, nil },
 	}, StartOptions{QueueLimit: 1})
 	if err != nil {
 		t.Fatal(err)

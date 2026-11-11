@@ -77,7 +77,8 @@ type ProjectionNode struct {
 	// BuildQuery is a pure binding operation over a borrowed immutable record.
 	// It must not mutate parent or reuse mutable scratch storage in its result.
 	// Each parent image's result is shared by expansion and selector comparison.
-	BuildQuery     func(parent storage.Record) (storage.QuerySpec, error)
+	// matchable=false represents an empty branch and opens no subscription.
+	BuildQuery     func(parent storage.Record) (query storage.QuerySpec, matchable bool, err error)
 	Window         querysubscription.InitialWindow
 	Children       []*ProjectionNode
 	Reference      *storage.ReferenceFetch
@@ -228,6 +229,9 @@ type projectionInstance struct {
 	initial      projectionInitialState
 	order        []storage.EntityKey
 	members      map[storage.EntityKey]*projectionMember
+	// localEmpty is proved by an unmatched binding, without a source read.
+	// Its parent remains part of the projection's snapshot/fencing checks.
+	localEmpty bool
 	// published is the structural publication boundary. Feed delivery may
 	// advance an instance while its snapshot is loading, but no row from that
 	// instance is exposed until a current image has introduced the instance.
@@ -238,6 +242,17 @@ type projectionInstance struct {
 	failure    error
 	recovery   retry.State
 	replaces   string // root predecessor, retired at the replacement publication
+}
+
+// snapshotPosition distinguishes source snapshots from locally derived empty
+// topology and failed placeholders. Source-backed instances still require a
+// real checkpoint or fence, even when their result contains no rows.
+// The caller holds Projection.mu.
+func (instance *projectionInstance) snapshotPosition() (*querysubscription.Position, error) {
+	if instance.localEmpty || instance.failure != nil {
+		return nil, nil
+	}
+	return querysubscription.SnapshotPosition(instance.checkpoint, instance.fence)
 }
 
 // A member owns one immutable row image and its expansion state, all guarded
@@ -371,10 +386,10 @@ func BeginProjection(ctx context.Context, queries querysubscription.Feed, root *
 }
 
 func (p *Projection) initialize(root *ProjectionNode, synchronize bool) {
-	spec, err := root.BuildQuery(nil)
+	spec, matchable, err := root.BuildQuery(nil)
 	var opened *projectionInstance
 	if err == nil {
-		opened, err = p.openNode(root, spec, []string{root.Name}, nil)
+		opened, err = p.openNode(root, boundQuery{spec: spec, matchable: matchable}, []string{root.Name}, nil)
 	}
 	if err != nil && p.partialErrors && p.ctx.Err() == nil && !errors.Is(err, querysubscription.ErrBackpressure) {
 		if failed := p.failedNode(root, spec, []string{root.Name}, nil, err); failed != nil {
@@ -518,30 +533,27 @@ func (p *Projection) synchronizedInitialImage(ctx context.Context) ([]Projection
 		}
 		targets := make(map[storage.SourceID]*querysubscription.Position)
 		checkpoints := make(map[storage.SourceID]*querysubscription.Position)
+		snapshotCount := 0
 		for _, instance := range p.instances {
-			if instance.failure != nil {
-				continue
-			}
-			if position := instance.checkpoint; position != nil && (checkpoints[position.SourceID] == nil || checkpoints[position.SourceID].Value < position.Value) {
-				checkpoints[position.SourceID] = clonePosition(position)
-			}
-			position, err := querysubscription.SnapshotPosition(instance.checkpoint, instance.fence)
+			position, err := instance.snapshotPosition()
 			if err != nil {
 				p.mu.Unlock()
 				p.processMu.Unlock()
 				return nil, nil, err
 			}
-			if position != nil && (targets[position.SourceID] == nil || targets[position.SourceID].Value < position.Value) {
+			if position == nil {
+				continue
+			}
+			snapshotCount++
+			if checkpoint := instance.checkpoint; checkpoint != nil && (checkpoints[checkpoint.SourceID] == nil || checkpoints[checkpoint.SourceID].Value < checkpoint.Value) {
+				checkpoints[checkpoint.SourceID] = clonePosition(checkpoint)
+			}
+			if targets[position.SourceID] == nil || targets[position.SourceID].Value < position.Value {
 				targets[position.SourceID] = clonePosition(position)
 			}
 		}
-		if len(targets) == 0 && !p.partialErrors {
-			p.mu.Unlock()
-			p.processMu.Unlock()
-			return nil, nil, errors.New("projection snapshots do not expose a source position")
-		}
-		instanceCount := len(p.instances)
-		covered := instanceCount == 1
+		// Local empty branches add no independent snapshot to synchronize.
+		covered := snapshotCount <= 1
 		if !covered {
 			covered = true
 			for source, target := range targets {
@@ -775,17 +787,18 @@ func (p *Projection) shutdown(reason error) {
 // openNode installs raw state and topology only. Publication captures a current
 // image after loading/catch-up; snapshots encountered during expansion are not
 // events and must not be materialized into discarded event trees.
-func (p *Projection) openNode(node *ProjectionNode, spec storage.QuerySpec, path []string, owner *projectionExpansion) (*projectionInstance, error) {
-	instance, err := p.loadNode(node, spec, path, owner)
+func (p *Projection) openNode(node *ProjectionNode, binding boundQuery, path []string, owner *projectionExpansion) (*projectionInstance, error) {
+	instance, err := p.loadNode(node, binding, path, owner)
 	if err != nil && p.partialErrors && p.ctx.Err() == nil && !errors.Is(err, querysubscription.ErrBackpressure) {
-		if failed := p.failedNode(node, spec, path, owner, err); failed != nil {
+		if failed := p.failedNode(node, binding.spec, path, owner, err); failed != nil {
 			return failed, nil
 		}
 	}
 	return instance, err
 }
 
-func (p *Projection) loadNode(node *ProjectionNode, spec storage.QuerySpec, path []string, owner *projectionExpansion) (*projectionInstance, error) {
+func (p *Projection) loadNode(node *ProjectionNode, binding boundQuery, path []string, owner *projectionExpansion) (*projectionInstance, error) {
+	spec := binding.spec
 	if node == nil || node.Name == "" || node.BuildQuery == nil {
 		return nil, errors.New("projection node name and query builder are required")
 	}
@@ -832,13 +845,10 @@ func (p *Projection) loadNode(node *ProjectionNode, spec storage.QuerySpec, path
 		}
 		p.mu.Unlock()
 	}
-	if err := p.expansionLimiter.acquire(p.ctx); err != nil {
-		return nil, err
-	}
 	var instance *projectionInstance
 	var opening []projectionExpansion
 	install := func(subscription querysubscription.Subscription, query querysubscription.QuerySubscription, initial projectionInitialState) error {
-		installed := &projectionInstance{id: id, node: node, spec: spec, depth: depth, path: append([]string(nil), path...), lineage: append([]PathStep(nil), lineage...), parentID: parentID, parentKey: parentKey, opening: owner, subscription: subscription, query: query, initial: initial, members: make(map[storage.EntityKey]*projectionMember), revision: initial.Revision, checkpoint: initial.Checkpoint, fence: initial.Fence}
+		installed := &projectionInstance{id: id, node: node, spec: spec, depth: depth, path: append([]string(nil), path...), lineage: append([]PathStep(nil), lineage...), parentID: parentID, parentKey: parentKey, opening: owner, subscription: subscription, query: query, initial: initial, members: make(map[storage.EntityKey]*projectionMember), revision: initial.Revision, checkpoint: initial.Checkpoint, fence: initial.Fence, localEmpty: !binding.matchable}
 		// A row replacement and selector reconciliation share processMu. An
 		// installer must see that whole transition, not its temporary new token.
 		p.processMu.Lock()
@@ -865,6 +875,19 @@ func (p *Projection) loadNode(node *ProjectionNode, spec storage.QuerySpec, path
 		installed.initial.Rows = nil
 		instance = installed
 		return nil
+	}
+	if !binding.matchable {
+		// Retain an ordinary empty instance so publication and later rebinding
+		// use the same branch lifecycle, without asking storage for any rows.
+		initial := projectionInitialState{Bounds: querysubscription.Bounds{
+			Left:  querysubscription.Boundary{Kind: querysubscription.BoundaryStart},
+			Right: querysubscription.Boundary{Kind: querysubscription.BoundaryEnd},
+		}}
+		err = install(nil, nil, initial)
+		return instance, err
+	}
+	if err := p.expansionLimiter.acquire(p.ctx); err != nil {
+		return nil, err
 	}
 	if node.Entity {
 		err = p.queries.SubscribeEntity(p.ctx, querysubscription.EntitySubscribeRequest{ID: id, Query: spec, FetchFrom: fetchFrom}, func(subscription querysubscription.EntitySubscription, snapshot querysubscription.EntitySnapshot) error {
@@ -921,7 +944,7 @@ func (p *Projection) openChildren(expansion projectionExpansion, opened []string
 		var instance *projectionInstance
 		var err error
 		if cause := expansion.member.bindings.errors[child]; cause != nil {
-			instance = p.failedNode(child, bindings[child], path, &expansion, cause)
+			instance = p.failedNode(child, bindings[child].spec, path, &expansion, cause)
 			if instance == nil {
 				err = querysubscription.ErrClosed
 			}

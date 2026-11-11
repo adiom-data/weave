@@ -47,6 +47,11 @@ func TestBindingsPreserveTypesAndDoNotBroadenMissingInputs(t *testing.T) {
 	if _, match, err := Bind(copy, nil, nil); err != nil || match {
 		t.Fatal("missing input broadened selector")
 	}
+	for _, state := range []storage.ValueState{storage.ValueNull, storage.ValueMissing} {
+		if _, match, err := Bind(copy, nil, storage.Record{"id": {Type: storage.TypeUUID, State: state}}); err != nil || match {
+			t.Fatalf("absent binding matched: state=%v match=%v err=%v", state, match, err)
+		}
+	}
 	n.Bindings[0].Field = "other"
 	if copy.Bindings[0].Field != "project_id" {
 		t.Fatal("definition was not privately copied")
