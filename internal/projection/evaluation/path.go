@@ -108,7 +108,7 @@ func (p *pathEvaluation) check(ctx context.Context, candidate relationdef.Candid
 		step := path.Step()
 		input.Parent = &relationdef.ParentState{Candidate: relationdef.Candidate{Key: step.Key, Record: step.Record, Complete: step.Complete}, Visible: true}
 	}
-	resolver := &scopeResolver{scope: p.resolverScope, view: view, used: make(map[string]struct{}), added: make(map[string]struct{})}
+	resolver := &scopeResolver{scope: p.resolverScope, view: view, used: make(map[string]struct{})}
 	var parentState *relationdef.Context
 	if parent != nil {
 		parentState = parent.state

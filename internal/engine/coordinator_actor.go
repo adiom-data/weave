@@ -23,6 +23,7 @@ func (c *Coordinator) run(ctx context.Context, cancel context.CancelFunc) {
 		}
 		c.cancelPendingActivations(cause)
 		c.cancelReferenceReads(cause)
+		clear(c.windowReads)
 	}()
 	defer c.feed.Close()
 	defer c.recovery.CancelAll()

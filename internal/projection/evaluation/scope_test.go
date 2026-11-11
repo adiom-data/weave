@@ -18,6 +18,17 @@ func value(text string) storage.Value {
 
 var tasks = storage.RelationName{Namespace: "demo", Name: "tasks"}
 
+// Direct-candidate tests use the same path evaluation and dependency adoption
+// as production, opening a fresh evidence view for each evaluation.
+func (s *Scope) Evaluate(ctx context.Context, evaluator *relationdef.Evaluator, input relationdef.Input, at *q.Position) (relationdef.Decision, error) {
+	view, err := s.facts.OpenView(at)
+	if err != nil {
+		return relationdef.Decision{}, err
+	}
+	defer view.Close()
+	return s.EvaluatePath(ctx, evaluator, input.Claims, input.Candidate, view)
+}
+
 func TestLinkedAuthorizationPathDoesNotBypassDeniedParent(t *testing.T) {
 	facts, _ := newFacts(t, Options{MaxQueries: 10, MaxRows: 10, LoadConcurrency: 1})
 	s := scope(t, facts)

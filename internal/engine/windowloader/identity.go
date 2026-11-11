@@ -20,7 +20,7 @@ func (l *WindowLoader) ReadIdentity(ctx context.Context, query datastore.Identit
 	if len(loads) != 1 {
 		return nil, errors.New("entity cache returned the wrong load count")
 	}
-	pending := &PendingWindow{entities: l.entities, queries: l.queries, query: query, pending: []pendingEntity{{load: loads[0], forceRefresh: true}}}
+	pending := &PendingWindow{entities: l.entities, queries: l.queries, query: query, staged: true, refresh: true, pending: []pendingEntity{{load: loads[0]}}}
 	complete := false
 	defer func() {
 		if !complete {
@@ -57,6 +57,7 @@ func (l *WindowLoader) ReadIdentity(ctx context.Context, query datastore.Identit
 		pending.pending[0].record = storage.Record{}
 		pending.pending[0].absent = true
 	}
+	pending.pending[0].image = entitycache.PrepareSnapshotRecord(pending.pending[0].record)
 	pending.Fence, err = snapshot.Finish(ctx)
 	if err != nil {
 		return nil, err

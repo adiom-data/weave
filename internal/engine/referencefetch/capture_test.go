@@ -17,6 +17,12 @@ type transition struct {
 func (c transition) Kind() datastore.ChangeKind            { return c.kind }
 func (c transition) Relation() storage.RelationKey         { return c.before.Relation }
 func (c transition) BeforeKey() (storage.EntityKey, error) { return c.before, c.err }
+func (c transition) AfterKey() (storage.EntityKey, error) {
+	if c.kind == datastore.ChangeDelete {
+		return c.before, c.err
+	}
+	return c.after, c.err
+}
 func (c transition) Apply(storage.Record) (datastore.AppliedChange, error) {
 	return datastore.AppliedChange{Kind: datastore.AppliedPartial, Key: c.after}, c.err
 }

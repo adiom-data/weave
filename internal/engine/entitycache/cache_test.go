@@ -1,6 +1,7 @@
 package entitycache
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"testing"
@@ -74,13 +75,13 @@ func TestRetainHasAcquireReferenceSemanticsWithoutAnImage(t *testing.T) {
 func TestEntityCacheDeduplicatesLoadsAndSharesReferences(t *testing.T) {
 	cache := NewEntityCache()
 	key := cacheKey("1")
-	request := []SnapshotLoadRequest{{Key: key, Record: cacheRecord("first")}}
+	request := []SnapshotLoadRequest{{Key: key, Record: PrepareSnapshotRecord(cacheRecord("first"))}}
 	owner := cache.StageSnapshotBatch(request)[0]
 	waiter := cache.StageSnapshotBatch(request)[0]
 	if !owner.Owned() || waiter.Owned() || owner.Generation() != waiter.Generation() {
 		t.Fatalf("unexpected load ownership: owner=%+v waiter=%+v", owner, waiter)
 	}
-	if err := cache.Complete(owner, cacheRecord("current")); err != nil {
+	if err := cache.Complete(owner, PrepareSnapshotRecord(cacheRecord("current"))); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -115,8 +116,8 @@ func TestEntityCacheStagesSnapshotBatchAtomically(t *testing.T) {
 		return storage.Record{"id": {Type: storage.TypeText, State: storage.ValuePresent, Data: []byte(id)}}
 	}
 	firstRequests := []SnapshotLoadRequest{
-		{Key: storage.EntityKey{Relation: relation, Value: "1"}, Record: record("1")},
-		{Key: storage.EntityKey{Relation: relation, Value: "2"}, Record: record("2")},
+		{Key: storage.EntityKey{Relation: relation, Value: "1"}, Record: PrepareSnapshotRecord(record("1"))},
+		{Key: storage.EntityKey{Relation: relation, Value: "2"}, Record: PrepareSnapshotRecord(record("2"))},
 	}
 	first := cache.StageSnapshotBatch(firstRequests)
 	second := cache.StageSnapshotBatch([]SnapshotLoadRequest{firstRequests[1], firstRequests[0]})
@@ -131,7 +132,7 @@ func TestEntityCacheStagesSnapshotBatchAtomically(t *testing.T) {
 	}
 	for index, request := range firstRequests {
 		entity, ok := cache.Get(request.Key)
-		if !ok || entity.State != EntityReconciling || string(entity.Record["id"].Data) != string(request.Record["id"].Data) {
+		if !ok || entity.State != EntityReconciling || string(entity.Record["id"].Data) != string(request.Record.record["id"].Data) {
 			t.Fatalf("staged entity %d = %+v, exists=%v", index, entity, ok)
 		}
 	}
@@ -140,7 +141,7 @@ func TestEntityCacheStagesSnapshotBatchAtomically(t *testing.T) {
 func TestEntityCacheDoesNotReuseGenerationAfterDeletion(t *testing.T) {
 	cache := NewEntityCache()
 	key := cacheKey("1")
-	request := []SnapshotLoadRequest{{Key: key, Record: cacheRecord("first")}}
+	request := []SnapshotLoadRequest{{Key: key, Record: PrepareSnapshotRecord(cacheRecord("first"))}}
 	first := cache.StageSnapshotBatch(request)[0]
 	if err := cache.Fail(first, errors.New("cancel first generation")); err != nil {
 		t.Fatal(err)
@@ -162,8 +163,8 @@ func TestEntityCacheCompletesUnreferencedInitialLoadAsUnreferenced(t *testing.T)
 	cache := NewEntityCache()
 	key := cacheKey("1")
 	record := cacheRecord("snapshot")
-	load := cache.StageSnapshotBatch([]SnapshotLoadRequest{{Key: key, Record: record}})[0]
-	if err := cache.Complete(load, record); err != nil {
+	load := cache.StageSnapshotBatch([]SnapshotLoadRequest{{Key: key, Record: PrepareSnapshotRecord(record)}})[0]
+	if err := cache.Complete(load, PrepareSnapshotRecord(record)); err != nil {
 		t.Fatal(err)
 	}
 	entity, ok := cache.Get(key)
@@ -191,14 +192,14 @@ func TestEntityCacheRestagesFailedPartialRefreshWithoutLosingNewerValues(t *test
 		"title": {Type: storage.TypeText, State: storage.ValuePresent, Data: []byte("snapshot")},
 		"body":  {Type: storage.TypeText, State: storage.ValuePresent, Data: []byte("snapshot body")},
 	}
-	replacement := cache.StageSnapshotBatch([]SnapshotLoadRequest{{Key: key, Record: snapshot}})[0]
+	replacement := cache.StageSnapshotBatch([]SnapshotLoadRequest{{Key: key, Record: PrepareSnapshotRecord(snapshot)}})[0]
 	if !replacement.Owned() || replacement.Generation() <= failed.Generation() {
 		t.Fatalf("replacement load = %+v, failed generation=%d", replacement, failed.Generation())
 	}
 	if removed, err := cache.DiscardIfGeneration(key, failed.Generation(), errors.New("late cleanup")); err != nil || removed {
 		t.Fatalf("late cleanup removed=%v err=%v", removed, err)
 	}
-	if err := cache.Complete(replacement, snapshot); err != nil {
+	if err := cache.Complete(replacement, PrepareSnapshotRecord(snapshot)); err != nil {
 		t.Fatal(err)
 	}
 	entity, ok := cache.Get(key)
@@ -216,7 +217,7 @@ func TestEntityCacheRestagesFailedPartialRefreshWithoutLosingNewerValues(t *test
 func TestEntityCacheDiscardNotifiesCoalescedWaiters(t *testing.T) {
 	cache := NewEntityCache()
 	key := cacheKey("1")
-	request := []SnapshotLoadRequest{{Key: key, Record: cacheRecord("snapshot")}}
+	request := []SnapshotLoadRequest{{Key: key, Record: PrepareSnapshotRecord(cacheRecord("snapshot"))}}
 	owner := cache.StageSnapshotBatch(request)[0]
 	waiter := cache.StageSnapshotBatch(request)[0]
 	want := errors.New("discard incomplete generation")
@@ -253,12 +254,12 @@ func TestEntityCacheEvictsOnlyIdleUnreferencedEntities(t *testing.T) {
 func TestEntityCacheRejectsSupersededLoad(t *testing.T) {
 	cache := NewEntityCache()
 	key := cacheKey("1")
-	load := cache.StageSnapshotBatch([]SnapshotLoadRequest{{Key: key, Record: cacheRecord("older")}})[0]
+	load := cache.StageSnapshotBatch([]SnapshotLoadRequest{{Key: key, Record: PrepareSnapshotRecord(cacheRecord("older"))}})[0]
 	current := cache.StoreCurrent(load.Key(), cacheRecord("newer"))
 	if current.Generation <= load.Generation() {
 		t.Fatalf("superseding tuple kept stale load generation: load=%d current=%d", load.Generation(), current.Generation)
 	}
-	if err := cache.Complete(load, cacheRecord("older")); !errors.Is(err, ErrStaleLoad) {
+	if err := cache.Complete(load, PrepareSnapshotRecord(cacheRecord("older"))); !errors.Is(err, ErrStaleLoad) {
 		t.Fatalf("complete error = %v", err)
 	}
 }
@@ -266,7 +267,7 @@ func TestEntityCacheRejectsSupersededLoad(t *testing.T) {
 func TestEntityCacheReportsOwnerFailureToCoalescedWaiter(t *testing.T) {
 	cache := NewEntityCache()
 	key := cacheKey("1")
-	request := []SnapshotLoadRequest{{Key: key, Record: cacheRecord("snapshot")}}
+	request := []SnapshotLoadRequest{{Key: key, Record: PrepareSnapshotRecord(cacheRecord("snapshot"))}}
 	owner := cache.StageSnapshotBatch(request)[0]
 	waiter := cache.StageSnapshotBatch(request)[0]
 	want := errors.New("snapshot cancelled")
@@ -336,7 +337,7 @@ func TestEntityCacheRefreshKeepsCurrentGenerationVisible(t *testing.T) {
 	if !ok || visible.State != EntityCurrent || string(visible.Record["title"].Data) != "current" {
 		t.Fatalf("refresh exposed staged generation: %+v, exists=%v", visible, ok)
 	}
-	if err := cache.Complete(refresh, cacheRecord("snapshot")); err != nil {
+	if err := cache.Complete(refresh, PrepareSnapshotRecord(cacheRecord("snapshot"))); err != nil {
 		t.Fatal(err)
 	}
 	current, _ := cache.Get(key)
@@ -386,12 +387,12 @@ func TestEntityCacheCompletingSnapshotPreservesNewerPartialCDCValues(t *testing.
 		"title": {Type: "string", State: storage.ValuePresent, Data: []byte("snapshot")},
 		"body":  {Type: "string", State: storage.ValuePresent, Data: []byte("hydrated body")},
 	}
-	load := cache.StageSnapshotBatch([]SnapshotLoadRequest{{Key: key, Record: snapshot}})[0]
+	load := cache.StageSnapshotBatch([]SnapshotLoadRequest{{Key: key, Record: PrepareSnapshotRecord(snapshot)}})[0]
 	cache.StorePartial(key, storage.Record{
 		"title": {Type: "string", State: storage.ValuePresent, Data: []byte("newer CDC")},
 		"body":  {Type: "string", State: storage.ValueUnavailable},
 	})
-	if err := cache.Complete(load, snapshot); err != nil {
+	if err := cache.Complete(load, PrepareSnapshotRecord(snapshot)); err != nil {
 		t.Fatal(err)
 	}
 	entity, ok := cache.Get(key)
@@ -417,11 +418,76 @@ func TestEntityCacheAuthoritativeSnapshotStillRemovesAbsentFieldsAfterRefresh(t 
 	snapshot := storage.Record{
 		"title": {Type: "string", State: storage.ValuePresent, Data: []byte("snapshot")},
 	}
-	if err := cache.Complete(refresh, snapshot); err != nil {
+	if err := cache.Complete(refresh, PrepareSnapshotRecord(snapshot)); err != nil {
 		t.Fatal(err)
 	}
 	entity, _ := cache.Get(key)
 	if _, exists := entity.Record["obsolete"]; exists {
 		t.Fatalf("absent field survived authoritative refresh: %+v", entity.Record)
+	}
+}
+
+func TestSnapshotRecordOwnsItsInputAndSurvivesCDCOverlay(t *testing.T) {
+	cache := NewEntityCache()
+	key := cacheKey("prepared")
+	record := cacheRecord("snapshot")
+	record["body"] = storage.Value{Type: storage.TypeObject, State: storage.ValuePresent, Object: map[string]storage.Value{
+		"items": {Type: storage.TypeList, State: storage.ValuePresent, List: []storage.Value{{Type: storage.TypeText, State: storage.ValuePresent, Data: []byte("original")}}},
+	}}
+	image := PrepareSnapshotRecord(record)
+	record["title"].Data[0] = 'X'
+	record["body"].Object["items"].List[0].Data[0] = 'X'
+	load := cache.StageSnapshotBatch([]SnapshotLoadRequest{{Key: key, Record: image}})[0]
+	cache.StorePartial(key, cacheRecord("updated"))
+	if err := cache.Complete(load, image); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := cache.Get(key)
+	if string(got.Record["title"].Data) != "updated" || string(got.Record["body"].Object["items"].List[0].Data) != "original" {
+		t.Fatalf("snapshot ownership or overlay lost: %+v", got.Record)
+	}
+	// The same immutable baseline remains usable after another load's overlay.
+	other := cacheKey("other")
+	load = cache.StageSnapshotBatch([]SnapshotLoadRequest{{Key: other, Record: image}})[0]
+	if err := cache.Complete(load, image); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = cache.Get(other)
+	if string(got.Record["title"].Data) != "snapshot" {
+		t.Fatal("completion mutated the prepared image")
+	}
+	got.Record["body"].Object["items"].List[0].Data[0] = 'X'
+	got, _ = cache.Get(other)
+	if string(got.Record["body"].Object["items"].List[0].Data) != "original" {
+		t.Fatal("cache read exposed immutable snapshot data")
+	}
+}
+
+// Preparation is intentionally outside the timed section. Admission and
+// completion should allocate independently of the snapshot payload size.
+func BenchmarkPreparedSnapshotAdmission(b *testing.B) {
+	for _, size := range []int{1024, 1024 * 1024} {
+		name := "1KiB"
+		if size > 1024 {
+			name = "1MiB"
+		}
+		b.Run(name, func(b *testing.B) {
+			cache := NewEntityCache()
+			key := cacheKey("prepared")
+			record := cacheRecord("snapshot")
+			record["body"] = storage.Value{Type: storage.TypeText, State: storage.ValuePresent, Data: bytes.Repeat([]byte("x"), size)}
+			image := PrepareSnapshotRecord(record)
+			requests := []SnapshotLoadRequest{{Key: key, Record: image}}
+			b.ReportAllocs()
+			for b.Loop() {
+				load := cache.StageSnapshotBatch(requests)[0]
+				if err := cache.Complete(load, image); err != nil {
+					b.Fatal(err)
+				}
+				if err := cache.DeleteAuthoritative(key); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
 	}
 }

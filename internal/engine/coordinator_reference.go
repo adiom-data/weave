@@ -85,9 +85,12 @@ func (c *Coordinator) beginReferenceRead(ctx context.Context, reference datastor
 	done := make(chan error, 1)
 	err := c.waitCommand(ctx, coordinatorCommand{run: func() {
 		if c.referenceReads == nil {
-			c.referenceReads = make(map[*referenceRead]struct{})
+			c.referenceReads = make(map[storage.RelationKey]map[*referenceRead]struct{})
 		}
-		c.referenceReads[read] = struct{}{}
+		if c.referenceReads[relation] == nil {
+			c.referenceReads[relation] = make(map[*referenceRead]struct{})
+		}
+		c.referenceReads[relation][read] = struct{}{}
 		done <- nil
 	}}, done)
 	if err != nil {
@@ -103,9 +106,17 @@ func (c *Coordinator) abortReferenceRead(read *referenceRead) {
 	}
 	done := make(chan error, 1)
 	_ = c.waitCommand(context.Background(), coordinatorCommand{run: func() {
-		delete(c.referenceReads, read)
+		c.removeReferenceRead(read)
 		done <- nil
 	}}, done)
+}
+
+func (c *Coordinator) removeReferenceRead(read *referenceRead) {
+	reads := c.referenceReads[read.relation]
+	delete(reads, read)
+	if len(reads) == 0 {
+		delete(c.referenceReads, read.relation)
+	}
 }
 
 func (c *Coordinator) finishReferenceRead(ctx context.Context, read *referenceRead, rows []datastore.ReferenceWindowRow, fence storage.Fence) error {
@@ -114,7 +125,7 @@ func (c *Coordinator) finishReferenceRead(ctx context.Context, read *referenceRe
 	}
 	done := make(chan error, 1)
 	if err := c.waitCommand(ctx, coordinatorCommand{run: func() {
-		if _, exists := c.referenceReads[read]; !exists {
+		if _, exists := c.referenceReads[read.relation][read]; !exists {
 			done <- storage.ErrResumeRequired
 			return
 		}
@@ -134,19 +145,23 @@ func (c *Coordinator) finishReferenceRead(ctx context.Context, read *referenceRe
 }
 
 func (c *Coordinator) cancelReferenceReads(cause error) {
-	for read := range c.referenceReads {
-		delete(c.referenceReads, read)
-		read.result <- cause
+	for _, reads := range c.referenceReads {
+		for read := range reads {
+			read.result <- cause
+		}
 	}
+	clear(c.referenceReads)
 }
 
 func (c *Coordinator) tryCompleteReferenceReads() {
-	for read := range c.referenceReads {
-		if !read.ready || !c.appliedThrough(read.fence) {
-			continue
+	for _, reads := range c.referenceReads {
+		for read := range reads {
+			if !read.ready || !c.appliedThrough(read.fence) {
+				continue
+			}
+			c.removeReferenceRead(read)
+			read.result <- c.installReferenceRows(read)
 		}
-		delete(c.referenceReads, read)
-		read.result <- c.installReferenceRows(read)
 	}
 }
 

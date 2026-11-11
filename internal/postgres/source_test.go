@@ -338,6 +338,12 @@ func TestPostgresLogicalReplicationSchemaEvolutionAndRelationClear(t *testing.T)
 	if _, err := pool.Exec(ctx, `ALTER TABLE weave_adapter_test.weave_schema_evolution_test ADD COLUMN note text`); err != nil {
 		t.Fatal(err)
 	}
+	// Existing plans tolerate nullable additions. New queries opt into refreshed
+	// metadata explicitly, following the adapter's cached-metadata contract.
+	name := storage.RelationName{Namespace: "weave_adapter_test", Name: table}
+	if err := source.InvalidateMetadata(ctx, &name); err != nil {
+		t.Fatal(err)
+	}
 	nullable, err := subscribeCoordinatorForTest(ctx, coordinator, "schema-evolution-null", storage.QuerySpec{
 		Relation: storage.RelationName{Namespace: "weave_adapter_test", Name: table},
 		Filter:   &storage.Predicate{Null: &storage.NullTest{Field: "note", IsNull: true}},

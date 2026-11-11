@@ -192,7 +192,8 @@ type Coordinator struct {
 	progressResults  chan progressResult
 	pendingInitial   map[string]*pendingInitialActivation
 	pendingWindows   map[string]*pendingWindowActivation
-	referenceReads   map[*referenceRead]struct{}
+	referenceReads   map[storage.RelationKey]map[*referenceRead]struct{}
+	windowReads      map[storage.RelationKey]map[*windowRead]struct{}
 	prefetch         *prefetchcache.Cache
 }
 

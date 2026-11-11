@@ -251,6 +251,13 @@ func (c postgresChange) BeforeKey() (storage.EntityKey, error) {
 	return c.canonicalIdentity(c.change.Identity, "old")
 }
 
+func (c postgresChange) AfterKey() (storage.EntityKey, error) {
+	if c.Kind() == datastore.ChangeDelete {
+		return c.BeforeKey()
+	}
+	return c.afterKey()
+}
+
 func (c postgresChange) Apply(previous storage.Record) (datastore.AppliedChange, error) {
 	switch c.Kind() {
 	case datastore.ChangeDelete:

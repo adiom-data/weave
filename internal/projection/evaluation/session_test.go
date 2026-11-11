@@ -2,6 +2,7 @@ package evaluation
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -9,6 +10,42 @@ import (
 	relationdef "github.com/adiom-data/weave/internal/relation"
 	"github.com/adiom-data/weave/internal/storage"
 )
+
+func TestFactCapacityFailsOnlyTheAffectedEvaluation(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	feed := newTestFeed()
+	defer feed.Close(ctx)
+	evaluator, err := relationdef.Compile(relationdef.Definitions{relation: {
+		Facts:      []relationdef.Fact{{ID: "grant", Projection: &plan.Node{Name: "grant", Query: storage.QuerySpec{Relation: relation}, Bindings: []plan.Binding{{Field: "title", Operator: storage.ComparisonEqual, Parameter: storage.MustFieldPath("item", "title")}}}}},
+		Visibility: `facts.grant.exists(g, true)`,
+	}}, relationdef.DefaultLimits())
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := NewSession(ctx, feed, evaluator, nil, Options{MaxQueries: 1, MaxRows: 10, LoadConcurrency: 1}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	view, err := s.OpenView(at(10))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer view.Close()
+	first := row("one", "first")
+	if _, err := s.Evaluate(ctx, Occurrence{Scope: "root", Key: first.Key}, relationdef.Candidate{Key: first.Key, Record: first.Record, Complete: true}, view); err != nil {
+		t.Fatal(err)
+	}
+	second := row("two", "second")
+	if _, err := s.Evaluate(ctx, Occurrence{Scope: "root", Key: second.Key}, relationdef.Candidate{Key: second.Key, Record: second.Record, Complete: true}, view); err == nil || !strings.Contains(err.Error(), "limit") {
+		t.Fatalf("fact capacity error = %v", err)
+	}
+	// The failed registration cannot poison existing dependency ownership.
+	if _, err := s.Evaluate(ctx, Occurrence{Scope: "root", Key: first.Key}, relationdef.Candidate{Key: first.Key, Record: first.Record, Complete: true}, view); err != nil {
+		t.Fatal(err)
+	}
+}
 
 func TestUnchangedProgressDoesNotInvalidateAuthorization(t *testing.T) {
 	feed := newTestFeed()

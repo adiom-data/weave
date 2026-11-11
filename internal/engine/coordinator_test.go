@@ -195,6 +195,7 @@ func (c unkeyedChange) Relation() storage.RelationKey { return c.relation }
 func (c unkeyedChange) BeforeKey() (storage.EntityKey, error) {
 	return storage.EntityKey{Relation: c.relation}, nil
 }
+func (c unkeyedChange) AfterKey() (storage.EntityKey, error) { return c.BeforeKey() }
 func (c unkeyedChange) Apply(storage.Record) (datastore.AppliedChange, error) {
 	return datastore.AppliedChange{Kind: datastore.AppliedComplete, Key: storage.EntityKey{Relation: c.relation}, Record: storage.Record{}}, nil
 }

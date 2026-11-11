@@ -67,9 +67,11 @@ func (c *Coordinator) pendingProgressFence() storage.Fence {
 	for _, activation := range c.pendingWindows {
 		consider(activation.materialized.pending.Fence)
 	}
-	for read := range c.referenceReads {
-		if read.ready {
-			consider(read.fence)
+	for _, reads := range c.referenceReads {
+		for read := range reads {
+			if read.ready {
+				consider(read.fence)
+			}
 		}
 	}
 	return fence
@@ -94,10 +96,12 @@ func (c *Coordinator) startProgressRequest(ctx context.Context) {
 }
 
 func (c *Coordinator) failPendingProgress(requested storage.Fence, cause error) {
-	for read := range c.referenceReads {
-		if read.ready && !c.appliedThrough(read.fence) && fenceAtOrBefore(read.fence, requested) {
-			delete(c.referenceReads, read)
-			read.result <- cause
+	for _, reads := range c.referenceReads {
+		for read := range reads {
+			if read.ready && !c.appliedThrough(read.fence) && fenceAtOrBefore(read.fence, requested) {
+				c.removeReferenceRead(read)
+				read.result <- cause
+			}
 		}
 	}
 	for id, activation := range c.pendingInitial {
@@ -160,24 +164,8 @@ func (c *Coordinator) applyPartitionsAndPublish(ctx context.Context, batch datas
 	for _, partition := range partitions {
 		relation := partition.relation
 		relationBatch := partition.batch
-		var captures []*referencefetch.Capture
-		for read := range c.referenceReads {
-			if read.relation == relation {
-				captures = append(captures, read.capture)
-			}
-		}
-		if len(captures) > 0 || c.prefetch != nil && c.prefetch.HasRelation(relation) {
-			for _, change := range relationBatch.Changes {
-				invalidation := referencefetch.Resolve(change)
-				if c.prefetch != nil {
-					if err := c.prefetch.Observe(invalidation); err != nil {
-						return err
-					}
-				}
-				for _, capture := range captures {
-					capture.ObserveResolved(invalidation)
-				}
-			}
+		if err := c.captureSnapshotChanges(relation, relationBatch.Changes); err != nil {
+			return err
 		}
 		// The source feed may cover relations that have never been prepared or
 		// cannot be subscribed to (for example a FOR ALL TABLES publication that
@@ -282,4 +270,31 @@ func splitBatchByRelation(batch datastore.CommittedChanges) ([]relationBatch, er
 		result[position].batch.SourceOrdinals = append(result[position].batch.SourceOrdinals, ordinal)
 	}
 	return result, nil
+}
+
+// captureSnapshotChanges resolves key metadata once per change, then routes it
+// to interested point reads and reference prefetches. Range reads capture the
+// relation prefix until their snapshot keys become known to their worker.
+func (c *Coordinator) captureSnapshotChanges(relation storage.RelationKey, changes []datastore.Change) error {
+	reads := c.windowReads[relation]
+	references := c.referenceReads[relation]
+	prefetch := c.prefetch != nil && c.prefetch.HasRelation(relation)
+	if len(reads) == 0 && len(references) == 0 && !prefetch {
+		return nil
+	}
+	for _, change := range changes {
+		identity := referencefetch.Resolve(change)
+		for read := range reads {
+			read.observe(change, identity, c.options.MaxResyncChanges)
+		}
+		if prefetch {
+			if err := c.prefetch.Observe(identity); err != nil {
+				return err
+			}
+		}
+		for read := range references {
+			read.capture.ObserveResolved(identity)
+		}
+	}
+	return nil
 }

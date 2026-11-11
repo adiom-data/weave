@@ -10,10 +10,11 @@ import (
 	"github.com/adiom-data/weave/internal/storage"
 )
 
-// WindowLoader separates snapshot IO from publication. Callers must consume
-// the source feed through PendingWindow.Fence before Activate; this ensures no
-// snapshot row becomes visible as current until all intervening committed
-// changes have had a chance to supersede it.
+// WindowLoader separates snapshot IO, cache staging, and publication. Range
+// callers capture CDC before the read, prepare its changes off the actor, and
+// admit the result after every relevant capture revision before consuming the source
+// through PendingWindow.Fence and calling Activate.
+// Exact identity reads can acquire their cache token before IO instead.
 type WindowLoader struct {
 	source   snapshotSource
 	entities windowEntityState
@@ -30,7 +31,7 @@ type snapshotSource interface {
 type windowEntityState interface {
 	Get(storage.EntityKey) (entitycache.EntitySnapshot, bool)
 	StageSnapshotBatch([]entitycache.SnapshotLoadRequest) []entitycache.Load
-	Complete(entitycache.Load, storage.Record) error
+	Complete(entitycache.Load, entitycache.SnapshotRecord) error
 	Fail(entitycache.Load, error) error
 	LoadError(entitycache.Load) error
 	MarkUnreferenced(storage.EntityKey)
@@ -42,9 +43,9 @@ type windowQueryState interface {
 }
 
 type pendingEntity struct {
-	load         entitycache.Load
-	record       storage.Record
-	forceRefresh bool
+	load   entitycache.Load
+	record storage.Record
+	image  entitycache.SnapshotRecord
 	// absent is a point-read absence baseline, not a complete row onto which
 	// an otherwise unresolved partial insert can safely be merged.
 	absent bool
@@ -71,6 +72,9 @@ type PendingWindow struct {
 	queries  windowQueryState
 	query    datastore.PreparedQuery
 	pending  []pendingEntity
+	rows     []validatedWindowRecord
+	refresh  bool
+	staged   bool
 	used     bool
 }
 
@@ -82,10 +86,21 @@ type QueryEvaluationError struct{ Err error }
 func (e *QueryEvaluationError) Error() string { return e.Err.Error() }
 func (e *QueryEvaluationError) Unwrap() error { return e.Err }
 
-func (w *PendingWindow) Len() int                       { return len(w.pending) }
+func (w *PendingWindow) Len() int {
+	if !w.staged {
+		return len(w.rows)
+	}
+	return len(w.pending)
+}
 func (w *PendingWindow) Query() datastore.PreparedQuery { return w.query }
 
 func (w *PendingWindow) LastKey() (datastore.SortKey, bool, error) {
+	if !w.staged {
+		if len(w.rows) == 0 {
+			return nil, false, nil
+		}
+		return w.rows[len(w.rows)-1].sort, true, nil
+	}
 	if len(w.pending) == 0 {
 		return nil, false, nil
 	}
@@ -102,7 +117,14 @@ type WindowDiscovery struct {
 // activationOrder must be the same order in which the caller will activate the
 // windows. Loads owned by this sequence are deliberately skipped because an
 // earlier window in the sequence will complete them during activation.
-func WaitForExternalLoads(ctx context.Context, activationOrder []*PendingWindow) error {
+// retry prepares privately and admits through the caller's CDC staging boundary.
+// Nil is suitable for recovery, where CDC is buffered until windows activate.
+func WaitForExternalLoads(ctx context.Context, activationOrder []*PendingWindow, retry func(*PendingWindow, []int) error) error {
+	for _, window := range activationOrder {
+		if err := window.Stage(); err != nil {
+			return err
+		}
+	}
 	for {
 		if err := ctx.Err(); err != nil {
 			return err
@@ -155,33 +177,18 @@ func WaitForExternalLoads(ctx context.Context, activationOrder []*PendingWindow)
 			if len(indexes) == 0 {
 				continue
 			}
-			if err := activationOrder[windowIndex].retryLoads(indexes); err != nil {
+			window := activationOrder[windowIndex]
+			var err error
+			if retry != nil {
+				err = retry(window, indexes)
+			} else {
+				err = window.RetryLoads(indexes)
+			}
+			if err != nil {
 				return err
 			}
 		}
 	}
-}
-
-func (w *PendingWindow) retryLoads(indexes []int) error {
-	if w.used || len(indexes) == 0 {
-		return errors.New("cannot retry an activated pending window")
-	}
-	requests := make([]entitycache.SnapshotLoadRequest, len(indexes))
-	for offset, index := range indexes {
-		if index < 0 || index >= len(w.pending) {
-			return errors.New("pending load index is out of range")
-		}
-		pending := w.pending[index]
-		requests[offset] = entitycache.SnapshotLoadRequest{Key: pending.load.Key(), Record: pending.record, ForceRefresh: pending.forceRefresh}
-	}
-	loads := w.entities.StageSnapshotBatch(requests)
-	if len(loads) != len(indexes) {
-		return errors.New("entity cache returned the wrong snapshot load count")
-	}
-	for offset, index := range indexes {
-		w.pending[index].load = loads[offset]
-	}
-	return nil
 }
 
 func NewWindowLoader(source snapshotSource, entities windowEntityState, queries windowQueryState) *WindowLoader {
@@ -289,18 +296,9 @@ func (l *WindowLoader) readWithReference(ctx context.Context, query datastore.Pr
 		return nil, errors.New("source returned a snapshot for another relation")
 	}
 	finished := false
-	handedOff := false
-	var pending []pendingEntity
 	defer func() {
 		if !finished {
 			_ = snapshot.Abort(context.WithoutCancel(ctx))
-		}
-		if !handedOff {
-			for _, entity := range pending {
-				if entity.load.Owned() {
-					_ = l.entities.Fail(entity.load, context.Canceled)
-				}
-			}
 		}
 	}()
 	seen := make(map[storage.EntityKey]struct{})
@@ -380,29 +378,7 @@ func (l *WindowLoader) readWithReference(ctx context.Context, query datastore.Pr
 	if fence == nil || fence.Source() != l.source.ID() {
 		return nil, errors.New("snapshot returned a foreign or nil fence")
 	}
-	pending, err = l.stageRows(rows, refresh)
-	if err != nil {
-		return nil, err
-	}
-	handedOff = true
-	return &PendingWindow{Fence: fence, References: references, entities: l.entities, queries: l.queries, query: query, pending: pending}, nil
-}
-
-func (l *WindowLoader) stageRows(rows []validatedWindowRecord, refresh bool) ([]pendingEntity, error) {
-	pending := make([]pendingEntity, 0, len(rows))
-	requests := make([]entitycache.SnapshotLoadRequest, len(rows))
-	for index, row := range rows {
-		requests[index] = entitycache.SnapshotLoadRequest{Key: row.entity, Record: row.record, ForceRefresh: refresh}
-	}
-	loads := l.entities.StageSnapshotBatch(requests)
-	if len(loads) != len(rows) {
-		return nil, errors.New("entity cache returned the wrong snapshot load count")
-	}
-	for index, row := range rows {
-		staged := pendingEntity{load: loads[index], record: storage.CloneRecord(row.record), forceRefresh: refresh}
-		pending = append(pending, staged)
-	}
-	return pending, nil
+	return &PendingWindow{Fence: fence, References: references, entities: l.entities, queries: l.queries, query: query, rows: rows, refresh: refresh}, nil
 }
 
 func validateWindowRecords(query datastore.PreparedQuery, bounds datastore.Bounds, records []storage.Record) ([]validatedWindowRecord, error) {
@@ -529,6 +505,9 @@ func (w *PendingWindow) Reconcile(ctx context.Context) (err error) {
 	if w.used {
 		return errors.New("pending window was already activated")
 	}
+	if err := w.Stage(); err != nil {
+		return err
+	}
 	w.used = true
 	completed := false
 	defer func() {
@@ -552,7 +531,7 @@ func (w *PendingWindow) Reconcile(ctx context.Context) (err error) {
 					return storage.ErrResumeRequired
 				}
 			}
-			err := w.entities.Complete(pending.load, pending.record)
+			err := w.entities.Complete(pending.load, pending.image)
 			if err != nil && !errors.Is(err, entitycache.ErrStaleLoad) {
 				return err
 			}

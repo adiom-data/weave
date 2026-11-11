@@ -289,6 +289,28 @@ test('connection watchdog recovers a socket that never opens', t => {
   assert.equal(client.store.getConnection().status, 'connected')
 })
 
+test('retry backoff survives socket upgrades until application traffic succeeds', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] })
+  const retries = []
+  const { client, sockets } = setup(t, {
+    reconnectDelayMs: 5, maxReconnectDelayMs: 20,
+    onDiagnostic: event => { if (event.type === 'retry-scheduled') retries.push(event.delayMs) },
+  })
+  client.connect()
+  for (const delayMs of [5, 10, 20]) {
+    sockets.at(-1).open()
+    sockets.at(-1).close() // e.g. rejected by post-upgrade authentication
+    t.mock.timers.tick(delayMs)
+  }
+  await Promise.resolve()
+  assert.deepEqual(retries, [5, 10, 20])
+  sockets.at(-1).open()
+  sockets.at(-1).message({ connectionOpened: { connectionContext: 'accepted' } })
+  sockets.at(-1).close()
+  await Promise.resolve()
+  assert.deepEqual(retries, [5, 10, 20, 5])
+})
+
 test('heartbeat detects a silent server, preserves the view, and retires old timers and replies', t => {
   t.mock.timers.enable({ apis: ['setTimeout'] })
   const { client, sockets } = setup(t, { heartbeatIntervalMs: 20, heartbeatTimeoutMs: 10 })

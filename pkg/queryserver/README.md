@@ -168,6 +168,23 @@ Normal final-subscriber teardown also drains through maintenance when membership
 remain, including when the subscriber leaves midway through expiry cleanup.
 Deleting rows, TRUNCATE, and recovery still see ownership pending cleanup.
 
+Cold reads capture CDC before opening their database snapshot. Workers reconcile
+immutable change chunks and prepare the row images outside the coordinator. A
+short coordinator handoff checks per-identity revisions and admits prepared rows
+only after all relevant changes are covered. Newer relevant changes return to the
+worker; unrelated writes do not require a quiet table. The source WAL
+fence still controls publication. Coalesced-load retries retain capture until
+ownership is settled. Point reads capture only their requested identity and any
+observed key moves, rather than unrelated table traffic. `MaxResyncChanges` bounds
+the retained history; overflow fails that initialization without blocking CDC.
+Snapshot replay accepts key-moving updates only when the change is self-contained.
+A partial key move cannot safely borrow unchanged fields from a snapshot that may
+already contain a newer occupant of that key; it fails that read with a
+resynchronization error. Normal CDC processing still supports partial key moves
+when it has the preceding live entity image. Snapshot records are copied on the
+worker into immutable cache images, then retained during admission and completion.
+
+
 Entity payload retention is separate: `EntityIdleTTL` defaults to five minutes
 after the final query reference is released. `EvictionPeriod` defaults to one
 minute, with indexed, bounded eviction rather than a full-cache sweep.

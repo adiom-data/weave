@@ -278,6 +278,12 @@ func TestWindowLoaderPublishesOnlyAfterActivation(t *testing.T) {
 		t.Fatal(err)
 	}
 	key, _ := plan.EntityKey(record)
+	if _, exists := entities.Get(key); exists {
+		t.Fatal("snapshot entered the cache before staging")
+	}
+	if err := pending.Stage(); err != nil {
+		t.Fatal(err)
+	}
 	if entity, ok := entities.Get(key); !ok || entity.State != entitycache.EntityReconciling || queries.IsMember("a", key) {
 		t.Fatalf("entity was visible before activation: %+v, exists=%v", entity, ok)
 	}
@@ -528,15 +534,15 @@ func TestPendingWindowRecoversWhenCoalescedOwnerIsCancelled(t *testing.T) {
 	entities := entitycache.NewEntityCache()
 	key := storage.EntityKey{Relation: storage.RelationKey{Source: "test", Namespace: "app", Name: "tasks"}, Value: "1"}
 	record := storage.Record{"value": {Type: storage.TypeText, State: storage.ValuePresent, Data: []byte("snapshot")}}
-	request := []entitycache.SnapshotLoadRequest{{Key: key, Record: record}}
+	request := []entitycache.SnapshotLoadRequest{{Key: key, Record: entitycache.PrepareSnapshotRecord(record)}}
 	owner := entities.StageSnapshotBatch(request)[0]
 	waiter := entities.StageSnapshotBatch(request)[0]
 	want := errors.New("owner cancelled")
 	if err := entities.Fail(owner, want); err != nil {
 		t.Fatal(err)
 	}
-	window := &PendingWindow{entities: entities, pending: []pendingEntity{{load: waiter, record: record}}}
-	if err := WaitForExternalLoads(context.Background(), []*PendingWindow{window}); err != nil {
+	window := &PendingWindow{entities: entities, staged: true, pending: []pendingEntity{{load: waiter, record: record, image: entitycache.PrepareSnapshotRecord(record)}}}
+	if err := WaitForExternalLoads(context.Background(), []*PendingWindow{window}, nil); err != nil {
 		t.Fatalf("recover canceled owner: %v", err)
 	}
 	if err := window.Reconcile(context.Background()); err != nil {
@@ -552,11 +558,11 @@ func TestWaitForExternalLoadsHonorsCancellationBeforeReadyLoads(t *testing.T) {
 	entities := entitycache.NewEntityCache()
 	key := storage.EntityKey{Relation: storage.RelationKey{Source: "test", Namespace: "app", Name: "tasks"}, Value: "1"}
 	record := storage.Record{"id": {Type: storage.TypeText, State: storage.ValuePresent, Data: []byte("1")}}
-	load := entities.StageSnapshotBatch([]entitycache.SnapshotLoadRequest{{Key: key, Record: record}})[0]
-	window := &PendingWindow{entities: entities, pending: []pendingEntity{{load: load, record: record}}}
+	load := entities.StageSnapshotBatch([]entitycache.SnapshotLoadRequest{{Key: key, Record: entitycache.PrepareSnapshotRecord(record)}})[0]
+	window := &PendingWindow{entities: entities, staged: true, pending: []pendingEntity{{load: load, record: record, image: entitycache.PrepareSnapshotRecord(record)}}}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	if err := WaitForExternalLoads(ctx, []*PendingWindow{window}); !errors.Is(err, context.Canceled) {
+	if err := WaitForExternalLoads(ctx, []*PendingWindow{window}, nil); !errors.Is(err, context.Canceled) {
 		t.Fatalf("wait error = %v, want context cancellation", err)
 	}
 	window.Cancel(context.Canceled)
@@ -566,12 +572,12 @@ func TestWaitForExternalLoadsRejectsOwnerAfterWaiter(t *testing.T) {
 	entities := entitycache.NewEntityCache()
 	key := storage.EntityKey{Relation: storage.RelationKey{Source: "test", Namespace: "app", Name: "tasks"}, Value: "1"}
 	record := storage.Record{"id": {Type: storage.TypeText, State: storage.ValuePresent, Data: []byte("1")}}
-	request := []entitycache.SnapshotLoadRequest{{Key: key, Record: record}}
+	request := []entitycache.SnapshotLoadRequest{{Key: key, Record: entitycache.PrepareSnapshotRecord(record)}}
 	owner := entities.StageSnapshotBatch(request)[0]
 	waiter := entities.StageSnapshotBatch(request)[0]
-	waiterWindow := &PendingWindow{entities: entities, pending: []pendingEntity{{load: waiter, record: record}}}
-	ownerWindow := &PendingWindow{entities: entities, pending: []pendingEntity{{load: owner, record: record}}}
-	if err := WaitForExternalLoads(context.Background(), []*PendingWindow{waiterWindow, ownerWindow}); err == nil {
+	waiterWindow := &PendingWindow{entities: entities, staged: true, pending: []pendingEntity{{load: waiter, record: record, image: entitycache.PrepareSnapshotRecord(record)}}}
+	ownerWindow := &PendingWindow{entities: entities, staged: true, pending: []pendingEntity{{load: owner, record: record, image: entitycache.PrepareSnapshotRecord(record)}}}
+	if err := WaitForExternalLoads(context.Background(), []*PendingWindow{waiterWindow, ownerWindow}, nil); err == nil {
 		t.Fatal("activation order accepted a waiter before its owner")
 	}
 	ownerWindow.Cancel(context.Canceled)
@@ -584,8 +590,8 @@ func TestPendingWindowsRecoverCanceledBatchWithoutCrossedOwnership(t *testing.T)
 		return storage.Record{"id": {Type: storage.TypeText, State: storage.ValuePresent, Data: []byte(id)}}
 	}
 	requests := []entitycache.SnapshotLoadRequest{
-		{Key: storage.EntityKey{Relation: relation, Value: "1"}, Record: record("1")},
-		{Key: storage.EntityKey{Relation: relation, Value: "2"}, Record: record("2")},
+		{Key: storage.EntityKey{Relation: relation, Value: "1"}, Record: entitycache.PrepareSnapshotRecord(record("1"))},
+		{Key: storage.EntityKey{Relation: relation, Value: "2"}, Record: entitycache.PrepareSnapshotRecord(record("2"))},
 	}
 	owners := entities.StageSnapshotBatch(requests)
 	firstWaiters := entities.StageSnapshotBatch(requests)
@@ -595,20 +601,20 @@ func TestPendingWindowsRecoverCanceledBatchWithoutCrossedOwnership(t *testing.T)
 			t.Fatal(err)
 		}
 	}
-	first := &PendingWindow{entities: entities, pending: []pendingEntity{
-		{load: firstWaiters[0], record: record("1")},
-		{load: firstWaiters[1], record: record("2")},
+	first := &PendingWindow{entities: entities, staged: true, pending: []pendingEntity{
+		{load: firstWaiters[0], record: record("1"), image: entitycache.PrepareSnapshotRecord(record("1"))},
+		{load: firstWaiters[1], record: record("2"), image: entitycache.PrepareSnapshotRecord(record("2"))},
 	}}
-	second := &PendingWindow{entities: entities, pending: []pendingEntity{
-		{load: secondWaiters[0], record: record("2")},
-		{load: secondWaiters[1], record: record("1")},
+	second := &PendingWindow{entities: entities, staged: true, pending: []pendingEntity{
+		{load: secondWaiters[0], record: record("2"), image: entitycache.PrepareSnapshotRecord(record("2"))},
+		{load: secondWaiters[1], record: record("1"), image: entitycache.PrepareSnapshotRecord(record("1"))},
 	}}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
 	errorsOut := make(chan error, 2)
 	for _, window := range []*PendingWindow{first, second} {
 		go func(window *PendingWindow) {
-			if err := WaitForExternalLoads(ctx, []*PendingWindow{window}); err != nil {
+			if err := WaitForExternalLoads(ctx, []*PendingWindow{window}, nil); err != nil {
 				errorsOut <- err
 				return
 			}
@@ -629,8 +635,8 @@ func TestPendingWindowSetRetriesInActivationOrder(t *testing.T) {
 		return storage.Record{"id": {Type: storage.TypeText, State: storage.ValuePresent, Data: []byte(id)}}
 	}
 	requests := []entitycache.SnapshotLoadRequest{
-		{Key: storage.EntityKey{Relation: relation, Value: "1"}, Record: record("1")},
-		{Key: storage.EntityKey{Relation: relation, Value: "2"}, Record: record("2")},
+		{Key: storage.EntityKey{Relation: relation, Value: "1"}, Record: entitycache.PrepareSnapshotRecord(record("1"))},
+		{Key: storage.EntityKey{Relation: relation, Value: "2"}, Record: entitycache.PrepareSnapshotRecord(record("2"))},
 	}
 	owners := entities.StageSnapshotBatch(requests)
 	firstWaiters := entities.StageSnapshotBatch(requests)
@@ -640,17 +646,17 @@ func TestPendingWindowSetRetriesInActivationOrder(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	first := &PendingWindow{entities: entities, pending: []pendingEntity{
-		{load: firstWaiters[0], record: record("1")},
-		{load: firstWaiters[1], record: record("2")},
+	first := &PendingWindow{entities: entities, staged: true, pending: []pendingEntity{
+		{load: firstWaiters[0], record: record("1"), image: entitycache.PrepareSnapshotRecord(record("1"))},
+		{load: firstWaiters[1], record: record("2"), image: entitycache.PrepareSnapshotRecord(record("2"))},
 	}}
-	second := &PendingWindow{entities: entities, pending: []pendingEntity{
-		{load: secondWaiters[0], record: record("2")},
-		{load: secondWaiters[1], record: record("1")},
+	second := &PendingWindow{entities: entities, staged: true, pending: []pendingEntity{
+		{load: secondWaiters[0], record: record("2"), image: entitycache.PrepareSnapshotRecord(record("2"))},
+		{load: secondWaiters[1], record: record("1"), image: entitycache.PrepareSnapshotRecord(record("1"))},
 	}}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
 	defer cancel()
-	if err := WaitForExternalLoads(ctx, []*PendingWindow{first, second}); err != nil {
+	if err := WaitForExternalLoads(ctx, []*PendingWindow{first, second}, nil); err != nil {
 		t.Fatal(err)
 	}
 	if err := first.Reconcile(ctx); err != nil {

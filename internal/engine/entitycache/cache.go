@@ -6,6 +6,7 @@ package entitycache
 import (
 	"errors"
 	"fmt"
+	"maps"
 	"sync"
 	"time"
 
@@ -54,13 +55,13 @@ type EntitySnapshot struct {
 }
 
 type Load struct {
-	key        storage.EntityKey
-	generation uint64
-	done       <-chan struct{}
-	owner      bool
-	refresh    bool
-	previous   storage.Record
-	state      *loadState
+	key         storage.EntityKey
+	generation  uint64
+	done        <-chan struct{}
+	owner       bool
+	refresh     bool
+	hadPrevious bool
+	state       *loadState
 }
 
 // Key and Generation identify the exact cache load attempt. Callers may use
@@ -77,12 +78,23 @@ func (l Load) Done() <-chan struct{} { return l.done }
 // for completing or failing the load.
 func (l Load) Owned() bool { return l.owner }
 
+// SnapshotRecord owns an immutable copy prepared before entering the coordinator
+// or acquiring the cache lock. The cache may retain it without another copy.
+// Its zero value represents an absent baseline.
+type SnapshotRecord struct {
+	record storage.Record
+}
+
+func PrepareSnapshotRecord(record storage.Record) SnapshotRecord {
+	return SnapshotRecord{record: storage.CloneRecord(record)}
+}
+
 // SnapshotLoadRequest describes one authoritative row that a snapshot reader
 // may reconcile. Batches are acquired atomically so overlapping readers cannot
 // split ownership of the same set of entities and form wait cycles.
 type SnapshotLoadRequest struct {
 	Key          storage.EntityKey
-	Record       storage.Record
+	Record       SnapshotRecord
 	ForceRefresh bool
 }
 
@@ -110,7 +122,7 @@ func (c *EntityCache) beginRefreshLocked(key storage.EntityKey) Load {
 	entry.load = state
 	entry.LastUsed = c.now()
 	c.syncIdleLocked(entry)
-	return Load{key: key, generation: entry.generation, done: state.done, owner: true, refresh: true, previous: storage.CloneRecord(entry.Record), state: state}
+	return Load{key: key, generation: entry.generation, done: state.done, owner: true, refresh: true, hadPrevious: entry.Record != nil, state: state}
 }
 
 type EntityCache struct {
@@ -294,7 +306,7 @@ func (c *EntityCache) StageSnapshotBatch(requests []SnapshotLoadRequest) []Load 
 	loads := make([]Load, len(requests))
 	for index, request := range requests {
 		entry := c.entries[request.Key]
-		refresh := request.ForceRefresh || entry != nil && (entry.State != EntityCurrent || !sameRecordShape(entry.Record, request.Record))
+		refresh := request.ForceRefresh || entry != nil && (entry.State != EntityCurrent || !sameRecordShape(entry.Record, request.Record.record))
 		if refresh {
 			loads[index] = c.beginRefreshLocked(request.Key)
 		} else {
@@ -303,7 +315,7 @@ func (c *EntityCache) StageSnapshotBatch(requests []SnapshotLoadRequest) []Load 
 		load := loads[index]
 		if load.owner && !load.refresh {
 			entry = c.entries[request.Key]
-			entry.Record = storage.CloneRecord(request.Record)
+			entry.Record = request.Record.record
 			entry.State = EntityReconciling
 		}
 	}
@@ -323,15 +335,21 @@ func sameRecordShape(left, right storage.Record) bool {
 	return true
 }
 
-func (c *EntityCache) Complete(load Load, record storage.Record) error {
+// Complete retains the immutable baseline. A CDC overlay receives a separate
+// field map so it cannot mutate an image shared by another snapshot load.
+func (c *EntityCache) Complete(load Load, record SnapshotRecord) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	entry := c.entries[load.key]
 	if entry == nil || entry.generation != load.generation || entry.load != load.state || load.state == nil {
 		return ErrStaleLoad
 	}
-	completed := storage.CloneRecord(record)
+	completed := record.record
 	if load.state.partial {
+		completed = maps.Clone(completed)
+		if completed == nil {
+			completed = make(storage.Record)
+		}
 		overlayConcrete(completed, entry.Record)
 	}
 	entry.Record = completed
@@ -364,7 +382,7 @@ func (c *EntityCache) Fail(load Load, err error) error {
 		c.syncIdleLocked(entry)
 		return nil
 	}
-	if load.refresh && load.previous != nil {
+	if load.refresh && load.hadPrevious {
 		entry.load = nil
 		c.syncIdleLocked(entry)
 		return nil

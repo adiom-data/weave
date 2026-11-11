@@ -73,6 +73,25 @@ func TestPostgresChangeMergesUnavailableValues(t *testing.T) {
 	}
 }
 
+func TestPostgresChangeIdentityDoesNotDecodePayload(t *testing.T) {
+	identity := entitykey.Encode([]entitykey.Part{{Name: "id", TypeOID: 23, Value: []byte("1")}})
+	change := newPostgresChange(newPostgresTypeAdapter(), cdc.Change{
+		Operation: "update", RelationID: 42, Schema: "app", Table: "tasks", Identity: identity, NewIdentity: identity,
+		New: cdc.Row{"payload": {TypeOID: 3802, Text: []byte("invalid JSON")}},
+	})
+	before, err := change.BeforeKey()
+	if err != nil {
+		t.Fatal(err)
+	}
+	after, err := change.AfterKey()
+	if err != nil || after != before {
+		t.Fatalf("identity depends on row payload: %+v %v", after, err)
+	}
+	if _, err := change.Apply(nil); err == nil {
+		t.Fatal("invalid payload unexpectedly decoded")
+	}
+}
+
 func TestPostgresFeedPreservesOpaqueCommittedMessages(t *testing.T) {
 	broker := cdc.NewBroker()
 	broker.MarkReady()

@@ -64,8 +64,8 @@ func TestReferenceSelectorMatchesOrdinaryPreparationIntegration(t *testing.T) {
 	if err != nil || ordinaryKey != key {
 		t.Fatal("reference selector changed identity encoding")
 	}
-	// Reusing a prepared schema fingerprint must not hide schema changes from
-	// newly prepared selectors, or mutate an already prepared reference.
+	// Explicit metadata invalidation exposes a new schema fingerprint to new
+	// selectors without mutating an already prepared reference.
 	if _, err := pool.Exec(ctx, "ALTER TABLE weave_adapter_test.tasks ADD COLUMN optional_note text"); err != nil {
 		t.Fatal(err)
 	}
@@ -74,6 +74,9 @@ func TestReferenceSelectorMatchesOrdinaryPreparationIntegration(t *testing.T) {
 			t.Error(err)
 		}
 	}()
+	if err := source.InvalidateMetadata(ctx, &spec.Relation); err != nil {
+		t.Fatal(err)
+	}
 	updated, err := source.PrepareQuery(ctx, ordinary.Query())
 	if err != nil {
 		t.Fatal(err)

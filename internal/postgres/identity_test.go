@@ -2,9 +2,43 @@ package postgres
 
 import (
 	"testing"
+	"time"
 
 	"github.com/adiom-data/weave/internal/storage"
 )
+
+func TestIdentityRequiresRepresentableNativeEquality(t *testing.T) {
+	for _, test := range []struct {
+		name  string
+		oid   uint32
+		value storage.Value
+		want  bool
+	}{
+		{"smallint_in_range", 21, storage.Value{Type: storage.TypeInteger, State: storage.ValuePresent, Data: []byte("32767")}, true},
+		{"smallint_out_of_range", 21, storage.Value{Type: storage.TypeInteger, State: storage.ValuePresent, Data: []byte("32768")}, false},
+		{"oid_negative", 26, storage.Value{Type: storage.TypeInteger, State: storage.ValuePresent, Data: []byte("-1")}, false},
+		{"date_midnight", 1082, storage.NewDateTime(time.Date(2026, 11, 10, 0, 0, 0, 0, time.UTC)), true},
+		{"date_noon", 1082, storage.NewDateTime(time.Date(2026, 11, 10, 12, 0, 0, 0, time.UTC)), false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			p := contractPrepared()
+			p.plan.comparisons = make(map[*storage.Comparison]postgresComparison)
+			p.plan.columns["id"] = column{name: "id", typeOID: test.oid, valueType: test.value.Type, supported: true, primary: true}
+			literal, err := storage.LiteralFromValue(test.value)
+			if err != nil {
+				t.Fatal(err)
+			}
+			p.plan.query.Filter = &storage.Predicate{Comparison: &storage.Comparison{Field: "id", Operator: storage.ComparisonEqual, Value: literal}}
+			if err := p.plan.preparePredicateComparisons(p.plan.query.Filter); err != nil {
+				t.Fatal(err)
+			}
+			_, exact, err := p.PrepareIdentity()
+			if err != nil || exact != test.want {
+				t.Fatalf("identity=%v, want %v; err=%v", exact, test.want, err)
+			}
+		})
+	}
+}
 
 func TestPrepareIdentityUsesOnlyGuaranteedPrimaryEqualities(t *testing.T) {
 	eq := func(field, value string) *storage.Predicate {
@@ -35,6 +69,10 @@ func TestPrepareIdentityUsesOnlyGuaranteedPrimaryEqualities(t *testing.T) {
 			p.plan.columns["tenant"] = column{name: "tenant", typeOID: 20, valueType: storage.TypeInteger, supported: true, primary: true}
 			p.plan.columns["guard"] = column{name: "guard", typeOID: 20, valueType: storage.TypeInteger, supported: true}
 			p.plan.query.Filter = test.filter
+			p.plan.comparisons = make(map[*storage.Comparison]postgresComparison)
+			if err := p.plan.preparePredicateComparisons(test.filter); err != nil {
+				t.Fatal(err)
+			}
 			identity, matched, err := p.PrepareIdentity()
 			if err != nil || matched != test.want {
 				t.Fatalf("matched=%v err=%v", matched, err)

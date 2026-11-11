@@ -78,7 +78,7 @@ func (c *Coordinator) startRelationResync(ctx context.Context, relation storage.
 				bounds.Left = datastore.Boundary{Kind: datastore.BoundaryCursor, Key: last}
 			}
 		}
-		if err := windowloader.WaitForExternalLoads(resyncCtx, windows); err != nil {
+		if err := windowloader.WaitForExternalLoads(resyncCtx, windows, nil); err != nil {
 			cancelWindows(windows, err)
 			c.sendResyncResult(resyncCtx, resyncReadResult{relation: relation, generation: generation, err: err})
 			return

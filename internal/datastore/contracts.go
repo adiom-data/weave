@@ -181,6 +181,8 @@ func (a AppliedChange) Complete() bool { return a.Kind == AppliedComplete }
 // TOAST fields while MongoDB applies updateDescription deltas. AppliedPartial
 // means storage.Record is normalized but not authoritative and must be hydrated before
 // it can be exposed as a complete entity payload.
+// A delivered Change and its native payload are immutable. Methods may be
+// called concurrently by the CDC consumer and snapshot preparation workers.
 type Change interface {
 	Kind() ChangeKind
 	Relation() storage.RelationKey
@@ -189,6 +191,10 @@ type Change interface {
 	// performed by the processor, after a committed batch has been partitioned
 	// by relation, so a malformed identity can be isolated to that relation.
 	BeforeKey() (storage.EntityKey, error)
+	// AfterKey resolves the resulting identity without materializing the row.
+	// For a deletion it returns BeforeKey; relation-wide changes have no key.
+	// Capture/routing may call it before Apply, including for partial tuples.
+	AfterKey() (storage.EntityKey, error)
 	Apply(previous storage.Record) (AppliedChange, error)
 }
 

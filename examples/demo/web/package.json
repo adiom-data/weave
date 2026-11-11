@@ -12,7 +12,7 @@
     "build": "tsc -b && vite build"
   },
   "dependencies": {
-    "@adiom-data/weave": "0.0.6",
+    "@adiom-data/weave": "0.0.7",
     "@adiom/weave-demo-mutations": "0.1.0",
     "@adiom/weave-demo-projections": "0.1.0",
     "react": "latest",

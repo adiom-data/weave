@@ -65,7 +65,7 @@ func TestIdleIndexTracksLoadAndDeletionTransitions(t *testing.T) {
 			}
 			var err error
 			if complete {
-				err = c.Complete(load, cacheRecord("new"))
+				err = c.Complete(load, PrepareSnapshotRecord(cacheRecord("new")))
 			} else {
 				err = c.Fail(load, errors.New("read failed"))
 			}

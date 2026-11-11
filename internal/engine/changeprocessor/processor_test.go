@@ -86,6 +86,12 @@ type fakeChange struct {
 func (c fakeChange) Kind() datastore.ChangeKind            { return c.kind }
 func (c fakeChange) Relation() storage.RelationKey         { return c.relation }
 func (c fakeChange) BeforeKey() (storage.EntityKey, error) { return c.before, nil }
+func (c fakeChange) AfterKey() (storage.EntityKey, error) {
+	if c.kind == datastore.ChangeDelete {
+		return c.before, nil
+	}
+	return c.after, nil
+}
 func (c fakeChange) Apply(storage.Record) (datastore.AppliedChange, error) {
 	if c.applyErr != nil {
 		return datastore.AppliedChange{}, c.applyErr

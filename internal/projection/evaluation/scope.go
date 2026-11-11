@@ -32,17 +32,6 @@ func NewScope(facts *Facts) (*Scope, error) {
 	return &Scope{facts: facts, leases: make(map[string]*Lease)}, nil
 }
 
-// Evaluate runs outside the CDC path. Close/release may perform subscription IO,
-// while all discovery loads themselves remain asynchronous and bounded.
-func (s *Scope) Evaluate(ctx context.Context, evaluator *relationdef.Evaluator, input relationdef.Input, at *q.Position) (relationdef.Decision, error) {
-	view, err := s.facts.OpenView(at)
-	if err != nil {
-		return relationdef.Decision{}, err
-	}
-	defer view.Close()
-	return s.evaluate(ctx, evaluator, input, view)
-}
-
 // EvaluatePath evaluates the next hop after its parent is authorized. The view
 // establishes missing parents top down once; siblings reuse their results.
 // A denied or unresolved parent prunes descendant work. Dependency ownership
@@ -74,33 +63,6 @@ func (s *Scope) EvaluatePath(ctx context.Context, evaluator *relationdef.Evaluat
 		return relationdef.Decision{}, err
 	}
 	s.values = values
-	return result.decision, nil
-}
-
-func (s *Scope) evaluate(ctx context.Context, evaluator *relationdef.Evaluator, input relationdef.Input, view *View) (relationdef.Decision, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if s.closed {
-		return relationdef.Decision{}, q.ErrClosed
-	}
-	if evaluator == nil || view == nil || view.owner != s.facts {
-		return relationdef.Decision{}, errors.New("authorization evaluation requires a policy and the candidate's source position")
-	}
-	resolver := &scopeResolver{scope: s, view: view, used: make(map[string]struct{}), added: make(map[string]struct{})}
-	result, err := evaluateNode(ctx, evaluator, input, resolver, view, nil)
-	for key, lease := range s.leases {
-		if _, used := resolver.used[key]; used {
-			continue
-		}
-		err = errors.Join(err, lease.Close(ctx))
-		delete(s.leases, key)
-	}
-	if result != nil {
-		s.policyStamps = result.stamps
-	}
-	if err != nil {
-		return relationdef.Decision{}, err
-	}
 	return result.decision, nil
 }
 
@@ -201,14 +163,14 @@ func (s *Scope) Close(ctx context.Context) error {
 }
 
 type scopeResolver struct {
-	scope       *Scope
-	view        *View
-	used, added map[string]struct{}
+	scope *Scope
+	view  *View
+	used  map[string]struct{}
 }
 
 func (r *scopeResolver) Resolve(ctx context.Context, request relationdef.FactRequest) (relationdef.FactResult, error) {
 	work := 0
-	read := &scopeResolver{scope: r.scope, view: r.view, used: map[string]struct{}{}, added: r.added}
+	read := &scopeResolver{scope: r.scope, view: r.view, used: map[string]struct{}{}}
 	value, complete, err := read.project(ctx, request.Projection, request.Parameters, nil, &work, request.WorkLimit)
 	for key := range read.used {
 		r.used[key] = struct{}{}
@@ -280,7 +242,6 @@ func (r *scopeResolver) resolveQuery(ctx context.Context, request QueryRequest) 
 	if err != nil {
 		return QueryResult{}, err
 	}
-	r.used[key] = struct{}{}
 	lease := r.scope.leases[key]
 	if lease == nil {
 		lease, err = r.scope.facts.Acquire(request)
@@ -288,7 +249,9 @@ func (r *scopeResolver) resolveQuery(ctx context.Context, request QueryRequest) 
 			return QueryResult{}, err
 		}
 		r.scope.leases[key] = lease
-		r.added[key] = struct{}{}
 	}
+	// Evidence denotes acquired dependencies. Failed acquisition must not leave
+	// a selector whose ownership cannot be retained by an occurrence.
+	r.used[key] = struct{}{}
 	return r.view.read(lease)
 }

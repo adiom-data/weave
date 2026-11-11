@@ -334,7 +334,6 @@ export class ReactiveClient {
         catch (error) { this.lost(generation, asError(error), 'send'); return }
         if (this.generation !== generation) return
       }
-      this.attempts = 0
       this.diagnostic({ type: 'connected' })
       this.store.setConnection({ status: 'connected' })
       for (const { handle } of this.handles.values()) {
@@ -357,6 +356,7 @@ export class ReactiveClient {
           if (message.notice.status === 'upgrade-required') this.disconnect()
           invokeSafely(() => this.options.onClientVersionStatus?.(message.notice), error => this.reportListenerError(error))
         } else if (generation.heartbeatId === message.id) {
+          this.attempts = 0
           clearTimeout(generation.heartbeatTimer)
           generation.heartbeatId = undefined
           this.scheduleHeartbeat(generation)
@@ -371,6 +371,7 @@ export class ReactiveClient {
       if (generation.context !== undefined) throw new ProtocolError('Duplicate connection context')
       const context = message.event.context
       generation.context = context
+      this.attempts = 0
       this.diagnostic({ type: 'handshake' })
       invokeSafely(() => this.options.onConnectionOpened?.(context), error => this.reportListenerError(error))
       return
@@ -409,6 +410,9 @@ export class ReactiveClient {
       }
     }
     this.store.apply(message, { retireOptimistic: [...retire] })
+    // An upgraded socket may still fail server admission. Only successfully
+    // applied protocol traffic establishes that this generation makes progress.
+    if (this.generation === generation) this.attempts = 0
     for (const notify of appliedReceipts) invokeSafely(notify, error => this.reportListenerError(error))
     // Store observers may disconnect/reconnect synchronously. Never apply old
     // request bookkeeping to the replacement generation after they return.

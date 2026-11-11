@@ -20,12 +20,13 @@ import (
 // Limits configures reactive computation. Zero fields select defaults, except
 // ProgressBarrierDelay: zero requests sparse-stream progress immediately.
 type Limits struct {
-	EntityIdleTTL             time.Duration
-	EvictionPeriod            time.Duration
-	EvictionBatchSize         int
-	QueryIdleTTL              time.Duration
-	QueryMaintenancePeriod    time.Duration
-	MaxResyncTransactions     int
+	EntityIdleTTL          time.Duration
+	EvictionPeriod         time.Duration
+	EvictionBatchSize      int
+	QueryIdleTTL           time.Duration
+	QueryMaintenancePeriod time.Duration
+	MaxResyncTransactions  int
+	// MaxResyncChanges bounds buffered CDC during recovery and in-flight range reads.
 	MaxResyncChanges          int
 	MaxHydrations             int
 	ResyncResultBuffer        int

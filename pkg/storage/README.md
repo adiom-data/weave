@@ -11,6 +11,11 @@ pool-only options are not sent as PostgreSQL session parameters.
 [runtime metrics provider](../metrics/README.md). Nil disables metadata-cache
 counts. The storage implementation does not depend on OpenTelemetry.
 
+Adapters expose each change's `BeforeKey` and `AfterKey` separately from `Apply`,
+so routing can inspect identity metadata without decoding the row payload.
+Delivered changes are immutable and safe for concurrent use by CDC processing
+and snapshot preparation. `Apply` retains ownership of native patch semantics.
+
 Pass the returned storage to `queryserver.New`. Declarative visibility policies
 gather authorization facts through ordinary query/entity subscriptions managed
 by the projection server, not through a separate storage-level fact stream.

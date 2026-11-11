@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -130,18 +130,7 @@ func (p *plan) loadWindow(ctx context.Context, db rowQuerier, left, right bounda
 		return nil, err
 	}
 	if reverse {
-		var compareErr error
-		sort.SliceStable(result, func(i, j int) bool {
-			if compareErr != nil {
-				return false
-			}
-			var cmp int
-			cmp, compareErr = p.compareKeys(result[i].keys, result[j].keys)
-			return cmp < 0
-		})
-		if compareErr != nil {
-			return nil, compareErr
-		}
+		slices.Reverse(result)
 	}
 	return result, nil
 }
@@ -183,18 +172,7 @@ func (p *plan) loadWindowKeys(ctx context.Context, db rowQuerier, left, right bo
 		return nil, err
 	}
 	if reverse {
-		var compareErr error
-		sort.SliceStable(result, func(i, j int) bool {
-			if compareErr != nil {
-				return false
-			}
-			var compared int
-			compared, compareErr = p.compareKeys(result[i].values, result[j].values)
-			return compared < 0
-		})
-		if compareErr != nil {
-			return nil, compareErr
-		}
+		slices.Reverse(result)
 	}
 	return result, nil
 }

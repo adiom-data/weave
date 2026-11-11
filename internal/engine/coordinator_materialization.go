@@ -52,23 +52,46 @@ func (c *Coordinator) readMaterialization(ctx context.Context, request *material
 		}
 		defer c.abortReferenceRead(capture)
 	}
+	read, err := c.beginWindowRead(ctx, request.query)
+	if err != nil {
+		return nil, err
+	}
+	readOwned := true
+	defer func() {
+		if readOwned {
+			c.abortWindowRead(read)
+		}
+	}()
 	var pending *windowloader.PendingWindow
 	if identity, ok := request.query.(datastore.IdentityQuery); ok && request.reference == nil {
 		pending, err = c.loader.ReadIdentity(ctx, identity)
-	} else if loader, ok := c.loader.(interface {
-		ReadRangesWithReference(context.Context, datastore.PreparedQuery, []datastore.Bounds, int, datastore.ReferenceFetch) (*windowloader.PendingWindow, error)
-	}); request.reference != nil && ok {
-		pending, err = loader.ReadRangesWithReference(ctx, request.query, request.reads, c.options.SnapshotPageRows, request.reference.Fetch())
 	} else {
-		pending, err = c.loader.ReadRanges(ctx, request.query, request.reads, c.options.SnapshotPageRows)
+		if loader, ok := c.loader.(interface {
+			ReadRangesWithReference(context.Context, datastore.PreparedQuery, []datastore.Bounds, int, datastore.ReferenceFetch) (*windowloader.PendingWindow, error)
+		}); request.reference != nil && ok {
+			pending, err = loader.ReadRangesWithReference(ctx, request.query, request.reads, c.options.SnapshotPageRows, request.reference.Fetch())
+		} else {
+			pending, err = c.loader.ReadRanges(ctx, request.query, request.reads, c.options.SnapshotPageRows)
+		}
 	}
 	if err != nil {
 		return nil, err
 	}
-	if err := windowloader.WaitForExternalLoads(ctx, []*windowloader.PendingWindow{pending}); err != nil {
+	if err := c.stageWindowRead(ctx, read, pending); err != nil {
 		pending.Cancel(err)
 		return nil, err
 	}
+	if err := windowloader.WaitForExternalLoads(ctx, []*windowloader.PendingWindow{pending}, func(window *windowloader.PendingWindow, indexes []int) error {
+		return c.retryWindowRead(ctx, read, window, indexes)
+	}); err != nil {
+		pending.Cancel(err)
+		return nil, err
+	}
+	if err := c.finishWindowRead(ctx, read); err != nil {
+		pending.Cancel(err)
+		return nil, err
+	}
+	readOwned = false
 	if capture != nil {
 		if err := c.finishReferenceRead(ctx, capture, pending.References, pending.Fence); err != nil {
 			pending.Cancel(err)

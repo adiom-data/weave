@@ -39,16 +39,16 @@ func Resolve(change datastore.Change) Invalidation {
 		result.all = true
 		return result
 	}
-	after, err := change.Apply(nil)
+	after, err := change.AfterKey()
 	if err != nil {
 		result.all = true
 		return result
 	}
-	if before.Relation != result.relation || before.Value == "" || after.Key.Relation != result.relation || after.Key.Value == "" {
+	if before.Relation != result.relation || before.Value == "" || after.Relation != result.relation || after.Value == "" {
 		result.all = true
 		return result
 	}
-	result.before, result.after = before, after.Key
+	result.before, result.after = before, after
 	return result
 }
 

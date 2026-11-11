@@ -119,7 +119,7 @@ func BenchmarkFactStages(b *testing.B) {
 								b.Fatalf("read: %v", err)
 							}
 						case "AssembleCached":
-							resolver := scopeResolver{scope: scope, view: view, used: map[string]struct{}{}, added: map[string]struct{}{}}
+							resolver := scopeResolver{scope: scope, view: view, used: map[string]struct{}{}}
 							result, err := resolver.Resolve(ctx, request)
 							if err != nil || !result.Complete || len(result.Value.List) != count {
 								b.Fatalf("assemble: %v", err)
