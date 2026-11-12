@@ -2,9 +2,13 @@ package projectionserver
 
 import (
 	"context"
+	"crypto/sha256"
+	"errors"
+	"fmt"
 	"strconv"
 	"strings"
-	"sync"
+
+	"google.golang.org/protobuf/proto"
 
 	"github.com/adiom-data/weave/internal/accesscontrol"
 	proj "github.com/adiom-data/weave/internal/projection"
@@ -12,50 +16,102 @@ import (
 	reactivev1 "github.com/adiom-data/weave/pkg/gen/reactive/v1"
 )
 
-func (s *server) handleSharedMessage(ctx context.Context, stream Stream, prefix string, queries querysubscription.Feed, prepared accesscontrol.Prepared, subscriptions map[string]*sharedSubscription, projections map[string]*sharedProjection, pending map[string]*pendingSharedSubscription, loaders *sync.WaitGroup, model *connectionModel, outbound chan<- outboundMessage, projectionOutputs *proj.OutputScheduler[*sharedProjection], releaseProjection func(*sharedProjection) error, cleanupFailedScope func(string) error, message *reactivev1.ClientMessage) error {
-	if message.SubscriptionId == "" || message.RequestId == "" {
-		return sendSharedError(stream, message.SubscriptionId, message.RequestId, "INVALID_ARGUMENT", "subscription_id and request_id are required")
+var errRequestHistoryFull = errors.New("connection request history is full")
+
+type requestLedger struct {
+	limit int
+	seen  map[string][sha256.Size]byte
+}
+
+func newRequestLedger(limit int) *requestLedger {
+	return &requestLedger{limit: limit, seen: make(map[string][sha256.Size]byte)}
+}
+
+// Accept records one immutable request identity for the lifetime of a
+// connection. An identical retry is a no-op: on one ordered gRPC stream the
+// original response either remains in flight or the connection fails, in
+// which case the next connection intentionally starts a new ledger.
+func (l *requestLedger) Accept(message *reactivev1.ClientMessage) (bool, error) {
+	if message == nil || message.RequestId == "" {
+		return true, nil
 	}
-	admissions := &policyAdmissions{ctx: ctx, service: s, stream: stream, queries: queries, prepared: prepared, subscriptions: subscriptions, projections: projections, pending: pending, loaders: loaders, model: model, outbound: outbound, releaseProjection: releaseProjection, cleanupFailedScope: cleanupFailedScope}
+	encoded, err := (proto.MarshalOptions{Deterministic: true}).Marshal(message)
+	if err != nil {
+		return false, fmt.Errorf("encode request identity: %w", err)
+	}
+	digest := sha256.Sum256(encoded)
+	if previous, exists := l.seen[message.RequestId]; exists {
+		if previous != digest {
+			return false, errors.New("request_id was reused for a different request")
+		}
+		return false, nil
+	}
+	if len(l.seen) >= l.limit {
+		return false, fmt.Errorf("%w: limit of %d reached", errRequestHistoryFull, l.limit)
+	}
+	l.seen[message.RequestId] = digest
+	return true, nil
+}
+
+func (session *connectionSession) handleRequest(message *reactivev1.ClientMessage) error {
+	accepted, requestErr := session.requests.Accept(message)
+	if requestErr != nil {
+		code := "INVALID_ARGUMENT"
+		if errors.Is(requestErr, errRequestHistoryFull) {
+			code = "RESOURCE_EXHAUSTED"
+		}
+		if err := sendSharedError(session.stream, message.GetSubscriptionId(), message.GetRequestId(), code, requestErr.Error()); err != nil {
+			return err
+		}
+		return nil
+	}
+	if !accepted {
+		return nil
+	}
+
+	if message.SubscriptionId == "" || message.RequestId == "" {
+		return sendSharedError(session.stream, message.SubscriptionId, message.RequestId, "INVALID_ARGUMENT", "subscription_id and request_id are required")
+	}
+
 	switch operation := message.Operation.(type) {
 	case *reactivev1.ClientMessage_Subscribe:
-		if subscriptions[message.SubscriptionId] != nil || projections[message.SubscriptionId] != nil || hasPending(pending, message.SubscriptionId) {
-			return sendSharedError(stream, message.SubscriptionId, message.RequestId, "ALREADY_EXISTS", "subscription already exists")
+		if session.subscriptions[message.SubscriptionId] != nil || session.projections[message.SubscriptionId] != nil || hasPending(session.pending, message.SubscriptionId) {
+			return sendSharedError(session.stream, message.SubscriptionId, message.RequestId, "ALREADY_EXISTS", "subscription already exists")
 		}
-		if len(subscriptions)+len(projections)+len(pending) >= s.options.MaxSubscriptionsPerConnection {
-			return sendSharedError(stream, message.SubscriptionId, message.RequestId, "RESOURCE_EXHAUSTED", "the stream subscription limit has been reached")
+		if len(session.subscriptions)+len(session.projections)+len(session.pending) >= session.service.options.MaxSubscriptionsPerConnection {
+			return sendSharedError(session.stream, message.SubscriptionId, message.RequestId, "RESOURCE_EXHAUSTED", "the stream subscription limit has been reached")
 		}
-		spec, selected, err := storageQuery(operation.Subscribe.Query, s.options.MaxSelectedFields, s.options.MaxPredicateDepth, s.options.MaxPredicateNodes)
+		spec, selected, err := storageQuery(operation.Subscribe.Query, session.service.options.MaxSelectedFields, session.service.options.MaxPredicateDepth, session.service.options.MaxPredicateNodes)
 		if err != nil {
-			return sendSharedError(stream, message.SubscriptionId, message.RequestId, "INVALID_QUERY", err.Error())
+			return sendSharedError(session.stream, message.SubscriptionId, message.RequestId, "INVALID_QUERY", err.Error())
 		}
 		window := operation.Subscribe.Window
 		if window == nil || (window.From != reactivev1.InitialWindow_FROM_START && window.From != reactivev1.InitialWindow_FROM_END) {
-			return sendSharedError(stream, message.SubscriptionId, message.RequestId, "INVALID_WINDOW", "window must start from START or END")
+			return sendSharedError(session.stream, message.SubscriptionId, message.RequestId, "INVALID_WINDOW", "window must start from START or END")
 		}
-		internalID := prefix + message.SubscriptionId + ":" + strconv.FormatUint(streamSequence.Add(1), 10)
+		internalID := session.prefix + message.SubscriptionId + ":" + strconv.FormatUint(streamSequence.Add(1), 10)
 		queryID := "query:" + internalID
 		externalID, requestID := message.SubscriptionId, message.RequestId
 		initialWindow := querysubscription.InitialWindow{FromEnd: window.From == reactivev1.InitialWindow_FROM_END, Count: int(window.Count)}
-		if s.relationAccess != nil {
-			return admissions.query(externalID, requestID, internalID, queryID, spec, selected, initialWindow)
+		if session.service.relationAccess != nil {
+			return session.admissions.query(externalID, requestID, internalID, queryID, spec, selected, initialWindow)
 		}
-		loadCtx, loadCancel := context.WithCancel(ctx)
+		loadCtx, loadCancel := context.WithCancel(session.ctx)
 		pendingState := &pendingSharedSubscription{cancel: loadCancel, owns: func(id string) bool { return id == internalID }}
-		pending[externalID] = pendingState
-		loaders.Add(1)
+		session.pending[externalID] = pendingState
+		session.loaders.Add(1)
 		go func() {
-			defer loaders.Done()
+			defer session.loaders.Done()
 			visibility := newSubscriptionVisibility()
-			subscribeErr := queries.SubscribeQuery(loadCtx, querysubscription.QuerySubscribeRequest{
+			subscribeErr := session.queries.SubscribeQuery(loadCtx, querysubscription.QuerySubscribeRequest{
 				ID: internalID, Query: spec, Window: initialWindow,
 			}, func(subscription querysubscription.QuerySubscription, snapshot querysubscription.QuerySnapshot) error {
 				var view accesscontrol.View
-				view, installErr := acquireVisibilityAt(loadCtx, s.access, prepared, snapshot.Checkpoint, snapshot.Fence)
+				view, installErr := acquireVisibilityAt(loadCtx, session.service.access, session.prepared, snapshot.Checkpoint, snapshot.Fence)
 				if installErr != nil {
 					return installErr
 				}
-				filtered, installErr := visibility.filterSnapshot(loadCtx, prepared, view, snapshot)
+				filtered, installErr := visibility.filterSnapshot(loadCtx, session.prepared, view, snapshot)
 				if closeErr := view.Close(); installErr == nil && closeErr != nil {
 					installErr = closeErr
 				}
@@ -64,39 +120,39 @@ func (s *server) handleSharedMessage(ctx context.Context, stream Stream, prefix 
 				}
 				finished := make(chan error, 1)
 				installed := false
-				cleanup := func() { _ = subscription.Close(context.WithoutCancel(ctx)) }
+				cleanup := func() { _ = subscription.Close(context.WithoutCancel(session.ctx)) }
 				completion := completionMessage{abandon: cleanup, finished: finished, run: func() error {
-					if pending[externalID] != pendingState {
+					if session.pending[externalID] != pendingState {
 						cleanup()
 						return nil
 					}
 					state := &sharedSubscription{internalID: internalID, queryID: queryID, externalID: externalID, subscription: subscription, visibility: visibility}
-					subscriptions[externalID] = state
-					delete(pending, externalID)
-					batch, modelErr := model.openSubscription(externalID, queryID, "", filtered, selected)
+					session.subscriptions[externalID] = state
+					delete(session.pending, externalID)
+					batch, modelErr := session.publisher.model.openSubscription(externalID, queryID, "", filtered, selected)
 					if modelErr != nil {
-						delete(subscriptions, externalID)
-						cleanupErr := cleanupFailedScope(externalID)
+						delete(session.subscriptions, externalID)
+						cleanupErr := session.publisher.cleanupFailedScope(externalID)
 						cleanup()
 						if cleanupErr != nil {
 							return cleanupErr
 						}
-						return sendSharedError(stream, externalID, requestID, "SUBSCRIBE_FAILED", modelErr.Error())
+						return sendSharedError(session.stream, externalID, requestID, "SUBSCRIBE_FAILED", modelErr.Error())
 					}
 					batch.Kind = reactivev1.ModelBatch_KIND_SNAPSHOT
 					state.sequence++
-					if sendErr := stream.Send(&reactivev1.ServerMessage{SubscriptionId: externalID, RequestId: requestID, Sequence: state.sequence, Event: &reactivev1.ServerMessage_ModelBatch{ModelBatch: batch}}); sendErr != nil {
+					if sendErr := session.stream.Send(&reactivev1.ServerMessage{SubscriptionId: externalID, RequestId: requestID, Sequence: state.sequence, Event: &reactivev1.ServerMessage_ModelBatch{ModelBatch: batch}}); sendErr != nil {
 						return sendErr
 					}
 					state.sequence++
-					if sendErr := stream.Send(&reactivev1.ServerMessage{SubscriptionId: externalID, RequestId: requestID, Sequence: state.sequence, Event: &reactivev1.ServerMessage_Ready{Ready: &reactivev1.Ready{}}}); sendErr != nil {
+					if sendErr := session.stream.Send(&reactivev1.ServerMessage{SubscriptionId: externalID, RequestId: requestID, Sequence: state.sequence, Event: &reactivev1.ServerMessage_Ready{Ready: &reactivev1.Ready{}}}); sendErr != nil {
 						return sendErr
 					}
 					installed = true
 					return nil
 				}}
 				select {
-				case outbound <- completion:
+				case session.outbound <- completion:
 				case <-loadCtx.Done():
 					cleanup()
 					return loadCtx.Err()
@@ -120,68 +176,68 @@ func (s *server) handleSharedMessage(ctx context.Context, stream Stream, prefix 
 				return
 			}
 			completion := completionMessage{run: func() error {
-				if pending[externalID] != pendingState {
+				if session.pending[externalID] != pendingState {
 					return nil
 				}
-				delete(pending, externalID)
+				delete(session.pending, externalID)
 				loadCancel()
-				return sendSharedError(stream, externalID, requestID, "SUBSCRIBE_FAILED", subscribeErr.Error())
+				return sendSharedError(session.stream, externalID, requestID, "SUBSCRIBE_FAILED", subscribeErr.Error())
 			}}
 			select {
-			case outbound <- completion:
-			case <-ctx.Done():
+			case session.outbound <- completion:
+			case <-session.ctx.Done():
 				loadCancel()
 			}
 		}()
 		return nil
 	case *reactivev1.ClientMessage_SubscribeProjection:
-		if subscriptions[message.SubscriptionId] != nil || projections[message.SubscriptionId] != nil || hasPending(pending, message.SubscriptionId) {
-			return sendSharedError(stream, message.SubscriptionId, message.RequestId, "ALREADY_EXISTS", "subscription already exists")
+		if session.subscriptions[message.SubscriptionId] != nil || session.projections[message.SubscriptionId] != nil || hasPending(session.pending, message.SubscriptionId) {
+			return sendSharedError(session.stream, message.SubscriptionId, message.RequestId, "ALREADY_EXISTS", "subscription already exists")
 		}
-		if len(subscriptions)+len(projections)+len(pending) >= s.options.MaxSubscriptionsPerConnection {
-			return sendSharedError(stream, message.SubscriptionId, message.RequestId, "RESOURCE_EXHAUSTED", "the stream subscription limit has been reached")
+		if len(session.subscriptions)+len(session.projections)+len(session.pending) >= session.service.options.MaxSubscriptionsPerConnection {
+			return sendSharedError(session.stream, message.SubscriptionId, message.RequestId, "RESOURCE_EXHAUSTED", "the stream subscription limit has been reached")
 		}
-		root, selected, err := projectionNode(operation.SubscribeProjection.Root, operation.SubscribeProjection.Parameters, s.options.MaxSelectedFields, s.options.MaxPredicateDepth, s.options.MaxPredicateNodes)
+		root, selected, err := projectionNode(operation.SubscribeProjection.Root, operation.SubscribeProjection.Parameters, session.service.options.MaxSelectedFields, session.service.options.MaxPredicateDepth, session.service.options.MaxPredicateNodes)
 		if err != nil {
-			return sendSharedError(stream, message.SubscriptionId, message.RequestId, "INVALID_PROJECTION", err.Error())
+			return sendSharedError(session.stream, message.SubscriptionId, message.RequestId, "INVALID_PROJECTION", err.Error())
 		}
-		if s.relationAccess == nil {
+		if session.service.relationAccess == nil {
 			for _, fields := range selected {
 				if len(computedSelection(fields)) > 0 {
-					return sendSharedError(stream, message.SubscriptionId, message.RequestId, "INVALID_PROJECTION", "computed fields require relation definitions")
+					return sendSharedError(session.stream, message.SubscriptionId, message.RequestId, "INVALID_PROJECTION", "computed fields require relation definitions")
 				}
 			}
 		}
 		externalID, requestID := message.SubscriptionId, message.RequestId
-		if s.relationAccess != nil {
-			return admissions.projection(externalID, requestID, prefix, root, selected, operation.SubscribeProjection.WaitForSync, operation.SubscribeProjection.AllowPartialErrors, operation.SubscribeProjection.AtLeastFence)
+		if session.service.relationAccess != nil {
+			return session.admissions.projection(externalID, requestID, session.prefix, root, selected, operation.SubscribeProjection.WaitForSync, operation.SubscribeProjection.AllowPartialErrors, operation.SubscribeProjection.AtLeastFence)
 		}
-		generation := prefix + "projection:" + strconv.FormatUint(streamSequence.Add(1), 10)
-		loadCtx, loadCancel := context.WithCancel(ctx)
+		generation := session.prefix + "projection:" + strconv.FormatUint(streamSequence.Add(1), 10)
+		loadCtx, loadCancel := context.WithCancel(session.ctx)
 		pendingState := &pendingSharedSubscription{cancel: loadCancel, generation: generation, owns: func(id string) bool { return strings.HasPrefix(id, generation+":") }}
-		pending[externalID] = pendingState
-		projection, beginErr := proj.BeginProjection(loadCtx, queries, root, proj.StartOptions{
-			Prefix: generation, QueueLimit: s.options.SubscriptionQueueLimit, Limits: proj.Limits(s.options.ProjectionLimits),
-			ExpansionLimiter:   s.expansionLimiter,
+		session.pending[externalID] = pendingState
+		projection, beginErr := proj.BeginProjection(loadCtx, session.queries, root, proj.StartOptions{
+			Prefix: generation, QueueLimit: session.service.options.SubscriptionQueueLimit, Limits: proj.Limits(session.service.options.ProjectionLimits),
+			ExpansionLimiter:   session.service.expansionLimiter,
 			WaitForSync:        operation.SubscribeProjection.WaitForSync,
 			AtLeastFence:       operation.SubscribeProjection.AtLeastFence,
 			AllowPartialErrors: operation.SubscribeProjection.AllowPartialErrors,
 		})
 		if beginErr != nil {
-			delete(pending, externalID)
+			delete(session.pending, externalID)
 			loadCancel()
-			return sendSharedError(stream, externalID, requestID, "SUBSCRIBE_FAILED", beginErr.Error())
+			return sendSharedError(session.stream, externalID, requestID, "SUBSCRIBE_FAILED", beginErr.Error())
 		}
 		pendingState.projection = projection
-		go forwardProjection(ctx, externalID, generation, projection, outbound)
-		loaders.Add(1)
+		go forwardProjection(session.ctx, externalID, generation, projection, session.outbound)
+		session.loaders.Add(1)
 		go func() {
-			defer loaders.Done()
+			defer session.loaders.Done()
 			visibility := newProjectionVisibility(selected)
 			visibility.partial = operation.SubscribeProjection.AllowPartialErrors
 			initial, _, subscribeErr := projection.TakeInitial(loadCtx)
 			if subscribeErr == nil {
-				initial, subscribeErr = visibility.filterInitial(loadCtx, s.access, prepared, initial)
+				initial, subscribeErr = visibility.filterInitial(loadCtx, session.service.access, session.prepared, initial)
 			}
 			cleanup := func() {
 				if projection != nil {
@@ -190,7 +246,7 @@ func (s *server) handleSharedMessage(ctx context.Context, stream Stream, prefix 
 				loadCancel()
 			}
 			completion := completionMessage{abandon: cleanup, run: func() error {
-				if pending[externalID] != pendingState {
+				if session.pending[externalID] != pendingState {
 					cleanup()
 					return nil
 				}
@@ -198,24 +254,24 @@ func (s *server) handleSharedMessage(ctx context.Context, stream Stream, prefix 
 					subscribeErr = terminalErr
 				}
 				if subscribeErr != nil {
-					delete(pending, externalID)
+					delete(session.pending, externalID)
 					cleanup()
-					return sendSharedError(stream, externalID, requestID, "SUBSCRIBE_FAILED", subscribeErr.Error())
+					return sendSharedError(session.stream, externalID, requestID, "SUBSCRIBE_FAILED", subscribeErr.Error())
 				}
 				state := &sharedProjection{externalID: externalID, generation: generation, projection: projection, cancel: loadCancel, visibility: visibility, selected: selected}
-				projections[externalID] = state
-				delete(pending, externalID)
+				session.projections[externalID] = state
+				delete(session.pending, externalID)
 				// Keep the load context with the installed projection so closing the
 				// client-visible scope also releases its parent context resources.
-				initialBatch, modelErr := model.applyProjection(externalID, proj.ProjectionBatch{Events: initial}, selected)
+				initialBatch, modelErr := session.publisher.model.applyProjection(externalID, proj.ProjectionBatch{Events: initial}, selected)
 				if modelErr != nil {
-					delete(projections, externalID)
-					cleanupErr := cleanupFailedScope(externalID)
+					delete(session.projections, externalID)
+					cleanupErr := session.publisher.cleanupFailedScope(externalID)
 					cleanup()
 					if cleanupErr != nil {
 						return cleanupErr
 					}
-					return sendSharedError(stream, externalID, requestID, "SUBSCRIBE_FAILED", modelErr.Error())
+					return sendSharedError(session.stream, externalID, requestID, "SUBSCRIBE_FAILED", modelErr.Error())
 				}
 				initialBatch.Kind = reactivev1.ModelBatch_KIND_SNAPSHOT
 				if operation.SubscribeProjection.WaitForSync && len(initial) > 0 {
@@ -229,102 +285,102 @@ func (s *server) handleSharedMessage(ctx context.Context, stream Stream, prefix 
 					initialBatch.Checkpoint = checkpointString(checkpoint)
 				}
 				state.sequence++
-				if sendErr := stream.Send(&reactivev1.ServerMessage{SubscriptionId: externalID, RequestId: requestID, Sequence: state.sequence, Event: &reactivev1.ServerMessage_ModelBatch{ModelBatch: initialBatch}}); sendErr != nil {
+				if sendErr := session.stream.Send(&reactivev1.ServerMessage{SubscriptionId: externalID, RequestId: requestID, Sequence: state.sequence, Event: &reactivev1.ServerMessage_ModelBatch{ModelBatch: initialBatch}}); sendErr != nil {
 					return sendErr
 				}
 				state.sequence++
-				if sendErr := stream.Send(&reactivev1.ServerMessage{SubscriptionId: externalID, RequestId: requestID, Sequence: state.sequence, Event: &reactivev1.ServerMessage_Ready{Ready: &reactivev1.Ready{}}}); sendErr != nil {
+				if sendErr := session.stream.Send(&reactivev1.ServerMessage{SubscriptionId: externalID, RequestId: requestID, Sequence: state.sequence, Event: &reactivev1.ServerMessage_Ready{Ready: &reactivev1.Ready{}}}); sendErr != nil {
 					return sendErr
 				}
-				return releaseProjection(state)
+				return session.publisher.releaseProjection(state)
 			}}
 			select {
-			case outbound <- completion:
-			case <-ctx.Done():
+			case session.outbound <- completion:
+			case <-session.ctx.Done():
 				cleanup()
 			}
 		}()
 		return nil
 	case *reactivev1.ClientMessage_UpdateWindow:
-		state := subscriptions[message.SubscriptionId]
+		state := session.subscriptions[message.SubscriptionId]
 		if state == nil {
-			return sendSharedError(stream, message.SubscriptionId, message.RequestId, "NOT_FOUND", "subscription does not exist")
+			return sendSharedError(session.stream, message.SubscriptionId, message.RequestId, "NOT_FOUND", "subscription does not exist")
 		}
 		changes, err := queryBoundaryChanges(operation.UpdateWindow)
 		if err != nil {
-			return sendSharedError(stream, state.externalID, message.RequestId, "INVALID_WINDOW", err.Error())
+			return sendSharedError(session.stream, state.externalID, message.RequestId, "INVALID_WINDOW", err.Error())
 		}
 		externalID, internalID, requestID := state.externalID, state.internalID, message.RequestId
 		go func() {
-			if updateErr := state.subscription.UpdateWindow(ctx, changes, requestID); updateErr != nil {
+			if updateErr := state.subscription.UpdateWindow(session.ctx, changes, requestID); updateErr != nil {
 				select {
-				case outbound <- windowFailedMessage{externalID: externalID, generation: internalID, requestID: requestID, cause: updateErr}:
-				case <-ctx.Done():
+				case session.outbound <- windowFailedMessage{externalID: externalID, generation: internalID, requestID: requestID, cause: updateErr}:
+				case <-session.ctx.Done():
 				}
 			}
 		}()
 		return nil
 	case *reactivev1.ClientMessage_UpdateProjectionWindow:
-		state := projections[message.SubscriptionId]
+		state := session.projections[message.SubscriptionId]
 		if state == nil {
-			return sendSharedError(stream, message.SubscriptionId, message.RequestId, "NOT_FOUND", "projection does not exist")
+			return sendSharedError(session.stream, message.SubscriptionId, message.RequestId, "NOT_FOUND", "projection does not exist")
 		}
 		if operation.UpdateProjectionWindow.InstanceId == "" {
-			return sendSharedError(stream, message.SubscriptionId, message.RequestId, "INVALID_WINDOW", "instance_id is required")
+			return sendSharedError(session.stream, message.SubscriptionId, message.RequestId, "INVALID_WINDOW", "instance_id is required")
 		}
 		changes, err := queryBoundaryChanges(&reactivev1.UpdateWindow{Updates: operation.UpdateProjectionWindow.Updates})
 		if err != nil {
-			return sendSharedError(stream, message.SubscriptionId, message.RequestId, "INVALID_WINDOW", err.Error())
+			return sendSharedError(session.stream, message.SubscriptionId, message.RequestId, "INVALID_WINDOW", err.Error())
 		}
 		externalID, generation, instanceID, requestID := state.externalID, state.generation, operation.UpdateProjectionWindow.InstanceId, message.RequestId
 		projection := state.projection
 		go func() {
-			if updateErr := projection.QueueWindowUpdate(ctx, instanceID, changes, requestID); updateErr != nil {
+			if updateErr := projection.QueueWindowUpdate(session.ctx, instanceID, changes, requestID); updateErr != nil {
 				select {
-				case outbound <- windowFailedMessage{externalID: externalID, generation: generation, requestID: requestID, cause: updateErr}:
-				case <-ctx.Done():
+				case session.outbound <- windowFailedMessage{externalID: externalID, generation: generation, requestID: requestID, cause: updateErr}:
+				case <-session.ctx.Done():
 				}
 			}
 		}()
 		return nil
 	case *reactivev1.ClientMessage_Unsubscribe:
-		state := subscriptions[message.SubscriptionId]
+		state := session.subscriptions[message.SubscriptionId]
 		if state != nil {
-			delete(subscriptions, message.SubscriptionId)
-			_ = state.subscription.Close(ctx)
+			delete(session.subscriptions, message.SubscriptionId)
+			_ = state.subscription.Close(session.ctx)
 			state.publication.close()
 			if state.cancel != nil {
 				state.cancel()
 			}
-			_ = prepared.Release(ctx, state.visibility.id, nil)
-			batch, err := model.closeScope(message.SubscriptionId)
+			_ = session.prepared.Release(session.ctx, state.visibility.id, nil)
+			batch, err := session.publisher.model.closeScope(message.SubscriptionId)
 			if err != nil {
 				return err
 			}
 			state.sequence++
-			return stream.Send(&reactivev1.ServerMessage{SubscriptionId: state.externalID, RequestId: message.RequestId, Sequence: state.sequence, Event: &reactivev1.ServerMessage_ModelBatch{ModelBatch: batch}})
+			return session.stream.Send(&reactivev1.ServerMessage{SubscriptionId: state.externalID, RequestId: message.RequestId, Sequence: state.sequence, Event: &reactivev1.ServerMessage_ModelBatch{ModelBatch: batch}})
 		}
-		projection := projections[message.SubscriptionId]
+		projection := session.projections[message.SubscriptionId]
 		if projection != nil {
-			delete(projections, message.SubscriptionId)
-			projectionOutputs.Drop(projection.projection)
+			delete(session.projections, message.SubscriptionId)
+			session.publisher.outputs.Drop(projection.projection)
 			projection.close()
-			_ = projection.releaseVisibility(ctx, prepared)
-			batch, err := model.closeScope(message.SubscriptionId)
+			_ = projection.releaseVisibility(session.ctx, session.prepared)
+			batch, err := session.publisher.model.closeScope(message.SubscriptionId)
 			if err != nil {
 				return err
 			}
 			projection.sequence++
-			return stream.Send(&reactivev1.ServerMessage{SubscriptionId: projection.externalID, RequestId: message.RequestId, Sequence: projection.sequence, Event: &reactivev1.ServerMessage_ModelBatch{ModelBatch: batch}})
+			return session.stream.Send(&reactivev1.ServerMessage{SubscriptionId: projection.externalID, RequestId: message.RequestId, Sequence: projection.sequence, Event: &reactivev1.ServerMessage_ModelBatch{ModelBatch: batch}})
 		}
-		if loading := pending[message.SubscriptionId]; loading != nil {
-			delete(pending, message.SubscriptionId)
+		if loading := session.pending[message.SubscriptionId]; loading != nil {
+			delete(session.pending, message.SubscriptionId)
 			loading.cancel()
-			return stream.Send(&reactivev1.ServerMessage{SubscriptionId: message.SubscriptionId, RequestId: message.RequestId, Sequence: 1, Event: &reactivev1.ServerMessage_ModelBatch{ModelBatch: &reactivev1.ModelBatch{}}})
+			return session.stream.Send(&reactivev1.ServerMessage{SubscriptionId: message.SubscriptionId, RequestId: message.RequestId, Sequence: 1, Event: &reactivev1.ServerMessage_ModelBatch{ModelBatch: &reactivev1.ModelBatch{}}})
 		}
-		return sendSharedError(stream, message.SubscriptionId, message.RequestId, "NOT_FOUND", "subscription does not exist")
+		return sendSharedError(session.stream, message.SubscriptionId, message.RequestId, "NOT_FOUND", "subscription does not exist")
 	default:
-		return sendSharedError(stream, message.SubscriptionId, message.RequestId, "INVALID_ARGUMENT", "operation is required")
+		return sendSharedError(session.stream, message.SubscriptionId, message.RequestId, "INVALID_ARGUMENT", "operation is required")
 	}
 }
 
