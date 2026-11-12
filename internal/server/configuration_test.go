@@ -4,10 +4,19 @@ import (
 	"context"
 	"net/http"
 	"testing"
+	"time"
 
 	"connectrpc.com/connect"
 	"github.com/adiom-data/framework/httpapp"
 )
+
+func TestQueryFenceTimeoutConfigurationIsForwarded(t *testing.T) {
+	c := validConfig()
+	c.Query.FenceWaitTimeout = 45 * time.Second
+	if got := queryOptions(c).FenceWaitTimeout; got != c.Query.FenceWaitTimeout {
+		t.Fatalf("query fence wait timeout = %v, want %v", got, c.Query.FenceWaitTimeout)
+	}
+}
 
 func TestConfigValidationDoesNotConnectAndNewRejectsInvalidPolicy(t *testing.T) {
 	c := validConfig()

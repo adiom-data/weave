@@ -273,6 +273,21 @@ func (s *remoteFeed) RequestProgress(ctx context.Context) error {
 	return nil
 }
 
+func (s *remoteFeed) WaitForFence(ctx context.Context, fence string) (*querysubscription.Position, error) {
+	result, err := s.request(ctx, &querysubscriptionv1.ClientMessage{Operation: &querysubscriptionv1.ClientMessage_WaitForFence{WaitForFence: &querysubscriptionv1.WaitForFence{Fence: fence}}})
+	if err != nil {
+		return nil, err
+	}
+	if result.message == nil || result.message.GetAcknowledged().GetFencePosition() == nil {
+		return nil, errors.New("query server returned an invalid fence acknowledgment")
+	}
+	position := positionFromProto(result.message.GetAcknowledged().GetFencePosition())
+	if position.SourceID == "" {
+		return nil, errors.New("query server returned a fence position without a source")
+	}
+	return position, nil
+}
+
 func (s *remoteFeed) Close(ctx context.Context) error {
 	if err := s.closeMu.Lock(ctx); err != nil {
 		return err
@@ -773,6 +788,8 @@ func remoteError(wire *querysubscriptionv1.Error) error {
 	}
 	var sentinel error
 	switch wire.Code {
+	case querysubscriptionv1.Error_CODE_DEADLINE_EXCEEDED:
+		sentinel = context.DeadlineExceeded
 	case querysubscriptionv1.Error_CODE_BACKPRESSURE:
 		sentinel = querysubscription.ErrBackpressure
 	case querysubscriptionv1.Error_CODE_CLOSED:

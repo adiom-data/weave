@@ -14,6 +14,7 @@ import (
 func TestTuningYAMLRoundTrip(t *testing.T) {
 	c := validConfig()
 	c.Query.Limits.EntityIdleTTL = 7 * time.Minute
+	c.Query.FenceWaitTimeout = 45 * time.Second
 	c.Storage.Postgres.Replication.StatusInterval = 3 * time.Second
 	c.Projection.Dependencies.CleanupBatchSize = 27
 	c.Relations.Limits.MaxNodes = 1234

@@ -36,6 +36,14 @@ The query server has no PostgreSQL dependency: it consumes `storage.Storage`.
 Its coordinator, shared caches, routing indexes, and subscription delivery remain
 private. No loopback transport or alternate embedded fast path is involved.
 
+`Options.FenceWaitTimeout` bounds each `Feed.WaitForFence` operation, including
+token validation, source catch-up, and query-side reference materialization.
+Zero selects the 30s default; negative values are rejected. Earlier caller
+deadlines still apply. Expiry returns `context.DeadlineExceeded` for that
+operation without closing the feed or canceling other subscriptions. The same
+limit applies to embedded and gRPC callers. Projection-side processing and the
+rest of projection initialization remain subject to their request context.
+
 ### Exact entity selectors
 
 `SubscribeEntity` uses a direct identity index when the adapter proves that

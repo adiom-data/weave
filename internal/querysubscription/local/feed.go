@@ -25,6 +25,8 @@ func (s *localFeed) acceptProgress(report delivery.ProgressReport) error {
 	if err := (querysubscription.Event{Progress: &event}).Validate(); err != nil {
 		return fmt.Errorf("query engine returned invalid progress report: %w", err)
 	}
+	// Keep proof independent of metadata transferred to the event consumer.
+	proof := *position
 	s.feedMu.Lock()
 	defer s.feedMu.Unlock()
 	if report.Revision <= s.flushedRevision {
@@ -41,7 +43,11 @@ func (s *localFeed) acceptProgress(report delivery.ProgressReport) error {
 	}); err != nil {
 		return err
 	}
-	return s.drainFeedLocked()
+	if err := s.drainFeedLocked(); err != nil {
+		return err
+	}
+	s.rememberSourceProof(proof)
+	return nil
 }
 
 // addDeliveryLocked bounds the shared reorder buffer regardless of whether a
@@ -93,9 +99,14 @@ func (s *localFeed) drainFeedLocked() error {
 		if err != nil {
 			return err
 		}
+		var proof querysubscription.Position
+		if state.metadata.Kind == querysubscription.DeliveryCommit && state.metadata.Checkpoint != nil {
+			proof = *state.metadata.Checkpoint
+		}
 		if err := s.offer(querysubscription.Event{Delivery: &querysubscription.DeliveryEnvelope{Delivery: state.metadata, Effects: effects, Entities: entities}}); err != nil {
 			return err
 		}
+		s.rememberSourceProof(proof)
 		for _, job := range jobs {
 			// Post-publication actions only enqueue bounded work or attach an
 			// already-loaded interest; they never perform IO here.

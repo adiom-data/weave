@@ -231,6 +231,16 @@ func (s *serverFeed) handle(ctx context.Context, message *querysubscriptionv1.Cl
 		if err == nil {
 			err = s.ack(message.RequestId)
 		}
+	case *querysubscriptionv1.ClientMessage_WaitForFence:
+		if operation.WaitForFence == nil || operation.WaitForFence.Fence == "" {
+			err = errors.New("read fence is required")
+		} else {
+			var position *querysubscription.Position
+			position, err = s.feed.WaitForFence(ctx, operation.WaitForFence.Fence)
+			if err == nil {
+				err = s.send(&querysubscriptionv1.ServerMessage{RequestId: message.RequestId, Event: &querysubscriptionv1.ServerMessage_Acknowledged{Acknowledged: &querysubscriptionv1.Acknowledged{FencePosition: positionToProto(position)}}})
+			}
+		}
 	case *querysubscriptionv1.ClientMessage_CloseFeed:
 		err = s.closeFeed(ctx)
 		if err == nil {
@@ -526,6 +536,8 @@ func operationSubscriptionID(message *querysubscriptionv1.ClientMessage) string 
 
 func errorCode(err error) querysubscriptionv1.Error_Code {
 	switch {
+	case errors.Is(err, context.DeadlineExceeded):
+		return querysubscriptionv1.Error_CODE_DEADLINE_EXCEEDED
 	case errors.Is(err, querysubscription.ErrBackpressure):
 		return querysubscriptionv1.Error_CODE_BACKPRESSURE
 	case errors.Is(err, querysubscription.ErrClosed), errors.Is(err, context.Canceled):

@@ -15,6 +15,8 @@ import (
 )
 
 type consumer struct {
+	ctx           context.Context
+	cancel        context.CancelFunc
 	generation    *generation
 	events        *feedbuffer.Buffer
 	facts         bool
@@ -24,7 +26,8 @@ type consumer struct {
 }
 
 func newConsumer(g *generation, limit int, facts bool) *consumer {
-	return &consumer{generation: g, events: feedbuffer.New(limit), facts: facts, subscriptions: make(map[string]*subscription)}
+	ctx, cancel := context.WithCancel(g.ctx)
+	return &consumer{ctx: ctx, cancel: cancel, generation: g, events: feedbuffer.New(limit), facts: facts, subscriptions: make(map[string]*subscription)}
 }
 
 func (f *consumer) Next(ctx context.Context) (q.Event, error) { return f.events.Next(ctx) }
@@ -39,6 +42,7 @@ func (f *consumer) closeLocked(reason error) {
 		return
 	}
 	f.closed = true
+	f.cancel()
 	if f.stop != nil {
 		f.stop()
 	}

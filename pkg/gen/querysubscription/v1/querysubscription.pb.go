@@ -70,17 +70,18 @@ func (x PayloadChunk_Kind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use PayloadChunk_Kind.Descriptor instead.
 func (PayloadChunk_Kind) EnumDescriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{14, 0}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{15, 0}
 }
 
 type Error_Code int32
 
 const (
-	Error_CODE_UNSPECIFIED     Error_Code = 0
-	Error_CODE_INVALID_REQUEST Error_Code = 1
-	Error_CODE_BACKPRESSURE    Error_Code = 2
-	Error_CODE_CLOSED          Error_Code = 3
-	Error_CODE_INTERNAL        Error_Code = 4
+	Error_CODE_UNSPECIFIED       Error_Code = 0
+	Error_CODE_INVALID_REQUEST   Error_Code = 1
+	Error_CODE_BACKPRESSURE      Error_Code = 2
+	Error_CODE_CLOSED            Error_Code = 3
+	Error_CODE_INTERNAL          Error_Code = 4
+	Error_CODE_DEADLINE_EXCEEDED Error_Code = 5
 )
 
 // Enum value maps for Error_Code.
@@ -91,13 +92,15 @@ var (
 		2: "CODE_BACKPRESSURE",
 		3: "CODE_CLOSED",
 		4: "CODE_INTERNAL",
+		5: "CODE_DEADLINE_EXCEEDED",
 	}
 	Error_Code_value = map[string]int32{
-		"CODE_UNSPECIFIED":     0,
-		"CODE_INVALID_REQUEST": 1,
-		"CODE_BACKPRESSURE":    2,
-		"CODE_CLOSED":          3,
-		"CODE_INTERNAL":        4,
+		"CODE_UNSPECIFIED":       0,
+		"CODE_INVALID_REQUEST":   1,
+		"CODE_BACKPRESSURE":      2,
+		"CODE_CLOSED":            3,
+		"CODE_INTERNAL":          4,
+		"CODE_DEADLINE_EXCEEDED": 5,
 	}
 )
 
@@ -125,7 +128,7 @@ func (x Error_Code) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Error_Code.Descriptor instead.
 func (Error_Code) EnumDescriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{15, 0}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{16, 0}
 }
 
 type Comparison_Operator int32
@@ -186,7 +189,7 @@ func (x Comparison_Operator) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Comparison_Operator.Descriptor instead.
 func (Comparison_Operator) EnumDescriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{19, 0}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{20, 0}
 }
 
 type Junction_Operator int32
@@ -235,7 +238,7 @@ func (x Junction_Operator) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Junction_Operator.Descriptor instead.
 func (Junction_Operator) EnumDescriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{21, 0}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{22, 0}
 }
 
 type Value_State int32
@@ -287,7 +290,7 @@ func (x Value_State) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Value_State.Descriptor instead.
 func (Value_State) EnumDescriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{23, 0}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{24, 0}
 }
 
 type Boundary_Kind int32
@@ -339,7 +342,7 @@ func (x Boundary_Kind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Boundary_Kind.Descriptor instead.
 func (Boundary_Kind) EnumDescriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{31, 0}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{32, 0}
 }
 
 type BoundaryChange_Side int32
@@ -388,7 +391,7 @@ func (x BoundaryChange_Side) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use BoundaryChange_Side.Descriptor instead.
 func (BoundaryChange_Side) EnumDescriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{41, 0}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{42, 0}
 }
 
 type BoundaryChange_Operation int32
@@ -440,7 +443,7 @@ func (x BoundaryChange_Operation) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use BoundaryChange_Operation.Descriptor instead.
 func (BoundaryChange_Operation) EnumDescriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{41, 1}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{42, 1}
 }
 
 type DeliveryMetadata_Kind int32
@@ -492,7 +495,7 @@ func (x DeliveryMetadata_Kind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use DeliveryMetadata_Kind.Descriptor instead.
 func (DeliveryMetadata_Kind) EnumDescriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{42, 0}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{43, 0}
 }
 
 type Change_Kind int32
@@ -544,7 +547,7 @@ func (x Change_Kind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use Change_Kind.Descriptor instead.
 func (Change_Kind) EnumDescriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{43, 0}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{44, 0}
 }
 
 type ClientMessage struct {
@@ -560,6 +563,7 @@ type ClientMessage struct {
 	//	*ClientMessage_CancelRequest
 	//	*ClientMessage_CloseFeed
 	//	*ClientMessage_RequestProgress
+	//	*ClientMessage_WaitForFence
 	Operation     isClientMessage_Operation `protobuf_oneof:"operation"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -681,6 +685,15 @@ func (x *ClientMessage) GetRequestProgress() *RequestProgress {
 	return nil
 }
 
+func (x *ClientMessage) GetWaitForFence() *WaitForFence {
+	if x != nil {
+		if x, ok := x.Operation.(*ClientMessage_WaitForFence); ok {
+			return x.WaitForFence
+		}
+	}
+	return nil
+}
+
 type isClientMessage_Operation interface {
 	isClientMessage_Operation()
 }
@@ -717,6 +730,10 @@ type ClientMessage_RequestProgress struct {
 	RequestProgress *RequestProgress `protobuf:"bytes,9,opt,name=request_progress,json=requestProgress,proto3,oneof"`
 }
 
+type ClientMessage_WaitForFence struct {
+	WaitForFence *WaitForFence `protobuf:"bytes,10,opt,name=wait_for_fence,json=waitForFence,proto3,oneof"`
+}
+
 func (*ClientMessage_Initialize) isClientMessage_Operation() {}
 
 func (*ClientMessage_SubscribeQuery) isClientMessage_Operation() {}
@@ -732,6 +749,8 @@ func (*ClientMessage_CancelRequest) isClientMessage_Operation() {}
 func (*ClientMessage_CloseFeed) isClientMessage_Operation() {}
 
 func (*ClientMessage_RequestProgress) isClientMessage_Operation() {}
+
+func (*ClientMessage_WaitForFence) isClientMessage_Operation() {}
 
 // Initialize is the mandatory first-message handshake for its containing
 // stream. It negotiates feed-wide limits and does not create another resource.
@@ -1302,6 +1321,52 @@ func (*RequestProgress) Descriptor() ([]byte, []int) {
 	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{11}
 }
 
+// Waits for applied CDC, requesting source progress when necessary. The
+// acknowledgment carries the covered position; ordered Progress is also sent.
+type WaitForFence struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Fence         string                 `protobuf:"bytes,1,opt,name=fence,proto3" json:"fence,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WaitForFence) Reset() {
+	*x = WaitForFence{}
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WaitForFence) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WaitForFence) ProtoMessage() {}
+
+func (x *WaitForFence) ProtoReflect() protoreflect.Message {
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WaitForFence.ProtoReflect.Descriptor instead.
+func (*WaitForFence) Descriptor() ([]byte, []int) {
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *WaitForFence) GetFence() string {
+	if x != nil {
+		return x.Fence
+	}
+	return ""
+}
+
 type ServerMessage struct {
 	state     protoimpl.MessageState `protogen:"open.v1"`
 	RequestId string                 `protobuf:"bytes,1,opt,name=request_id,json=requestId,proto3" json:"request_id,omitempty"`
@@ -1318,7 +1383,7 @@ type ServerMessage struct {
 
 func (x *ServerMessage) Reset() {
 	*x = ServerMessage{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[12]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1330,7 +1395,7 @@ func (x *ServerMessage) String() string {
 func (*ServerMessage) ProtoMessage() {}
 
 func (x *ServerMessage) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[12]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1343,7 +1408,7 @@ func (x *ServerMessage) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ServerMessage.ProtoReflect.Descriptor instead.
 func (*ServerMessage) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{12}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ServerMessage) GetRequestId() string {
@@ -1427,14 +1492,15 @@ func (*ServerMessage_PayloadChunk) isServerMessage_Event() {}
 type Acknowledged struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// Set only on the Initialize acknowledgment.
-	ProtocolVersion uint32 `protobuf:"varint,1,opt,name=protocol_version,json=protocolVersion,proto3" json:"protocol_version,omitempty"`
+	ProtocolVersion uint32    `protobuf:"varint,1,opt,name=protocol_version,json=protocolVersion,proto3" json:"protocol_version,omitempty"`
+	FencePosition   *Position `protobuf:"bytes,2,opt,name=fence_position,json=fencePosition,proto3" json:"fence_position,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
 
 func (x *Acknowledged) Reset() {
 	*x = Acknowledged{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[13]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1446,7 +1512,7 @@ func (x *Acknowledged) String() string {
 func (*Acknowledged) ProtoMessage() {}
 
 func (x *Acknowledged) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[13]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1459,7 +1525,7 @@ func (x *Acknowledged) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Acknowledged.ProtoReflect.Descriptor instead.
 func (*Acknowledged) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{13}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *Acknowledged) GetProtocolVersion() uint32 {
@@ -1467,6 +1533,13 @@ func (x *Acknowledged) GetProtocolVersion() uint32 {
 		return x.ProtocolVersion
 	}
 	return 0
+}
+
+func (x *Acknowledged) GetFencePosition() *Position {
+	if x != nil {
+		return x.FencePosition
+	}
+	return nil
 }
 
 // PayloadChunk frames a serialized QuerySnapshot, EntityInstallation, or
@@ -1488,7 +1561,7 @@ type PayloadChunk struct {
 
 func (x *PayloadChunk) Reset() {
 	*x = PayloadChunk{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[14]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1500,7 +1573,7 @@ func (x *PayloadChunk) String() string {
 func (*PayloadChunk) ProtoMessage() {}
 
 func (x *PayloadChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[14]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1513,7 +1586,7 @@ func (x *PayloadChunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PayloadChunk.ProtoReflect.Descriptor instead.
 func (*PayloadChunk) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{14}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *PayloadChunk) GetKind() PayloadChunk_Kind {
@@ -1576,7 +1649,7 @@ type Error struct {
 
 func (x *Error) Reset() {
 	*x = Error{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[15]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1588,7 +1661,7 @@ func (x *Error) String() string {
 func (*Error) ProtoMessage() {}
 
 func (x *Error) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[15]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1601,7 +1674,7 @@ func (x *Error) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Error.ProtoReflect.Descriptor instead.
 func (*Error) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{15}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *Error) GetCode() Error_Code {
@@ -1637,7 +1710,7 @@ type Query struct {
 
 func (x *Query) Reset() {
 	*x = Query{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[16]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1649,7 +1722,7 @@ func (x *Query) String() string {
 func (*Query) ProtoMessage() {}
 
 func (x *Query) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[16]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1662,7 +1735,7 @@ func (x *Query) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Query.ProtoReflect.Descriptor instead.
 func (*Query) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{16}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *Query) GetNamespace() string {
@@ -1702,7 +1775,7 @@ type FieldPath struct {
 
 func (x *FieldPath) Reset() {
 	*x = FieldPath{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[17]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1714,7 +1787,7 @@ func (x *FieldPath) String() string {
 func (*FieldPath) ProtoMessage() {}
 
 func (x *FieldPath) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[17]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1727,7 +1800,7 @@ func (x *FieldPath) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use FieldPath.ProtoReflect.Descriptor instead.
 func (*FieldPath) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{17}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *FieldPath) GetSegments() []string {
@@ -1751,7 +1824,7 @@ type Predicate struct {
 
 func (x *Predicate) Reset() {
 	*x = Predicate{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[18]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1763,7 +1836,7 @@ func (x *Predicate) String() string {
 func (*Predicate) ProtoMessage() {}
 
 func (x *Predicate) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[18]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1776,7 +1849,7 @@ func (x *Predicate) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Predicate.ProtoReflect.Descriptor instead.
 func (*Predicate) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{18}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *Predicate) GetExpression() isPredicate_Expression {
@@ -1846,7 +1919,7 @@ type Comparison struct {
 
 func (x *Comparison) Reset() {
 	*x = Comparison{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[19]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1858,7 +1931,7 @@ func (x *Comparison) String() string {
 func (*Comparison) ProtoMessage() {}
 
 func (x *Comparison) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[19]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1871,7 +1944,7 @@ func (x *Comparison) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Comparison.ProtoReflect.Descriptor instead.
 func (*Comparison) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{19}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *Comparison) GetField() *FieldPath {
@@ -1905,7 +1978,7 @@ type NullTest struct {
 
 func (x *NullTest) Reset() {
 	*x = NullTest{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[20]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[21]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1917,7 +1990,7 @@ func (x *NullTest) String() string {
 func (*NullTest) ProtoMessage() {}
 
 func (x *NullTest) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[20]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[21]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1930,7 +2003,7 @@ func (x *NullTest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use NullTest.ProtoReflect.Descriptor instead.
 func (*NullTest) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{20}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *NullTest) GetField() *FieldPath {
@@ -1957,7 +2030,7 @@ type Junction struct {
 
 func (x *Junction) Reset() {
 	*x = Junction{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[21]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1969,7 +2042,7 @@ func (x *Junction) String() string {
 func (*Junction) ProtoMessage() {}
 
 func (x *Junction) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[21]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1982,7 +2055,7 @@ func (x *Junction) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Junction.ProtoReflect.Descriptor instead.
 func (*Junction) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{21}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *Junction) GetOperator() Junction_Operator {
@@ -2010,7 +2083,7 @@ type OrderTerm struct {
 
 func (x *OrderTerm) Reset() {
 	*x = OrderTerm{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[22]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2022,7 +2095,7 @@ func (x *OrderTerm) String() string {
 func (*OrderTerm) ProtoMessage() {}
 
 func (x *OrderTerm) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[22]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2035,7 +2108,7 @@ func (x *OrderTerm) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use OrderTerm.ProtoReflect.Descriptor instead.
 func (*OrderTerm) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{22}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *OrderTerm) GetField() *FieldPath {
@@ -2075,7 +2148,7 @@ type Value struct {
 
 func (x *Value) Reset() {
 	*x = Value{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[23]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[24]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2087,7 +2160,7 @@ func (x *Value) String() string {
 func (*Value) ProtoMessage() {}
 
 func (x *Value) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[23]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[24]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2100,7 +2173,7 @@ func (x *Value) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Value.ProtoReflect.Descriptor instead.
 func (*Value) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{23}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *Value) GetState() Value_State {
@@ -2157,7 +2230,7 @@ type InitialWindow struct {
 
 func (x *InitialWindow) Reset() {
 	*x = InitialWindow{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[24]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[25]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2169,7 +2242,7 @@ func (x *InitialWindow) String() string {
 func (*InitialWindow) ProtoMessage() {}
 
 func (x *InitialWindow) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[24]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[25]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2182,7 +2255,7 @@ func (x *InitialWindow) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use InitialWindow.ProtoReflect.Descriptor instead.
 func (*InitialWindow) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{24}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *InitialWindow) GetFromEnd() bool {
@@ -2216,7 +2289,7 @@ type Position struct {
 
 func (x *Position) Reset() {
 	*x = Position{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[25]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[26]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2228,7 +2301,7 @@ func (x *Position) String() string {
 func (*Position) ProtoMessage() {}
 
 func (x *Position) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[25]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[26]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2241,7 +2314,7 @@ func (x *Position) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Position.ProtoReflect.Descriptor instead.
 func (*Position) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{25}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *Position) GetSourceId() string {
@@ -2269,7 +2342,7 @@ type Progress struct {
 
 func (x *Progress) Reset() {
 	*x = Progress{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[26]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[27]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2281,7 +2354,7 @@ func (x *Progress) String() string {
 func (*Progress) ProtoMessage() {}
 
 func (x *Progress) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[26]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[27]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2294,7 +2367,7 @@ func (x *Progress) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Progress.ProtoReflect.Descriptor instead.
 func (*Progress) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{26}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *Progress) GetPosition() *Position {
@@ -2328,7 +2401,7 @@ type EntityKey struct {
 
 func (x *EntityKey) Reset() {
 	*x = EntityKey{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[27]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[28]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2340,7 +2413,7 @@ func (x *EntityKey) String() string {
 func (*EntityKey) ProtoMessage() {}
 
 func (x *EntityKey) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[27]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[28]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2353,7 +2426,7 @@ func (x *EntityKey) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EntityKey.ProtoReflect.Descriptor instead.
 func (*EntityKey) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{27}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *EntityKey) GetRelation() *RelationKey {
@@ -2382,7 +2455,7 @@ type RelationKey struct {
 
 func (x *RelationKey) Reset() {
 	*x = RelationKey{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[28]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[29]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2394,7 +2467,7 @@ func (x *RelationKey) String() string {
 func (*RelationKey) ProtoMessage() {}
 
 func (x *RelationKey) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[28]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[29]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2407,7 +2480,7 @@ func (x *RelationKey) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RelationKey.ProtoReflect.Descriptor instead.
 func (*RelationKey) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{28}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *RelationKey) GetSourceId() string {
@@ -2451,7 +2524,7 @@ type Row struct {
 
 func (x *Row) Reset() {
 	*x = Row{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[29]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[30]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2463,7 +2536,7 @@ func (x *Row) String() string {
 func (*Row) ProtoMessage() {}
 
 func (x *Row) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[29]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[30]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2476,7 +2549,7 @@ func (x *Row) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Row.ProtoReflect.Descriptor instead.
 func (*Row) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{29}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *Row) GetKey() *EntityKey {
@@ -2523,7 +2596,7 @@ type Record struct {
 
 func (x *Record) Reset() {
 	*x = Record{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[30]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[31]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2535,7 +2608,7 @@ func (x *Record) String() string {
 func (*Record) ProtoMessage() {}
 
 func (x *Record) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[30]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[31]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2548,7 +2621,7 @@ func (x *Record) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Record.ProtoReflect.Descriptor instead.
 func (*Record) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{30}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *Record) GetFields() map[string]*Value {
@@ -2568,7 +2641,7 @@ type Boundary struct {
 
 func (x *Boundary) Reset() {
 	*x = Boundary{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[31]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[32]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2580,7 +2653,7 @@ func (x *Boundary) String() string {
 func (*Boundary) ProtoMessage() {}
 
 func (x *Boundary) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[31]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[32]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2593,7 +2666,7 @@ func (x *Boundary) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Boundary.ProtoReflect.Descriptor instead.
 func (*Boundary) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{31}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{32}
 }
 
 func (x *Boundary) GetKind() Boundary_Kind {
@@ -2620,7 +2693,7 @@ type Bounds struct {
 
 func (x *Bounds) Reset() {
 	*x = Bounds{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[32]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[33]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2632,7 +2705,7 @@ func (x *Bounds) String() string {
 func (*Bounds) ProtoMessage() {}
 
 func (x *Bounds) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[32]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[33]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2645,7 +2718,7 @@ func (x *Bounds) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Bounds.ProtoReflect.Descriptor instead.
 func (*Bounds) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{32}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{33}
 }
 
 func (x *Bounds) GetLeft() *Boundary {
@@ -2674,7 +2747,7 @@ type QueryRow struct {
 
 func (x *QueryRow) Reset() {
 	*x = QueryRow{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[33]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[34]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2686,7 +2759,7 @@ func (x *QueryRow) String() string {
 func (*QueryRow) ProtoMessage() {}
 
 func (x *QueryRow) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[33]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[34]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2699,7 +2772,7 @@ func (x *QueryRow) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QueryRow.ProtoReflect.Descriptor instead.
 func (*QueryRow) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{33}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *QueryRow) GetRow() *Row {
@@ -2730,7 +2803,7 @@ type QuerySnapshot struct {
 
 func (x *QuerySnapshot) Reset() {
 	*x = QuerySnapshot{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[34]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[35]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2742,7 +2815,7 @@ func (x *QuerySnapshot) String() string {
 func (*QuerySnapshot) ProtoMessage() {}
 
 func (x *QuerySnapshot) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[34]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[35]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2755,7 +2828,7 @@ func (x *QuerySnapshot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use QuerySnapshot.ProtoReflect.Descriptor instead.
 func (*QuerySnapshot) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{34}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *QuerySnapshot) GetBounds() *Bounds {
@@ -2811,7 +2884,7 @@ type ReferenceRoute struct {
 
 func (x *ReferenceRoute) Reset() {
 	*x = ReferenceRoute{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[35]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[36]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2823,7 +2896,7 @@ func (x *ReferenceRoute) String() string {
 func (*ReferenceRoute) ProtoMessage() {}
 
 func (x *ReferenceRoute) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[35]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[36]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2836,7 +2909,7 @@ func (x *ReferenceRoute) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ReferenceRoute.ProtoReflect.Descriptor instead.
 func (*ReferenceRoute) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{35}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{36}
 }
 
 func (x *ReferenceRoute) GetSelector() string {
@@ -2863,7 +2936,7 @@ type EntityTarget struct {
 
 func (x *EntityTarget) Reset() {
 	*x = EntityTarget{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[36]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[37]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2875,7 +2948,7 @@ func (x *EntityTarget) String() string {
 func (*EntityTarget) ProtoMessage() {}
 
 func (x *EntityTarget) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[36]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[37]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2888,7 +2961,7 @@ func (x *EntityTarget) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EntityTarget.ProtoReflect.Descriptor instead.
 func (*EntityTarget) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{36}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{37}
 }
 
 func (x *EntityTarget) GetSubscriptionId() string {
@@ -2915,7 +2988,7 @@ type EntityInstallation struct {
 
 func (x *EntityInstallation) Reset() {
 	*x = EntityInstallation{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[37]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[38]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2927,7 +3000,7 @@ func (x *EntityInstallation) String() string {
 func (*EntityInstallation) ProtoMessage() {}
 
 func (x *EntityInstallation) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[37]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[38]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2940,7 +3013,7 @@ func (x *EntityInstallation) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EntityInstallation.ProtoReflect.Descriptor instead.
 func (*EntityInstallation) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{37}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{38}
 }
 
 func (x *EntityInstallation) GetTarget() *EntityTarget {
@@ -2968,7 +3041,7 @@ type EntityDelta struct {
 
 func (x *EntityDelta) Reset() {
 	*x = EntityDelta{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[38]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[39]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2980,7 +3053,7 @@ func (x *EntityDelta) String() string {
 func (*EntityDelta) ProtoMessage() {}
 
 func (x *EntityDelta) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[38]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[39]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2993,7 +3066,7 @@ func (x *EntityDelta) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EntityDelta.ProtoReflect.Descriptor instead.
 func (*EntityDelta) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{38}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{39}
 }
 
 func (x *EntityDelta) GetClear() bool {
@@ -3027,7 +3100,7 @@ type EntityEffect struct {
 
 func (x *EntityEffect) Reset() {
 	*x = EntityEffect{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[39]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[40]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3039,7 +3112,7 @@ func (x *EntityEffect) String() string {
 func (*EntityEffect) ProtoMessage() {}
 
 func (x *EntityEffect) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[39]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[40]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3052,7 +3125,7 @@ func (x *EntityEffect) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EntityEffect.ProtoReflect.Descriptor instead.
 func (*EntityEffect) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{39}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{40}
 }
 
 func (x *EntityEffect) GetTarget() *EntityTarget {
@@ -3081,7 +3154,7 @@ type EntitySnapshot struct {
 
 func (x *EntitySnapshot) Reset() {
 	*x = EntitySnapshot{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[40]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[41]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3093,7 +3166,7 @@ func (x *EntitySnapshot) String() string {
 func (*EntitySnapshot) ProtoMessage() {}
 
 func (x *EntitySnapshot) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[40]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[41]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3106,7 +3179,7 @@ func (x *EntitySnapshot) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EntitySnapshot.ProtoReflect.Descriptor instead.
 func (*EntitySnapshot) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{40}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{41}
 }
 
 func (x *EntitySnapshot) GetRow() *Row {
@@ -3149,7 +3222,7 @@ type BoundaryChange struct {
 
 func (x *BoundaryChange) Reset() {
 	*x = BoundaryChange{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[41]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[42]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3161,7 +3234,7 @@ func (x *BoundaryChange) String() string {
 func (*BoundaryChange) ProtoMessage() {}
 
 func (x *BoundaryChange) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[41]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[42]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3174,7 +3247,7 @@ func (x *BoundaryChange) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use BoundaryChange.ProtoReflect.Descriptor instead.
 func (*BoundaryChange) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{41}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{42}
 }
 
 func (x *BoundaryChange) GetSide() BoundaryChange_Side {
@@ -3219,7 +3292,7 @@ type DeliveryMetadata struct {
 
 func (x *DeliveryMetadata) Reset() {
 	*x = DeliveryMetadata{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[42]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[43]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3231,7 +3304,7 @@ func (x *DeliveryMetadata) String() string {
 func (*DeliveryMetadata) ProtoMessage() {}
 
 func (x *DeliveryMetadata) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[42]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[43]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3244,7 +3317,7 @@ func (x *DeliveryMetadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeliveryMetadata.ProtoReflect.Descriptor instead.
 func (*DeliveryMetadata) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{42}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *DeliveryMetadata) GetKind() DeliveryMetadata_Kind {
@@ -3299,7 +3372,7 @@ type Change struct {
 
 func (x *Change) Reset() {
 	*x = Change{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[43]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[44]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3311,7 +3384,7 @@ func (x *Change) String() string {
 func (*Change) ProtoMessage() {}
 
 func (x *Change) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[43]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[44]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3324,7 +3397,7 @@ func (x *Change) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Change.ProtoReflect.Descriptor instead.
 func (*Change) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{43}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{44}
 }
 
 func (x *Change) GetKind() Change_Kind {
@@ -3351,7 +3424,7 @@ type Insertion struct {
 
 func (x *Insertion) Reset() {
 	*x = Insertion{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[44]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[45]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3363,7 +3436,7 @@ func (x *Insertion) String() string {
 func (*Insertion) ProtoMessage() {}
 
 func (x *Insertion) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[44]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[45]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3376,7 +3449,7 @@ func (x *Insertion) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Insertion.ProtoReflect.Descriptor instead.
 func (*Insertion) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{44}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{45}
 }
 
 func (x *Insertion) GetKey() *EntityKey {
@@ -3403,7 +3476,7 @@ type MembershipDelta struct {
 
 func (x *MembershipDelta) Reset() {
 	*x = MembershipDelta{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[45]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[46]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3415,7 +3488,7 @@ func (x *MembershipDelta) String() string {
 func (*MembershipDelta) ProtoMessage() {}
 
 func (x *MembershipDelta) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[45]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[46]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3428,7 +3501,7 @@ func (x *MembershipDelta) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MembershipDelta.ProtoReflect.Descriptor instead.
 func (*MembershipDelta) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{45}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{46}
 }
 
 func (x *MembershipDelta) GetRemoved() []*EntityKey {
@@ -3457,7 +3530,7 @@ type WindowTransition struct {
 
 func (x *WindowTransition) Reset() {
 	*x = WindowTransition{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[46]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[47]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3469,7 +3542,7 @@ func (x *WindowTransition) String() string {
 func (*WindowTransition) ProtoMessage() {}
 
 func (x *WindowTransition) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[46]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[47]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3482,7 +3555,7 @@ func (x *WindowTransition) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use WindowTransition.ProtoReflect.Descriptor instead.
 func (*WindowTransition) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{46}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{47}
 }
 
 func (x *WindowTransition) GetToken() string {
@@ -3527,7 +3600,7 @@ type Batch struct {
 
 func (x *Batch) Reset() {
 	*x = Batch{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[47]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[48]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3539,7 +3612,7 @@ func (x *Batch) String() string {
 func (*Batch) ProtoMessage() {}
 
 func (x *Batch) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[47]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[48]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3552,7 +3625,7 @@ func (x *Batch) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Batch.ProtoReflect.Descriptor instead.
 func (*Batch) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{47}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{48}
 }
 
 func (x *Batch) GetClear() bool {
@@ -3607,7 +3680,7 @@ type SubscriptionEffect struct {
 
 func (x *SubscriptionEffect) Reset() {
 	*x = SubscriptionEffect{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[48]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[49]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3619,7 +3692,7 @@ func (x *SubscriptionEffect) String() string {
 func (*SubscriptionEffect) ProtoMessage() {}
 
 func (x *SubscriptionEffect) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[48]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[49]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3632,7 +3705,7 @@ func (x *SubscriptionEffect) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubscriptionEffect.ProtoReflect.Descriptor instead.
 func (*SubscriptionEffect) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{48}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{49}
 }
 
 func (x *SubscriptionEffect) GetSubscriptionId() string {
@@ -3660,7 +3733,7 @@ type DeliveryEnvelope struct {
 
 func (x *DeliveryEnvelope) Reset() {
 	*x = DeliveryEnvelope{}
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[49]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[50]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -3672,7 +3745,7 @@ func (x *DeliveryEnvelope) String() string {
 func (*DeliveryEnvelope) ProtoMessage() {}
 
 func (x *DeliveryEnvelope) ProtoReflect() protoreflect.Message {
-	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[49]
+	mi := &file_querysubscription_v1_querysubscription_proto_msgTypes[50]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3685,7 +3758,7 @@ func (x *DeliveryEnvelope) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeliveryEnvelope.ProtoReflect.Descriptor instead.
 func (*DeliveryEnvelope) Descriptor() ([]byte, []int) {
-	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{49}
+	return file_querysubscription_v1_querysubscription_proto_rawDescGZIP(), []int{50}
 }
 
 func (x *DeliveryEnvelope) GetDelivery() *DeliveryMetadata {
@@ -3713,7 +3786,7 @@ var File_querysubscription_v1_querysubscription_proto protoreflect.FileDescripto
 
 const file_querysubscription_v1_querysubscription_proto_rawDesc = "" +
 	"\n" +
-	",querysubscription/v1/querysubscription.proto\x12\x14querysubscription.v1\"\x9a\x05\n" +
+	",querysubscription/v1/querysubscription.proto\x12\x14querysubscription.v1\"\xe6\x05\n" +
 	"\rClientMessage\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12B\n" +
@@ -3727,7 +3800,9 @@ const file_querysubscription_v1_querysubscription_proto_rawDesc = "" +
 	"\x0ecancel_request\x18\a \x01(\v2#.querysubscription.v1.CancelRequestH\x00R\rcancelRequest\x12@\n" +
 	"\n" +
 	"close_feed\x18\b \x01(\v2\x1f.querysubscription.v1.CloseFeedH\x00R\tcloseFeed\x12R\n" +
-	"\x10request_progress\x18\t \x01(\v2%.querysubscription.v1.RequestProgressH\x00R\x0frequestProgressB\v\n" +
+	"\x10request_progress\x18\t \x01(\v2%.querysubscription.v1.RequestProgressH\x00R\x0frequestProgress\x12J\n" +
+	"\x0ewait_for_fence\x18\n" +
+	" \x01(\v2\".querysubscription.v1.WaitForFenceH\x00R\fwaitForFenceB\v\n" +
 	"\toperation\"Z\n" +
 	"\n" +
 	"Initialize\x12!\n" +
@@ -3762,7 +3837,9 @@ const file_querysubscription_v1_querysubscription_proto_rawDesc = "" +
 	"\rCancelRequest\x12*\n" +
 	"\x11target_request_id\x18\x01 \x01(\tR\x0ftargetRequestId\"\v\n" +
 	"\tCloseFeed\"\x11\n" +
-	"\x0fRequestProgress\"\xbf\x02\n" +
+	"\x0fRequestProgress\"$\n" +
+	"\fWaitForFence\x12\x14\n" +
+	"\x05fence\x18\x01 \x01(\tR\x05fence\"\xbf\x02\n" +
 	"\rServerMessage\x12\x1d\n" +
 	"\n" +
 	"request_id\x18\x01 \x01(\tR\trequestId\x12H\n" +
@@ -3770,9 +3847,10 @@ const file_querysubscription_v1_querysubscription_proto_rawDesc = "" +
 	"\bprogress\x18\x03 \x01(\v2\x1e.querysubscription.v1.ProgressH\x00R\bprogress\x123\n" +
 	"\x05error\x18\x04 \x01(\v2\x1b.querysubscription.v1.ErrorH\x00R\x05error\x12I\n" +
 	"\rpayload_chunk\x18\x05 \x01(\v2\".querysubscription.v1.PayloadChunkH\x00R\fpayloadChunkB\a\n" +
-	"\x05event\"9\n" +
+	"\x05event\"\x80\x01\n" +
 	"\fAcknowledged\x12)\n" +
-	"\x10protocol_version\x18\x01 \x01(\rR\x0fprotocolVersion\"\xd7\x02\n" +
+	"\x10protocol_version\x18\x01 \x01(\rR\x0fprotocolVersion\x12E\n" +
+	"\x0efence_position\x18\x02 \x01(\v2\x1e.querysubscription.v1.PositionR\rfencePosition\"\xd7\x02\n" +
 	"\fPayloadChunk\x12;\n" +
 	"\x04kind\x18\x01 \x01(\x0e2'.querysubscription.v1.PayloadChunk.KindR\x04kind\x12'\n" +
 	"\x0fsubscription_id\x18\x02 \x01(\tR\x0esubscriptionId\x12\x1d\n" +
@@ -3787,17 +3865,18 @@ const file_querysubscription_v1_querysubscription_proto_rawDesc = "" +
 	"\x10KIND_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13KIND_QUERY_SNAPSHOT\x10\x01\x12\x19\n" +
 	"\x15KIND_ENTITY_INSTALLED\x10\x02\x12\x11\n" +
-	"\rKIND_DELIVERY\x10\x03\"\xf3\x01\n" +
+	"\rKIND_DELIVERY\x10\x03\"\x90\x02\n" +
 	"\x05Error\x124\n" +
 	"\x04code\x18\x01 \x01(\x0e2 .querysubscription.v1.Error.CodeR\x04code\x12'\n" +
 	"\x0fsubscription_id\x18\x02 \x01(\tR\x0esubscriptionId\x12\x18\n" +
-	"\amessage\x18\x03 \x01(\tR\amessage\"q\n" +
+	"\amessage\x18\x03 \x01(\tR\amessage\"\x8d\x01\n" +
 	"\x04Code\x12\x14\n" +
 	"\x10CODE_UNSPECIFIED\x10\x00\x12\x18\n" +
 	"\x14CODE_INVALID_REQUEST\x10\x01\x12\x15\n" +
 	"\x11CODE_BACKPRESSURE\x10\x02\x12\x0f\n" +
 	"\vCODE_CLOSED\x10\x03\x12\x11\n" +
-	"\rCODE_INTERNAL\x10\x04\"\xb1\x01\n" +
+	"\rCODE_INTERNAL\x10\x04\x12\x1a\n" +
+	"\x16CODE_DEADLINE_EXCEEDED\x10\x05\"\xb1\x01\n" +
 	"\x05Query\x12\x1c\n" +
 	"\tnamespace\x18\x01 \x01(\tR\tnamespace\x12\x1a\n" +
 	"\brelation\x18\x02 \x01(\tR\brelation\x127\n" +
@@ -4022,7 +4101,7 @@ func file_querysubscription_v1_querysubscription_proto_rawDescGZIP() []byte {
 }
 
 var file_querysubscription_v1_querysubscription_proto_enumTypes = make([]protoimpl.EnumInfo, 10)
-var file_querysubscription_v1_querysubscription_proto_msgTypes = make([]protoimpl.MessageInfo, 52)
+var file_querysubscription_v1_querysubscription_proto_msgTypes = make([]protoimpl.MessageInfo, 53)
 var file_querysubscription_v1_querysubscription_proto_goTypes = []any{
 	(PayloadChunk_Kind)(0),        // 0: querysubscription.v1.PayloadChunk.Kind
 	(Error_Code)(0),               // 1: querysubscription.v1.Error.Code
@@ -4046,46 +4125,47 @@ var file_querysubscription_v1_querysubscription_proto_goTypes = []any{
 	(*CancelRequest)(nil),         // 19: querysubscription.v1.CancelRequest
 	(*CloseFeed)(nil),             // 20: querysubscription.v1.CloseFeed
 	(*RequestProgress)(nil),       // 21: querysubscription.v1.RequestProgress
-	(*ServerMessage)(nil),         // 22: querysubscription.v1.ServerMessage
-	(*Acknowledged)(nil),          // 23: querysubscription.v1.Acknowledged
-	(*PayloadChunk)(nil),          // 24: querysubscription.v1.PayloadChunk
-	(*Error)(nil),                 // 25: querysubscription.v1.Error
-	(*Query)(nil),                 // 26: querysubscription.v1.Query
-	(*FieldPath)(nil),             // 27: querysubscription.v1.FieldPath
-	(*Predicate)(nil),             // 28: querysubscription.v1.Predicate
-	(*Comparison)(nil),            // 29: querysubscription.v1.Comparison
-	(*NullTest)(nil),              // 30: querysubscription.v1.NullTest
-	(*Junction)(nil),              // 31: querysubscription.v1.Junction
-	(*OrderTerm)(nil),             // 32: querysubscription.v1.OrderTerm
-	(*Value)(nil),                 // 33: querysubscription.v1.Value
-	(*InitialWindow)(nil),         // 34: querysubscription.v1.InitialWindow
-	(*Position)(nil),              // 35: querysubscription.v1.Position
-	(*Progress)(nil),              // 36: querysubscription.v1.Progress
-	(*EntityKey)(nil),             // 37: querysubscription.v1.EntityKey
-	(*RelationKey)(nil),           // 38: querysubscription.v1.RelationKey
-	(*Row)(nil),                   // 39: querysubscription.v1.Row
-	(*Record)(nil),                // 40: querysubscription.v1.Record
-	(*Boundary)(nil),              // 41: querysubscription.v1.Boundary
-	(*Bounds)(nil),                // 42: querysubscription.v1.Bounds
-	(*QueryRow)(nil),              // 43: querysubscription.v1.QueryRow
-	(*QuerySnapshot)(nil),         // 44: querysubscription.v1.QuerySnapshot
-	(*ReferenceRoute)(nil),        // 45: querysubscription.v1.ReferenceRoute
-	(*EntityTarget)(nil),          // 46: querysubscription.v1.EntityTarget
-	(*EntityInstallation)(nil),    // 47: querysubscription.v1.EntityInstallation
-	(*EntityDelta)(nil),           // 48: querysubscription.v1.EntityDelta
-	(*EntityEffect)(nil),          // 49: querysubscription.v1.EntityEffect
-	(*EntitySnapshot)(nil),        // 50: querysubscription.v1.EntitySnapshot
-	(*BoundaryChange)(nil),        // 51: querysubscription.v1.BoundaryChange
-	(*DeliveryMetadata)(nil),      // 52: querysubscription.v1.DeliveryMetadata
-	(*Change)(nil),                // 53: querysubscription.v1.Change
-	(*Insertion)(nil),             // 54: querysubscription.v1.Insertion
-	(*MembershipDelta)(nil),       // 55: querysubscription.v1.MembershipDelta
-	(*WindowTransition)(nil),      // 56: querysubscription.v1.WindowTransition
-	(*Batch)(nil),                 // 57: querysubscription.v1.Batch
-	(*SubscriptionEffect)(nil),    // 58: querysubscription.v1.SubscriptionEffect
-	(*DeliveryEnvelope)(nil),      // 59: querysubscription.v1.DeliveryEnvelope
-	nil,                           // 60: querysubscription.v1.Value.ObjectEntry
-	nil,                           // 61: querysubscription.v1.Record.FieldsEntry
+	(*WaitForFence)(nil),          // 22: querysubscription.v1.WaitForFence
+	(*ServerMessage)(nil),         // 23: querysubscription.v1.ServerMessage
+	(*Acknowledged)(nil),          // 24: querysubscription.v1.Acknowledged
+	(*PayloadChunk)(nil),          // 25: querysubscription.v1.PayloadChunk
+	(*Error)(nil),                 // 26: querysubscription.v1.Error
+	(*Query)(nil),                 // 27: querysubscription.v1.Query
+	(*FieldPath)(nil),             // 28: querysubscription.v1.FieldPath
+	(*Predicate)(nil),             // 29: querysubscription.v1.Predicate
+	(*Comparison)(nil),            // 30: querysubscription.v1.Comparison
+	(*NullTest)(nil),              // 31: querysubscription.v1.NullTest
+	(*Junction)(nil),              // 32: querysubscription.v1.Junction
+	(*OrderTerm)(nil),             // 33: querysubscription.v1.OrderTerm
+	(*Value)(nil),                 // 34: querysubscription.v1.Value
+	(*InitialWindow)(nil),         // 35: querysubscription.v1.InitialWindow
+	(*Position)(nil),              // 36: querysubscription.v1.Position
+	(*Progress)(nil),              // 37: querysubscription.v1.Progress
+	(*EntityKey)(nil),             // 38: querysubscription.v1.EntityKey
+	(*RelationKey)(nil),           // 39: querysubscription.v1.RelationKey
+	(*Row)(nil),                   // 40: querysubscription.v1.Row
+	(*Record)(nil),                // 41: querysubscription.v1.Record
+	(*Boundary)(nil),              // 42: querysubscription.v1.Boundary
+	(*Bounds)(nil),                // 43: querysubscription.v1.Bounds
+	(*QueryRow)(nil),              // 44: querysubscription.v1.QueryRow
+	(*QuerySnapshot)(nil),         // 45: querysubscription.v1.QuerySnapshot
+	(*ReferenceRoute)(nil),        // 46: querysubscription.v1.ReferenceRoute
+	(*EntityTarget)(nil),          // 47: querysubscription.v1.EntityTarget
+	(*EntityInstallation)(nil),    // 48: querysubscription.v1.EntityInstallation
+	(*EntityDelta)(nil),           // 49: querysubscription.v1.EntityDelta
+	(*EntityEffect)(nil),          // 50: querysubscription.v1.EntityEffect
+	(*EntitySnapshot)(nil),        // 51: querysubscription.v1.EntitySnapshot
+	(*BoundaryChange)(nil),        // 52: querysubscription.v1.BoundaryChange
+	(*DeliveryMetadata)(nil),      // 53: querysubscription.v1.DeliveryMetadata
+	(*Change)(nil),                // 54: querysubscription.v1.Change
+	(*Insertion)(nil),             // 55: querysubscription.v1.Insertion
+	(*MembershipDelta)(nil),       // 56: querysubscription.v1.MembershipDelta
+	(*WindowTransition)(nil),      // 57: querysubscription.v1.WindowTransition
+	(*Batch)(nil),                 // 58: querysubscription.v1.Batch
+	(*SubscriptionEffect)(nil),    // 59: querysubscription.v1.SubscriptionEffect
+	(*DeliveryEnvelope)(nil),      // 60: querysubscription.v1.DeliveryEnvelope
+	nil,                           // 61: querysubscription.v1.Value.ObjectEntry
+	nil,                           // 62: querysubscription.v1.Record.FieldsEntry
 }
 var file_querysubscription_v1_querysubscription_proto_depIdxs = []int32{
 	11, // 0: querysubscription.v1.ClientMessage.initialize:type_name -> querysubscription.v1.Initialize
@@ -4096,93 +4176,95 @@ var file_querysubscription_v1_querysubscription_proto_depIdxs = []int32{
 	19, // 5: querysubscription.v1.ClientMessage.cancel_request:type_name -> querysubscription.v1.CancelRequest
 	20, // 6: querysubscription.v1.ClientMessage.close_feed:type_name -> querysubscription.v1.CloseFeed
 	21, // 7: querysubscription.v1.ClientMessage.request_progress:type_name -> querysubscription.v1.RequestProgress
-	26, // 8: querysubscription.v1.SubscribeQuery.query:type_name -> querysubscription.v1.Query
-	34, // 9: querysubscription.v1.SubscribeQuery.window:type_name -> querysubscription.v1.InitialWindow
-	13, // 10: querysubscription.v1.SubscribeQuery.reference:type_name -> querysubscription.v1.ReferenceFetch
-	26, // 11: querysubscription.v1.ReferenceFetch.query:type_name -> querysubscription.v1.Query
-	14, // 12: querysubscription.v1.ReferenceFetch.bindings:type_name -> querysubscription.v1.ReferenceBinding
-	27, // 13: querysubscription.v1.ReferenceBinding.source:type_name -> querysubscription.v1.FieldPath
-	27, // 14: querysubscription.v1.ReferenceBinding.target:type_name -> querysubscription.v1.FieldPath
-	26, // 15: querysubscription.v1.SubscribeEntity.query:type_name -> querysubscription.v1.Query
-	16, // 16: querysubscription.v1.SubscribeEntity.fetch_from:type_name -> querysubscription.v1.ReferenceSource
-	37, // 17: querysubscription.v1.ReferenceSource.parent_key:type_name -> querysubscription.v1.EntityKey
-	51, // 18: querysubscription.v1.UpdateWindow.changes:type_name -> querysubscription.v1.BoundaryChange
-	23, // 19: querysubscription.v1.ServerMessage.acknowledged:type_name -> querysubscription.v1.Acknowledged
-	36, // 20: querysubscription.v1.ServerMessage.progress:type_name -> querysubscription.v1.Progress
-	25, // 21: querysubscription.v1.ServerMessage.error:type_name -> querysubscription.v1.Error
-	24, // 22: querysubscription.v1.ServerMessage.payload_chunk:type_name -> querysubscription.v1.PayloadChunk
-	0,  // 23: querysubscription.v1.PayloadChunk.kind:type_name -> querysubscription.v1.PayloadChunk.Kind
-	1,  // 24: querysubscription.v1.Error.code:type_name -> querysubscription.v1.Error.Code
-	28, // 25: querysubscription.v1.Query.filter:type_name -> querysubscription.v1.Predicate
-	32, // 26: querysubscription.v1.Query.order:type_name -> querysubscription.v1.OrderTerm
-	29, // 27: querysubscription.v1.Predicate.comparison:type_name -> querysubscription.v1.Comparison
-	30, // 28: querysubscription.v1.Predicate.null_test:type_name -> querysubscription.v1.NullTest
-	31, // 29: querysubscription.v1.Predicate.junction:type_name -> querysubscription.v1.Junction
-	27, // 30: querysubscription.v1.Comparison.field:type_name -> querysubscription.v1.FieldPath
-	2,  // 31: querysubscription.v1.Comparison.operator:type_name -> querysubscription.v1.Comparison.Operator
-	33, // 32: querysubscription.v1.Comparison.value:type_name -> querysubscription.v1.Value
-	27, // 33: querysubscription.v1.NullTest.field:type_name -> querysubscription.v1.FieldPath
-	3,  // 34: querysubscription.v1.Junction.operator:type_name -> querysubscription.v1.Junction.Operator
-	28, // 35: querysubscription.v1.Junction.operands:type_name -> querysubscription.v1.Predicate
-	27, // 36: querysubscription.v1.OrderTerm.field:type_name -> querysubscription.v1.FieldPath
-	4,  // 37: querysubscription.v1.Value.state:type_name -> querysubscription.v1.Value.State
-	33, // 38: querysubscription.v1.Value.list:type_name -> querysubscription.v1.Value
-	60, // 39: querysubscription.v1.Value.object:type_name -> querysubscription.v1.Value.ObjectEntry
-	42, // 40: querysubscription.v1.InitialWindow.bounds:type_name -> querysubscription.v1.Bounds
-	35, // 41: querysubscription.v1.Progress.position:type_name -> querysubscription.v1.Position
-	38, // 42: querysubscription.v1.EntityKey.relation:type_name -> querysubscription.v1.RelationKey
-	37, // 43: querysubscription.v1.Row.key:type_name -> querysubscription.v1.EntityKey
-	40, // 44: querysubscription.v1.Row.record:type_name -> querysubscription.v1.Record
-	61, // 45: querysubscription.v1.Record.fields:type_name -> querysubscription.v1.Record.FieldsEntry
-	5,  // 46: querysubscription.v1.Boundary.kind:type_name -> querysubscription.v1.Boundary.Kind
-	41, // 47: querysubscription.v1.Bounds.left:type_name -> querysubscription.v1.Boundary
-	41, // 48: querysubscription.v1.Bounds.right:type_name -> querysubscription.v1.Boundary
-	39, // 49: querysubscription.v1.QueryRow.row:type_name -> querysubscription.v1.Row
-	50, // 50: querysubscription.v1.QueryRow.expanded:type_name -> querysubscription.v1.EntitySnapshot
-	42, // 51: querysubscription.v1.QuerySnapshot.bounds:type_name -> querysubscription.v1.Bounds
-	43, // 52: querysubscription.v1.QuerySnapshot.rows:type_name -> querysubscription.v1.QueryRow
-	35, // 53: querysubscription.v1.QuerySnapshot.checkpoint:type_name -> querysubscription.v1.Position
-	35, // 54: querysubscription.v1.QuerySnapshot.fence:type_name -> querysubscription.v1.Position
-	37, // 55: querysubscription.v1.ReferenceRoute.parents:type_name -> querysubscription.v1.EntityKey
-	45, // 56: querysubscription.v1.EntityTarget.reference:type_name -> querysubscription.v1.ReferenceRoute
-	46, // 57: querysubscription.v1.EntityInstallation.target:type_name -> querysubscription.v1.EntityTarget
-	50, // 58: querysubscription.v1.EntityInstallation.snapshot:type_name -> querysubscription.v1.EntitySnapshot
-	53, // 59: querysubscription.v1.EntityDelta.changes:type_name -> querysubscription.v1.Change
-	46, // 60: querysubscription.v1.EntityEffect.target:type_name -> querysubscription.v1.EntityTarget
-	48, // 61: querysubscription.v1.EntityEffect.delta:type_name -> querysubscription.v1.EntityDelta
-	39, // 62: querysubscription.v1.EntitySnapshot.row:type_name -> querysubscription.v1.Row
-	35, // 63: querysubscription.v1.EntitySnapshot.checkpoint:type_name -> querysubscription.v1.Position
-	35, // 64: querysubscription.v1.EntitySnapshot.fence:type_name -> querysubscription.v1.Position
-	6,  // 65: querysubscription.v1.BoundaryChange.side:type_name -> querysubscription.v1.BoundaryChange.Side
-	7,  // 66: querysubscription.v1.BoundaryChange.operation:type_name -> querysubscription.v1.BoundaryChange.Operation
-	8,  // 67: querysubscription.v1.DeliveryMetadata.kind:type_name -> querysubscription.v1.DeliveryMetadata.Kind
-	35, // 68: querysubscription.v1.DeliveryMetadata.checkpoint:type_name -> querysubscription.v1.Position
-	35, // 69: querysubscription.v1.DeliveryMetadata.fence:type_name -> querysubscription.v1.Position
-	9,  // 70: querysubscription.v1.Change.kind:type_name -> querysubscription.v1.Change.Kind
-	39, // 71: querysubscription.v1.Change.row:type_name -> querysubscription.v1.Row
-	37, // 72: querysubscription.v1.Insertion.key:type_name -> querysubscription.v1.EntityKey
-	37, // 73: querysubscription.v1.MembershipDelta.removed:type_name -> querysubscription.v1.EntityKey
-	54, // 74: querysubscription.v1.MembershipDelta.insertions:type_name -> querysubscription.v1.Insertion
-	42, // 75: querysubscription.v1.WindowTransition.bounds:type_name -> querysubscription.v1.Bounds
-	35, // 76: querysubscription.v1.WindowTransition.fence:type_name -> querysubscription.v1.Position
-	35, // 77: querysubscription.v1.WindowTransition.checkpoint:type_name -> querysubscription.v1.Position
-	53, // 78: querysubscription.v1.Batch.changes:type_name -> querysubscription.v1.Change
-	55, // 79: querysubscription.v1.Batch.membership:type_name -> querysubscription.v1.MembershipDelta
-	56, // 80: querysubscription.v1.Batch.window:type_name -> querysubscription.v1.WindowTransition
-	37, // 81: querysubscription.v1.Batch.binding_resets:type_name -> querysubscription.v1.EntityKey
-	57, // 82: querysubscription.v1.SubscriptionEffect.batch:type_name -> querysubscription.v1.Batch
-	52, // 83: querysubscription.v1.DeliveryEnvelope.delivery:type_name -> querysubscription.v1.DeliveryMetadata
-	58, // 84: querysubscription.v1.DeliveryEnvelope.effects:type_name -> querysubscription.v1.SubscriptionEffect
-	49, // 85: querysubscription.v1.DeliveryEnvelope.entities:type_name -> querysubscription.v1.EntityEffect
-	33, // 86: querysubscription.v1.Value.ObjectEntry.value:type_name -> querysubscription.v1.Value
-	33, // 87: querysubscription.v1.Record.FieldsEntry.value:type_name -> querysubscription.v1.Value
-	10, // 88: querysubscription.v1.QuerySubscriptions.Open:input_type -> querysubscription.v1.ClientMessage
-	22, // 89: querysubscription.v1.QuerySubscriptions.Open:output_type -> querysubscription.v1.ServerMessage
-	89, // [89:90] is the sub-list for method output_type
-	88, // [88:89] is the sub-list for method input_type
-	88, // [88:88] is the sub-list for extension type_name
-	88, // [88:88] is the sub-list for extension extendee
-	0,  // [0:88] is the sub-list for field type_name
+	22, // 8: querysubscription.v1.ClientMessage.wait_for_fence:type_name -> querysubscription.v1.WaitForFence
+	27, // 9: querysubscription.v1.SubscribeQuery.query:type_name -> querysubscription.v1.Query
+	35, // 10: querysubscription.v1.SubscribeQuery.window:type_name -> querysubscription.v1.InitialWindow
+	13, // 11: querysubscription.v1.SubscribeQuery.reference:type_name -> querysubscription.v1.ReferenceFetch
+	27, // 12: querysubscription.v1.ReferenceFetch.query:type_name -> querysubscription.v1.Query
+	14, // 13: querysubscription.v1.ReferenceFetch.bindings:type_name -> querysubscription.v1.ReferenceBinding
+	28, // 14: querysubscription.v1.ReferenceBinding.source:type_name -> querysubscription.v1.FieldPath
+	28, // 15: querysubscription.v1.ReferenceBinding.target:type_name -> querysubscription.v1.FieldPath
+	27, // 16: querysubscription.v1.SubscribeEntity.query:type_name -> querysubscription.v1.Query
+	16, // 17: querysubscription.v1.SubscribeEntity.fetch_from:type_name -> querysubscription.v1.ReferenceSource
+	38, // 18: querysubscription.v1.ReferenceSource.parent_key:type_name -> querysubscription.v1.EntityKey
+	52, // 19: querysubscription.v1.UpdateWindow.changes:type_name -> querysubscription.v1.BoundaryChange
+	24, // 20: querysubscription.v1.ServerMessage.acknowledged:type_name -> querysubscription.v1.Acknowledged
+	37, // 21: querysubscription.v1.ServerMessage.progress:type_name -> querysubscription.v1.Progress
+	26, // 22: querysubscription.v1.ServerMessage.error:type_name -> querysubscription.v1.Error
+	25, // 23: querysubscription.v1.ServerMessage.payload_chunk:type_name -> querysubscription.v1.PayloadChunk
+	36, // 24: querysubscription.v1.Acknowledged.fence_position:type_name -> querysubscription.v1.Position
+	0,  // 25: querysubscription.v1.PayloadChunk.kind:type_name -> querysubscription.v1.PayloadChunk.Kind
+	1,  // 26: querysubscription.v1.Error.code:type_name -> querysubscription.v1.Error.Code
+	29, // 27: querysubscription.v1.Query.filter:type_name -> querysubscription.v1.Predicate
+	33, // 28: querysubscription.v1.Query.order:type_name -> querysubscription.v1.OrderTerm
+	30, // 29: querysubscription.v1.Predicate.comparison:type_name -> querysubscription.v1.Comparison
+	31, // 30: querysubscription.v1.Predicate.null_test:type_name -> querysubscription.v1.NullTest
+	32, // 31: querysubscription.v1.Predicate.junction:type_name -> querysubscription.v1.Junction
+	28, // 32: querysubscription.v1.Comparison.field:type_name -> querysubscription.v1.FieldPath
+	2,  // 33: querysubscription.v1.Comparison.operator:type_name -> querysubscription.v1.Comparison.Operator
+	34, // 34: querysubscription.v1.Comparison.value:type_name -> querysubscription.v1.Value
+	28, // 35: querysubscription.v1.NullTest.field:type_name -> querysubscription.v1.FieldPath
+	3,  // 36: querysubscription.v1.Junction.operator:type_name -> querysubscription.v1.Junction.Operator
+	29, // 37: querysubscription.v1.Junction.operands:type_name -> querysubscription.v1.Predicate
+	28, // 38: querysubscription.v1.OrderTerm.field:type_name -> querysubscription.v1.FieldPath
+	4,  // 39: querysubscription.v1.Value.state:type_name -> querysubscription.v1.Value.State
+	34, // 40: querysubscription.v1.Value.list:type_name -> querysubscription.v1.Value
+	61, // 41: querysubscription.v1.Value.object:type_name -> querysubscription.v1.Value.ObjectEntry
+	43, // 42: querysubscription.v1.InitialWindow.bounds:type_name -> querysubscription.v1.Bounds
+	36, // 43: querysubscription.v1.Progress.position:type_name -> querysubscription.v1.Position
+	39, // 44: querysubscription.v1.EntityKey.relation:type_name -> querysubscription.v1.RelationKey
+	38, // 45: querysubscription.v1.Row.key:type_name -> querysubscription.v1.EntityKey
+	41, // 46: querysubscription.v1.Row.record:type_name -> querysubscription.v1.Record
+	62, // 47: querysubscription.v1.Record.fields:type_name -> querysubscription.v1.Record.FieldsEntry
+	5,  // 48: querysubscription.v1.Boundary.kind:type_name -> querysubscription.v1.Boundary.Kind
+	42, // 49: querysubscription.v1.Bounds.left:type_name -> querysubscription.v1.Boundary
+	42, // 50: querysubscription.v1.Bounds.right:type_name -> querysubscription.v1.Boundary
+	40, // 51: querysubscription.v1.QueryRow.row:type_name -> querysubscription.v1.Row
+	51, // 52: querysubscription.v1.QueryRow.expanded:type_name -> querysubscription.v1.EntitySnapshot
+	43, // 53: querysubscription.v1.QuerySnapshot.bounds:type_name -> querysubscription.v1.Bounds
+	44, // 54: querysubscription.v1.QuerySnapshot.rows:type_name -> querysubscription.v1.QueryRow
+	36, // 55: querysubscription.v1.QuerySnapshot.checkpoint:type_name -> querysubscription.v1.Position
+	36, // 56: querysubscription.v1.QuerySnapshot.fence:type_name -> querysubscription.v1.Position
+	38, // 57: querysubscription.v1.ReferenceRoute.parents:type_name -> querysubscription.v1.EntityKey
+	46, // 58: querysubscription.v1.EntityTarget.reference:type_name -> querysubscription.v1.ReferenceRoute
+	47, // 59: querysubscription.v1.EntityInstallation.target:type_name -> querysubscription.v1.EntityTarget
+	51, // 60: querysubscription.v1.EntityInstallation.snapshot:type_name -> querysubscription.v1.EntitySnapshot
+	54, // 61: querysubscription.v1.EntityDelta.changes:type_name -> querysubscription.v1.Change
+	47, // 62: querysubscription.v1.EntityEffect.target:type_name -> querysubscription.v1.EntityTarget
+	49, // 63: querysubscription.v1.EntityEffect.delta:type_name -> querysubscription.v1.EntityDelta
+	40, // 64: querysubscription.v1.EntitySnapshot.row:type_name -> querysubscription.v1.Row
+	36, // 65: querysubscription.v1.EntitySnapshot.checkpoint:type_name -> querysubscription.v1.Position
+	36, // 66: querysubscription.v1.EntitySnapshot.fence:type_name -> querysubscription.v1.Position
+	6,  // 67: querysubscription.v1.BoundaryChange.side:type_name -> querysubscription.v1.BoundaryChange.Side
+	7,  // 68: querysubscription.v1.BoundaryChange.operation:type_name -> querysubscription.v1.BoundaryChange.Operation
+	8,  // 69: querysubscription.v1.DeliveryMetadata.kind:type_name -> querysubscription.v1.DeliveryMetadata.Kind
+	36, // 70: querysubscription.v1.DeliveryMetadata.checkpoint:type_name -> querysubscription.v1.Position
+	36, // 71: querysubscription.v1.DeliveryMetadata.fence:type_name -> querysubscription.v1.Position
+	9,  // 72: querysubscription.v1.Change.kind:type_name -> querysubscription.v1.Change.Kind
+	40, // 73: querysubscription.v1.Change.row:type_name -> querysubscription.v1.Row
+	38, // 74: querysubscription.v1.Insertion.key:type_name -> querysubscription.v1.EntityKey
+	38, // 75: querysubscription.v1.MembershipDelta.removed:type_name -> querysubscription.v1.EntityKey
+	55, // 76: querysubscription.v1.MembershipDelta.insertions:type_name -> querysubscription.v1.Insertion
+	43, // 77: querysubscription.v1.WindowTransition.bounds:type_name -> querysubscription.v1.Bounds
+	36, // 78: querysubscription.v1.WindowTransition.fence:type_name -> querysubscription.v1.Position
+	36, // 79: querysubscription.v1.WindowTransition.checkpoint:type_name -> querysubscription.v1.Position
+	54, // 80: querysubscription.v1.Batch.changes:type_name -> querysubscription.v1.Change
+	56, // 81: querysubscription.v1.Batch.membership:type_name -> querysubscription.v1.MembershipDelta
+	57, // 82: querysubscription.v1.Batch.window:type_name -> querysubscription.v1.WindowTransition
+	38, // 83: querysubscription.v1.Batch.binding_resets:type_name -> querysubscription.v1.EntityKey
+	58, // 84: querysubscription.v1.SubscriptionEffect.batch:type_name -> querysubscription.v1.Batch
+	53, // 85: querysubscription.v1.DeliveryEnvelope.delivery:type_name -> querysubscription.v1.DeliveryMetadata
+	59, // 86: querysubscription.v1.DeliveryEnvelope.effects:type_name -> querysubscription.v1.SubscriptionEffect
+	50, // 87: querysubscription.v1.DeliveryEnvelope.entities:type_name -> querysubscription.v1.EntityEffect
+	34, // 88: querysubscription.v1.Value.ObjectEntry.value:type_name -> querysubscription.v1.Value
+	34, // 89: querysubscription.v1.Record.FieldsEntry.value:type_name -> querysubscription.v1.Value
+	10, // 90: querysubscription.v1.QuerySubscriptions.Open:input_type -> querysubscription.v1.ClientMessage
+	23, // 91: querysubscription.v1.QuerySubscriptions.Open:output_type -> querysubscription.v1.ServerMessage
+	91, // [91:92] is the sub-list for method output_type
+	90, // [90:91] is the sub-list for method input_type
+	90, // [90:90] is the sub-list for extension type_name
+	90, // [90:90] is the sub-list for extension extendee
+	0,  // [0:90] is the sub-list for field type_name
 }
 
 func init() { file_querysubscription_v1_querysubscription_proto_init() }
@@ -4199,14 +4281,15 @@ func file_querysubscription_v1_querysubscription_proto_init() {
 		(*ClientMessage_CancelRequest)(nil),
 		(*ClientMessage_CloseFeed)(nil),
 		(*ClientMessage_RequestProgress)(nil),
+		(*ClientMessage_WaitForFence)(nil),
 	}
-	file_querysubscription_v1_querysubscription_proto_msgTypes[12].OneofWrappers = []any{
+	file_querysubscription_v1_querysubscription_proto_msgTypes[13].OneofWrappers = []any{
 		(*ServerMessage_Acknowledged)(nil),
 		(*ServerMessage_Progress)(nil),
 		(*ServerMessage_Error)(nil),
 		(*ServerMessage_PayloadChunk)(nil),
 	}
-	file_querysubscription_v1_querysubscription_proto_msgTypes[18].OneofWrappers = []any{
+	file_querysubscription_v1_querysubscription_proto_msgTypes[19].OneofWrappers = []any{
 		(*Predicate_Comparison)(nil),
 		(*Predicate_NullTest)(nil),
 		(*Predicate_Junction)(nil),
@@ -4217,7 +4300,7 @@ func file_querysubscription_v1_querysubscription_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_querysubscription_v1_querysubscription_proto_rawDesc), len(file_querysubscription_v1_querysubscription_proto_rawDesc)),
 			NumEnums:      10,
-			NumMessages:   52,
+			NumMessages:   53,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

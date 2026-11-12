@@ -40,7 +40,8 @@ func queryOptions(c Config) queryserver.Options {
 	q := c.Query
 	m := q.Messages
 	return queryserver.Options{
-		Limits: queryserver.Limits(q.Limits), References: queryserver.ReferenceOptions(q.References),
+		FenceWaitTimeout: q.FenceWaitTimeout,
+		Limits:           queryserver.Limits(q.Limits), References: queryserver.ReferenceOptions(q.References),
 		Messages: transactionmessage.Options{
 			MessageLimits: transactionmessage.MessageLimits(m.MessageLimits), MaxQueuedTransactions: m.MaxQueuedTransactions,
 			MaxQueuedBytes: m.MaxQueuedBytes, MaxBatchTransactions: m.MaxBatchTransactions, MaxBatchBytes: m.MaxBatchBytes,

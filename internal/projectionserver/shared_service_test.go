@@ -25,6 +25,13 @@ import (
 	reactivev1 "github.com/adiom-data/weave/pkg/gen/reactive/v1"
 )
 
+func (*authorizationCommitEngine) WaitForFence(context.Context, string) (storage.Fence, error) {
+	return nil, errors.New("unexpected fence wait")
+}
+func (*projectionLifecycleSession) WaitForFence(context.Context, string) (*querysubscription.Position, error) {
+	return nil, errors.New("unexpected fence wait")
+}
+
 func TestStoragePredicatePushesNegationToLeaves(t *testing.T) {
 	comparison := func(column string, operator reactivev1.Comparison_Operator, value string) *reactivev1.Predicate {
 		return &reactivev1.Predicate{Expression: &reactivev1.Predicate_Comparison{Comparison: &reactivev1.Comparison{Column: &reactivev1.FieldPath{Segments: []string{column}}, Operator: operator, Value: &reactivev1.Value{Kind: &reactivev1.Value_TextValue{TextValue: value}}}}}

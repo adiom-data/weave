@@ -22,6 +22,8 @@ message ProjectionSnapshotRequest {
   map<string, Value> parameters = 2;
   bool wait_for_sync = 3;
   bool allow_partial_errors = 4;
+  // Opaque post-commit read fence. Wait before loading, even for cached reads.
+  string at_least_fence = 5;
 }
 
 message ProjectionSnapshotResponse {
@@ -87,6 +89,8 @@ message SubscribeProjection {
   bool wait_for_sync = 3;
   // Keep failed branches tracked for recovery instead of failing the projection.
   bool allow_partial_errors = 4;
+  // Optional read-after-write requirement for initial publication.
+  string at_least_fence = 5;
 }
 
 message ProjectionNode {

@@ -70,6 +70,7 @@ func (s *server) GetProjectionSnapshot(ctx context.Context, request *reactivev1.
 		Prefix: prefix, QueueLimit: s.options.SubscriptionQueueLimit, Limits: proj.Limits(s.options.ProjectionLimits),
 		ExpansionLimiter:      s.expansionLimiter,
 		WaitForSync:           request.WaitForSync,
+		AtLeastFence:          request.AtLeastFence,
 		AllowPartialErrors:    request.AllowPartialErrors,
 		CurrentImageAdmission: s.relationAccess != nil,
 	})

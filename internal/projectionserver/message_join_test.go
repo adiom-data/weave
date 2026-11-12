@@ -21,12 +21,16 @@ import (
 	reactivev1 "github.com/adiom-data/weave/pkg/gen/reactive/v1"
 )
 
+func (*joinTestFeed) WaitForFence(context.Context, string) (*querysubscription.Position, error) {
+	return nil, errors.New("unexpected fence wait")
+}
+
 func messageRouter(t *testing.T) (*cdc.Broker, *transactionmessages.Router) {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 	broker := cdc.NewBroker()
-	broker.MarkReady()
+	broker.MarkReady(0)
 	source := postgres.NewPostgresDataSourceWithOptions(nil, broker, postgres.DataSourceOptions{})
 	service, err := transactionmessage.Start(ctx, source, transactionmessage.Options{})
 	if err != nil {

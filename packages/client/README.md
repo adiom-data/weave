@@ -11,6 +11,14 @@ checked in, so normal client builds do not require a local Go/Buf toolchain.
 
 ## Start with typed projections
 
+After a mutation response supplies an opaque read fence, pass it through typed
+projection options: `definition.subscribe(client, parameters, { atLeastFence: fence })`
+or `useTypedProjection(client, definition, parameters, { atLeastFence: fence })`.
+The same option works with generated bindings/hooks. It delays initial loading
+until the mutation is applied; `waitForSync: true` additionally reconciles the
+snapshots discovered during expansion. Fences do not retire optimistic overlays;
+mutation correlation receipts continue to serve that separate purpose.
+
 For application views, prefer generated bindings over handwritten protocol
 definitions. The [projection guide](../../examples/demo/PROJECTIONS.md) shows how
 a schema and read document produce typed handles and React hooks.

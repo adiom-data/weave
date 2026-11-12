@@ -67,6 +67,9 @@ func (c *Coordinator) pendingProgressFence() storage.Fence {
 	for _, activation := range c.pendingWindows {
 		consider(activation.materialized.pending.Fence)
 	}
+	for wait := range c.readFences {
+		consider(wait.fence)
+	}
 	for _, reads := range c.referenceReads {
 		for read := range reads {
 			if read.ready {
@@ -96,6 +99,12 @@ func (c *Coordinator) startProgressRequest(ctx context.Context) {
 }
 
 func (c *Coordinator) failPendingProgress(requested storage.Fence, cause error) {
+	for wait := range c.readFences {
+		if !c.appliedThrough(wait.fence) && fenceAtOrBefore(wait.fence, requested) {
+			delete(c.readFences, wait)
+			wait.result <- cause
+		}
+	}
 	for _, reads := range c.referenceReads {
 		for read := range reads {
 			if read.ready && !c.appliedThrough(read.fence) && fenceAtOrBefore(read.fence, requested) {

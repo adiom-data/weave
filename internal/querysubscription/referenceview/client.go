@@ -26,14 +26,53 @@ func WrapFeed(parentCtx context.Context, base q.Feed, options q.FeedOptions) q.F
 
 type feed struct {
 	q.Feed
-	ctx     context.Context
-	cancel  context.CancelFunc
-	mu      sync.Mutex
-	closed  bool
-	events  *feedbuffer.Buffer
-	parents map[string]*parent
-	aliases map[string]*alias
+	ctx             context.Context
+	cancel          context.CancelFunc
+	mu              sync.Mutex
+	closed          bool
+	position        q.Position
+	progressChanged chan struct{}
+	events          *feedbuffer.Buffer
+	parents         map[string]*parent
+	aliases         map[string]*alias
 }
+
+// Fence acknowledgments can overtake this wrapper's ordered receive loop.
+// Do not serve parent-owned entity images until that loop applied the proof.
+func (f *feed) WaitForFence(ctx context.Context, token string) (*q.Position, error) {
+	requestCtx, cancel := context.WithCancel(ctx)
+	stop := context.AfterFunc(f.ctx, cancel)
+	defer func() { stop(); cancel() }()
+	position, err := f.Feed.WaitForFence(requestCtx, token)
+	if err != nil {
+		return nil, err
+	}
+	if position == nil || position.SourceID == "" {
+		return nil, errors.New("fence wait returned no source position")
+	}
+	for {
+		f.mu.Lock()
+		if f.closed {
+			f.mu.Unlock()
+			return nil, q.ErrClosed
+		}
+		if f.position.SourceID == position.SourceID && f.position.Value >= position.Value {
+			f.mu.Unlock()
+			return position, nil
+		}
+		if f.progressChanged == nil {
+			f.progressChanged = make(chan struct{})
+		}
+		changed := f.progressChanged
+		f.mu.Unlock()
+		select {
+		case <-changed:
+		case <-requestCtx.Done():
+			return nil, requestCtx.Err()
+		}
+	}
+}
+
 type parent struct {
 	shape   *storage.ReferenceFetch
 	owned   bool
@@ -474,11 +513,32 @@ func (f *feed) run() {
 			}
 			event.Delivery = &value
 		}
-		f.mu.Unlock()
+		var position *q.Position
+		if event.Progress != nil {
+			position = event.Progress.Position
+		}
+		if event.Delivery != nil && event.Delivery.Delivery.Kind == q.DeliveryCommit {
+			position = event.Delivery.Delivery.Checkpoint
+		}
+		// Capture source proof before publishing: Next transfers event metadata
+		// to the consumer, which must not be able to rewrite our private watermark.
+		var proof q.Position
+		if position != nil {
+			proof = *position
+		}
 		if err := f.events.Offer(event); err != nil {
+			f.mu.Unlock()
 			f.fail(err)
 			return
 		}
+		if proof.SourceID != "" {
+			f.position = proof
+			if f.progressChanged != nil {
+				close(f.progressChanged)
+				f.progressChanged = nil
+			}
+		}
+		f.mu.Unlock()
 	}
 }
 

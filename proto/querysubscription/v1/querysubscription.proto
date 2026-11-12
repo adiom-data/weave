@@ -21,6 +21,7 @@ message ClientMessage {
     CancelRequest cancel_request = 7;
     CloseFeed close_feed = 8;
     RequestProgress request_progress = 9;
+    WaitForFence wait_for_fence = 10;
   }
 }
 
@@ -92,6 +93,10 @@ message CloseFeed {}
 // If no progress is known, the request is acknowledged without an event.
 message RequestProgress {}
 
+// Waits for applied CDC, requesting source progress when necessary. The
+// acknowledgment carries the covered position; ordered Progress is also sent.
+message WaitForFence { string fence = 1; }
+
 message ServerMessage {
   string request_id = 1;
   oneof event {
@@ -105,6 +110,7 @@ message ServerMessage {
 message Acknowledged {
   // Set only on the Initialize acknowledgment.
   uint32 protocol_version = 1;
+  Position fence_position = 2;
 }
 
 // PayloadChunk frames a serialized QuerySnapshot, EntityInstallation, or
@@ -134,6 +140,7 @@ message Error {
     CODE_BACKPRESSURE = 2;
     CODE_CLOSED = 3;
     CODE_INTERNAL = 4;
+    CODE_DEADLINE_EXCEEDED = 5;
   }
   Code code = 1;
   string subscription_id = 2;

@@ -28,7 +28,7 @@ func TestGRPCBroadcastMessagesAndOrderedProgress(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	broker := cdc.NewBroker()
-	broker.MarkReady()
+	broker.MarkReady(0)
 	source := postgres.NewPostgresDataSourceWithOptions(nil, broker, postgres.DataSourceOptions{})
 	service, err := transactionmessage.Start(ctx, source, transactionmessage.Options{MaxBatchBytes: 1024})
 	if err != nil {
@@ -164,7 +164,7 @@ func TestOverflowTerminatesRPCWhileSendIsBlocked(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	broker := cdc.NewBroker()
-	broker.MarkReady()
+	broker.MarkReady(0)
 	source := postgres.NewPostgresDataSourceWithOptions(nil, broker, postgres.DataSourceOptions{})
 	service, err := transactionmessage.Start(ctx, source, transactionmessage.Options{MaxQueuedTransactions: 1})
 	if err != nil {

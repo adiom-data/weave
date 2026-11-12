@@ -40,27 +40,28 @@ type Cache struct {
 }
 
 type generation struct {
-	owner       *Cache
-	ctx         context.Context
-	cancel      context.CancelFunc
-	ready, done chan struct{}
-	upstream    q.Feed
-	err         error
-	closeErr    error
-	stopping    bool
-	workers     sync.WaitGroup
-	wake        chan struct{}
-	feeds       map[*consumer]struct{}
-	entries     map[string]*entry
-	shared      map[string]*entry
-	entities    map[storage.EntityKey]*entityCell
-	retired     []*entry
-	cleanup     []map[storage.EntityKey]row
-	idle        expiryindex.Index[string]
-	revision    uint64
-	checkpoint  *q.Position
-	positions   sourceposition.Tracker
-	progress    sharedProgress
+	owner           *Cache
+	ctx             context.Context
+	cancel          context.CancelFunc
+	ready, done     chan struct{}
+	upstream        q.Feed
+	err             error
+	closeErr        error
+	stopping        bool
+	workers         sync.WaitGroup
+	wake            chan struct{}
+	feeds           map[*consumer]struct{}
+	entries         map[string]*entry
+	shared          map[string]*entry
+	entities        map[storage.EntityKey]*entityCell
+	retired         []*entry
+	cleanup         []map[storage.EntityKey]row
+	idle            expiryindex.Index[string]
+	revision        uint64
+	checkpoint      *q.Position
+	positions       sourceposition.Tracker
+	progress        sharedProgress
+	progressChanged chan struct{}
 }
 
 type entry struct {
@@ -428,6 +429,7 @@ func (g *generation) dispatch(event q.Event) error {
 		}
 		g.revision = event.Progress.Revision
 		g.checkpoint = copyPosition(event.Progress.Position)
+		g.notifyProgressLocked()
 		for f := range g.feeds {
 			if err := f.events.Offer(cloneEvent(event)); err != nil {
 				f.closeLocked(err)
@@ -452,6 +454,7 @@ func (g *generation) dispatch(event q.Event) error {
 			return err
 		}
 		g.checkpoint = copyPosition(envelope.Delivery.Checkpoint)
+		g.notifyProgressLocked()
 	}
 	byFeed := make(map[*consumer]*q.DeliveryEnvelope)
 	for effect := range envelope.SubscriptionEffects() {

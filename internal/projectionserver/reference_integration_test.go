@@ -43,6 +43,10 @@ type referenceCountingSource struct {
 	hydrationOnce                                   sync.Once
 }
 
+func (s *referenceCountingSource) DecodeReadFence(ctx context.Context, token string) (storage.Fence, error) {
+	return s.Storage.(datastore.ReadFenceDecoder).DecodeReadFence(ctx, token)
+}
+
 func (s *referenceCountingSource) PrepareQuery(ctx context.Context, spec storage.QuerySpec) (datastore.PreparedQuery, error) {
 	if spec.Relation.Name == "tasks" {
 		s.mu.Lock()

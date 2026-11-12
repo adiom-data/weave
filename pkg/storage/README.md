@@ -20,6 +20,39 @@ Pass the returned storage to `queryserver.New`. Declarative visibility policies
 gather authorization facts through ordinary query/entity subscriptions managed
 by the projection server, not through a separate storage-level fact stream.
 
+## Read-after-write fences
+
+After committing a mutation, capture an opaque token from the same primary:
+
+```go
+import postgres "github.com/adiom-data/weave/pkg/storage/postgres"
+
+if err := tx.Commit(ctx); err != nil { return err }
+fence, err := postgres.CaptureReadFence(ctx, pool)
+```
+
+Return `fence` in your application response body or a header. Both
+`ProjectionSnapshotRequest` and `SubscribeProjection` accept `at_least_fence`.
+Weave waits for applied CDC and projection-side materialization before loading
+the initial projection, including authorization facts. Existing barrier
+coalescing provides progress on quiet databases. No fence means no extra work.
+
+On startup, the PostgreSQL feed publishes its slot's starting position as an
+initial progress watermark, for both new and resumed slots. Fences at or below
+that position need no new barrier. Reconnecting an existing capture connection
+preserves its ordered live history rather than reinitializing that watermark.
+
+The helper performs a separate query after commit and cannot roll that commit
+back if capture fails. It accepts a pool, not a transaction. The token is
+base64url encoded and contains only a format version and position. Applications
+must treat it as opaque and route it to the same database that issued it; tokens
+carry no database identity and are not authorization credentials. Malformed and
+ahead-of-WAL positions are rejected before registering a wait.
+
+`queryserver.Options.FenceWaitTimeout` bounds the query-side wait (default 30s).
+The standalone server exposes this as `query.fence_wait_timeout`. An earlier
+request deadline wins; timing out one wait does not close the feed or stop CDC.
+
 ## Before connecting
 
 Configure PostgreSQL for logical replication, create tables with primary keys,

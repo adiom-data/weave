@@ -37,6 +37,7 @@ type testFeed struct {
 	events          *streamqueue.Queue[querysubscription.Event]
 	closed          bool
 	progress        func(context.Context) error
+	waitFence       func(context.Context, string) (*querysubscription.Position, error)
 }
 
 func (s *testFeed) RequestProgress(ctx context.Context) error {
@@ -44,6 +45,74 @@ func (s *testFeed) RequestProgress(ctx context.Context) error {
 		return s.progress(ctx)
 	}
 	return nil
+}
+
+func (s *testFeed) WaitForFence(ctx context.Context, fence string) (*querysubscription.Position, error) {
+	if s.waitFence != nil {
+		return s.waitFence(ctx, fence)
+	}
+	return nil, errors.New("unexpected fence wait")
+}
+
+func TestRemoteReadFenceRoundTripsAndCancelsWithoutClosingFeed(t *testing.T) {
+	backend := newTestSession(nil)
+	started := make(chan struct{})
+	var revision uint64
+	backend.waitFence = func(ctx context.Context, fence string) (*querysubscription.Position, error) {
+		if fence == "timeout" {
+			return nil, context.DeadlineExceeded
+		}
+		if fence == "blocked" {
+			close(started)
+			<-ctx.Done()
+			return nil, ctx.Err()
+		}
+		if fence != "opaque" {
+			return nil, errors.New("foreign fence")
+		}
+		backend.mu.Lock()
+		defer backend.mu.Unlock()
+		previous := revision
+		revision++
+		position := &querysubscription.Position{SourceID: "test", Value: 20}
+		if err := backend.events.Offer(querysubscription.Event{Progress: &querysubscription.Progress{Position: position, Revision: revision, PreviousRevision: previous}}); err != nil {
+			return nil, err
+		}
+		return position, nil
+	}
+	ctx, cancel := context.WithTimeout(t.Context(), 3*time.Second)
+	defer cancel()
+	feed, err := remoteTestClient(t, &testClient{session: backend}).OpenFeed(ctx, querysubscription.FeedOptions{BufferLimit: 16})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer feed.Close(context.Background())
+	position, err := feed.WaitForFence(ctx, "opaque")
+	if err != nil || position == nil || position.Value != 20 {
+		t.Fatalf("fence acknowledgment: %+v %v", position, err)
+	}
+	call, stop := context.WithCancel(ctx)
+	defer stop()
+	done := make(chan error, 1)
+	go func() { _, err := feed.WaitForFence(call, "blocked"); done <- err }()
+	select {
+	case <-started:
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	stop()
+	if err := <-done; !errors.Is(err, context.Canceled) {
+		t.Fatal(err)
+	}
+	if _, err := feed.WaitForFence(ctx, "foreign"); err == nil {
+		t.Fatal("foreign fence accepted")
+	}
+	if _, err := feed.WaitForFence(ctx, "timeout"); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("server timeout lost its error classification: %v", err)
+	}
+	if _, err := feed.WaitForFence(ctx, "opaque"); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func newTestSession(snapshot func(querysubscription.QuerySubscribeRequest) (querysubscription.QuerySnapshot, error)) *testFeed {

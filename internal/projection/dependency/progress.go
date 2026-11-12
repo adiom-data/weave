@@ -2,9 +2,62 @@ package dependency
 
 import (
 	"context"
+	"errors"
 
 	q "github.com/adiom-data/weave/internal/querysubscription/model"
 )
+
+func (g *generation) notifyProgressLocked() {
+	if g.progressChanged != nil {
+		close(g.progressChanged)
+		g.progressChanged = nil
+	}
+}
+
+// WaitForFence must cover this shared materialization, not merely the remote
+// query coordinator. Acknowledgments and ordered feed delivery can cross.
+func (f *consumer) WaitForFence(ctx context.Context, token string) (*q.Position, error) {
+	g, c := f.generation, f.generation.owner
+	c.mu.Lock()
+	if f.closed || g.stopping {
+		c.mu.Unlock()
+		return nil, q.ErrClosed
+	}
+	c.mu.Unlock()
+	requestCtx, cancel := context.WithCancel(ctx)
+	stop := context.AfterFunc(f.ctx, cancel)
+	defer func() { stop(); cancel() }()
+	position, err := g.upstream.WaitForFence(requestCtx, token)
+	if err != nil {
+		return nil, err
+	}
+	if position == nil || position.SourceID == "" {
+		return nil, errors.New("fence wait returned no source position")
+	}
+	for {
+		c.mu.Lock()
+		if f.closed || g.stopping {
+			c.mu.Unlock()
+			return nil, q.ErrClosed
+		}
+		if covers(g.checkpoint, position) {
+			c.mu.Unlock()
+			return position, nil
+		}
+		if g.progressChanged == nil {
+			g.progressChanged = make(chan struct{})
+		}
+		changed := g.progressChanged
+		c.mu.Unlock()
+		select {
+		case <-changed:
+		case <-requestCtx.Done():
+			return nil, requestCtx.Err()
+		case <-g.ctx.Done():
+			return nil, q.ErrClosed
+		}
+	}
+}
 
 // sharedProgress belongs to one upstream generation and is guarded by Cache.mu.
 // Completed snapshots establish demand, never proof. Proof comes only from

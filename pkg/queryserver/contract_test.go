@@ -3,6 +3,7 @@ package queryserver_test
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/adiom-data/weave/pkg/queryserver"
@@ -42,5 +43,15 @@ func TestQueryConstructionBorrowsApplicationStorage(t *testing.T) {
 	}
 	if source.closed {
 		t.Fatal("query construction closed application-owned storage")
+	}
+}
+
+func TestFenceTimeoutConfiguration(t *testing.T) {
+	if queryserver.DefaultOptions().FenceWaitTimeout <= 0 {
+		t.Fatal("default fence timeout must be bounded")
+	}
+	source := &applicationStorage{failure: errors.New("storage was started")}
+	if _, err := queryserver.New(t.Context(), source, queryserver.Options{FenceWaitTimeout: -1}); err == nil || !strings.Contains(err.Error(), "fence wait timeout") {
+		t.Fatalf("invalid timeout was not rejected before starting storage: %v", err)
 	}
 }

@@ -17,7 +17,7 @@ import (
 
 func TestPostgresFeedPreservesCaptureGapCause(t *testing.T) {
 	broker := cdc.NewBroker()
-	broker.MarkReady()
+	broker.MarkReady(0)
 	feed, err := newFeedSource(broker, newPostgresTypeAdapter()).OpenFeed(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -94,7 +94,7 @@ func TestPostgresChangeIdentityDoesNotDecodePayload(t *testing.T) {
 
 func TestPostgresFeedPreservesOpaqueCommittedMessages(t *testing.T) {
 	broker := cdc.NewBroker()
-	broker.MarkReady()
+	broker.MarkReady(0)
 	feed, err := newFeedSource(broker, newPostgresTypeAdapter()).OpenFeed(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -142,7 +142,7 @@ func TestPostgresChangeRejectsMissingIdentityAsRelationError(t *testing.T) {
 
 func TestPostgresFeedEmitsCommittedAtomicChanges(t *testing.T) {
 	broker := cdc.NewBroker()
-	broker.MarkReady()
+	broker.MarkReady(0)
 	feedInterface, err := newFeedSource(broker, newPostgresTypeAdapter()).OpenFeed(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -177,7 +177,7 @@ func TestPostgresFeedEmitsCommittedAtomicChanges(t *testing.T) {
 
 func TestPostgresFeedDefersIdentityConversionToRelationProcessing(t *testing.T) {
 	broker := cdc.NewBroker()
-	broker.MarkReady()
+	broker.MarkReady(0)
 	feedInterface, err := newFeedSource(broker, newPostgresTypeAdapter()).OpenFeed(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -225,7 +225,7 @@ func TestPostgresFeedWaitsForDurableCaptureReadiness(t *testing.T) {
 		t.Fatalf("feed opened before durable capture was ready: %v", err)
 	case <-time.After(10 * time.Millisecond):
 	}
-	broker.MarkReady()
+	broker.MarkReady(0)
 	if err := <-opened; err != nil {
 		t.Fatal(err)
 	}
@@ -233,7 +233,7 @@ func TestPostgresFeedWaitsForDurableCaptureReadiness(t *testing.T) {
 
 func TestPostgresFeedCoverageUsesConsumedPositionNotQueueEmptiness(t *testing.T) {
 	broker := cdc.NewBroker()
-	broker.MarkReady()
+	broker.MarkReady(0)
 	feedInterface, err := newFeedSource(broker, newPostgresTypeAdapter()).OpenFeed(context.Background())
 	if err != nil {
 		t.Fatal(err)
@@ -258,7 +258,7 @@ func TestPostgresFeedCoverageUsesConsumedPositionNotQueueEmptiness(t *testing.T)
 
 func TestPostgresFeedEmitsOrderedProgressCheckpoint(t *testing.T) {
 	broker := cdc.NewBroker()
-	broker.MarkReady()
+	broker.MarkReady(0)
 	feedInterface, err := newFeedSource(broker, newPostgresTypeAdapter()).OpenFeed(context.Background())
 	if err != nil {
 		t.Fatal(err)

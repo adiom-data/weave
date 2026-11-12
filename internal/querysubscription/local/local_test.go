@@ -24,6 +24,7 @@ type coordinatorStub struct {
 	unsubscribe func(context.Context, string) error
 	release     func(context.Context, string) error
 	progress    func(context.Context, string) (*delivery.ProgressReport, error)
+	waitFence   func(context.Context, string) (storage.Fence, error)
 }
 
 // Old per-subscription fixture producers are adapted into the native group
@@ -57,6 +58,13 @@ func (c coordinatorStub) ReportProgress(ctx context.Context, group string) (*del
 		return c.progress(ctx, group)
 	}
 	return nil, errors.New("unexpected progress request")
+}
+
+func (c coordinatorStub) WaitForFence(ctx context.Context, token string) (storage.Fence, error) {
+	if c.waitFence != nil {
+		return c.waitFence(ctx, token)
+	}
+	return nil, errors.New("unexpected fence wait")
 }
 
 func (c coordinatorStub) SubscribeGroupedWithFetch(ctx context.Context, id, group string, spec storage.QuerySpec, window engine.InitialWindow, _ engine.FetchOptions) (*engine.OpenSubscription, error) {

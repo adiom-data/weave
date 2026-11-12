@@ -596,6 +596,11 @@ type EntitySnapshotInstaller func(EntitySubscription, EntitySnapshot) error
 // All methods must be safe for concurrent use: projection expansion can
 // subscribe children while existing subscriptions deliver.
 type Feed interface {
+	// WaitForFence waits for applied source progress and returns its checkpoint.
+	// It does not consume Next. Wrappers must catch their own materialization up
+	// through the returned checkpoint before completing. Cancellation is local
+	// to this call and must not stop CDC or unrelated subscriptions.
+	WaitForFence(context.Context, string) (*Position, error)
 	SubscribeQuery(context.Context, QuerySubscribeRequest, QuerySnapshotInstaller) error
 	SubscribeEntity(context.Context, EntitySubscribeRequest, EntitySnapshotInstaller) error
 	// RequestProgress asks the implementation to report its latest

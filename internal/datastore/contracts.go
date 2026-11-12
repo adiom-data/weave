@@ -264,6 +264,13 @@ type ProgressRequester interface {
 	RequestProgress(context.Context, storage.Fence) error
 }
 
+// ReadFenceDecoder validates an opaque application fence against this source.
+// It must reject unreachable/future positions before they enter the shared
+// progress loop. It may perform IO, outside the coordinator actor.
+type ReadFenceDecoder interface {
+	DecodeReadFence(context.Context, string) (storage.Fence, error)
+}
+
 type DataSource interface {
 	ID() storage.SourceID
 	// PrepareQuery resolves an omitted order to the datastore's stable, unique

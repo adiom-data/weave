@@ -15,7 +15,7 @@ var _ storage.MessageSource = (*PostgresDataSource)(nil)
 
 func TestMessageFeedPreservesMessagesProgressAndNoAckOwnership(t *testing.T) {
 	broker := cdc.NewBroker()
-	broker.MarkReady()
+	broker.MarkReady(0)
 	source := NewPostgresDataSourceWithOptions(nil, broker, DataSourceOptions{})
 	metadata, err := source.OpenMessageFeed(context.Background())
 	if err != nil {
@@ -70,7 +70,7 @@ func TestMessageFeedPreservesMessagesProgressAndNoAckOwnership(t *testing.T) {
 func TestMessageFeedAllocationsDoNotScaleWithRows(t *testing.T) {
 	allocations := func(rowCount int) float64 {
 		broker := cdc.NewBroker()
-		broker.MarkReady()
+		broker.MarkReady(0)
 		feed, err := newFeedSource(broker, newPostgresTypeAdapter()).OpenMessageFeed(context.Background())
 		if err != nil {
 			t.Fatal(err)
@@ -97,7 +97,7 @@ func TestMessageFeedAllocationsDoNotScaleWithRows(t *testing.T) {
 
 func TestMessageFeedCaptureGapAndCancellation(t *testing.T) {
 	broker := cdc.NewBroker()
-	broker.MarkReady()
+	broker.MarkReady(0)
 	feed, err := newFeedSource(broker, newPostgresTypeAdapter()).OpenMessageFeed(context.Background())
 	if err != nil {
 		t.Fatal(err)

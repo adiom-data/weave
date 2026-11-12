@@ -47,6 +47,7 @@ visibility:
 # All tuning below is optional: omitted fields retain library defaults shown here.
 # Values must be positive, except progress_barrier_delay may be zero.
 query:
+  fence_wait_timeout: 30s # Maximum query-side read-after-write fence wait.
   limits:
     entity_idle_ttl: 5m
     eviction_period: 1m

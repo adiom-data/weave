@@ -21,6 +21,14 @@ func (*boundarySession) RequestProgress(context.Context) error {
 	return nil
 }
 
+func (*boundarySession) WaitForFence(context.Context, string) (*querysubscription.Position, error) {
+	return nil, errors.New("unexpected fence wait")
+}
+
+func (*projectionMock) WaitForFence(context.Context, string) (storage.Fence, error) {
+	return nil, errors.New("unexpected fence wait")
+}
+
 func (s *boundarySession) SubscribeQuery(_ context.Context, request querysubscription.QuerySubscribeRequest, install querysubscription.QuerySnapshotInstaller) error {
 	s.mu.Lock()
 	if s.subscription != nil {

@@ -10,10 +10,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pglogrepl"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/adiom-data/weave/internal/datastore"
+	"github.com/adiom-data/weave/internal/engine"
+	"github.com/adiom-data/weave/internal/readfence"
 	"github.com/adiom-data/weave/internal/storage"
 )
 
@@ -123,6 +126,34 @@ func TestStorageConnectionConfigurationIntegration(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer feed.Close()
+			// Both a newly created slot and the resumed slot must expose a
+			// starting watermark without needing a write or a logical barrier.
+			var raw string
+			if err := pool.QueryRow(ctx, `SELECT confirmed_flush_lsn::text FROM pg_replication_slots WHERE slot_name=$1`, name).Scan(&raw); err != nil {
+				t.Fatal(err)
+			}
+			start, err := pglogrepl.ParseLSN(raw)
+			if err != nil {
+				t.Fatal(err)
+			}
+			initial, err := feed.Receive(ctx)
+			if err != nil || initial.Progress == nil || initial.Transaction != nil || initial.Progress.Order() < uint64(start) {
+				t.Fatalf("attempt %d: missing initial slot progress %s: %+v, %v", attempt, raw, initial, err)
+			}
+			func() {
+				run, stop := context.WithCancel(ctx)
+				defer stop()
+				coordinator, err := engine.StartCoordinatorWithOptions(run, store, engine.CoordinatorOptions{Limits: engine.CoordinatorLimits{ProgressBarrierDelay: time.Hour}})
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer func() { stop(); _ = coordinator.Wait(ctx) }()
+				wait, cancelWait := context.WithTimeout(ctx, time.Second)
+				defer cancelWait()
+				if _, err := coordinator.WaitForFence(wait, readfence.Encode(uint64(start))); err != nil {
+					t.Fatalf("attempt %d: startup fence needed a barrier: %v", attempt, err)
+				}
+			}()
 			marker := fmt.Sprintf("replicated bytes %d", attempt)
 			if _, err := pool.Exec(ctx, `UPDATE `+table+` SET title=$1, data=decode('616263005cff', 'hex') WHERE id=1`, marker); err != nil {
 				t.Fatal(err)

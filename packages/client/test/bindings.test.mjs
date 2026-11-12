@@ -21,6 +21,9 @@ test('prepared projection keys include every request option and normalize defaul
   }
   assert.equal(keys.size, 4)
   assert.equal(definition.prepare({}).key, definition.prepare({}, { waitForSync: false, allowPartialErrors: false }).key)
+  const fenced = definition.prepare({}, { atLeastFence: 'opaque-fence' })
+  assert.notEqual(fenced.key, definition.prepare({}).key)
+  assert.equal(definition.request({}, { atLeastFence: 'opaque-fence' }).atLeastFence, 'opaque-fence')
 })
 
 test('computed selections decode through typed aliases without changing entity values', () => {

@@ -17,6 +17,11 @@ type installation struct {
 	request q.QuerySubscribeRequest
 	install q.QuerySnapshotInstaller
 }
+
+func (*testFeed) WaitForFence(context.Context, string) (*q.Position, error) {
+	return nil, errors.New("unexpected fence wait")
+}
+
 type testFeed struct {
 	requests chan installation
 	events   chan q.Event

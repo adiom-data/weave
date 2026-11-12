@@ -21,6 +21,7 @@ import (
 )
 
 type Coordinator interface {
+	WaitForFence(context.Context, string) (storage.Fence, error)
 	OpenGroup(context.Context, string, int) (*delivery.ClientQueue[delivery.GroupMessage], error)
 	SubscribeEntities(context.Context, string, []engine.EntitySubscribe, func(int, engine.SubscribeResult))
 	SubscribeGroupedWithFetch(context.Context, string, string, storage.QuerySpec, engine.InitialWindow, engine.FetchOptions) (*engine.OpenSubscription, error)
@@ -28,6 +29,28 @@ type Coordinator interface {
 	Unsubscribe(context.Context, string) (uint64, error)
 	ReleaseGroup(context.Context, string) error
 	ReportProgress(context.Context, string) (*delivery.ProgressReport, error)
+}
+
+func (s *localFeed) WaitForFence(ctx context.Context, token string) (*querysubscription.Position, error) {
+	requestCtx, cancel := context.WithCancel(ctx)
+	stop := context.AfterFunc(s.ctx, cancel)
+	defer func() { stop(); cancel() }()
+	s.mu.Lock()
+	if s.closed {
+		s.mu.Unlock()
+		return nil, querysubscription.ErrClosed
+	}
+	s.beginPendingLocked()
+	s.mu.Unlock()
+	defer s.finishPending()
+	fence, err := s.coordinator.WaitForFence(requestCtx, token)
+	if err != nil {
+		return nil, err
+	}
+	if fence == nil || fence.Source() == "" {
+		return nil, errors.New("read fence completed without a source position")
+	}
+	return s.ensureFenceProgress(requestCtx, sourceposition.FromSource(fence))
 }
 
 func (s *localFeed) RequestProgress(ctx context.Context) error {
@@ -49,18 +72,23 @@ func (s *localFeed) RequestProgress(ctx context.Context) error {
 		stopFeedCancel()
 		cancel()
 	}()
-	report, err := s.coordinator.ReportProgress(requestCtx, s.group)
+	_, err := s.reportProgress(requestCtx)
+	return err
+}
+
+func (s *localFeed) reportProgress(ctx context.Context) (*querysubscription.Position, error) {
+	report, err := s.coordinator.ReportProgress(ctx, s.group)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if report == nil {
-		return nil
+		return nil, nil
 	}
 	if err := s.acceptProgress(*report); err != nil {
 		s.fail(err)
-		return err
+		return nil, err
 	}
-	return nil
+	return sourceposition.FromSource(report.Checkpoint), nil
 }
 
 // Client adapts the coordinator's native, in-process API to the consumer
@@ -146,6 +174,10 @@ type localFeed struct {
 	deliveries      map[uint64]*pendingDelivery
 	retirements     map[uint64][]string // guarded by feedMu; accepted delivery floors
 	flushedRevision uint64
+	// Proof accepted into the ordered delivery chain. Reports can precede
+	// assembly of earlier effects; consumers still wait through Next.
+	sourceProof *querysubscription.Position // guarded by feedMu
+	fenceReport *fenceProgressReport        // guarded by feedMu
 }
 
 func (s *localFeed) nativeID(id string) string { return s.group + "\x00" + id }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -18,6 +19,84 @@ type testFeed struct {
 	snapshot        q.QuerySnapshot
 	entityCalls     int
 	entitySubscribe func(context.Context, q.EntitySubscribeRequest, q.EntitySnapshotInstaller) error
+	waitFence       func(context.Context, string) (*q.Position, error)
+}
+
+func (s *testFeed) WaitForFence(ctx context.Context, token string) (*q.Position, error) {
+	if s.waitFence != nil {
+		return s.waitFence(ctx, token)
+	}
+	return nil, fmt.Errorf("unexpected fence wait")
+}
+
+func TestReadFenceWaitRequiresLocallyAppliedSourceProof(t *testing.T) {
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+	defer cancel()
+	ack := make(chan struct{})
+	base := &testFeed{events: make(chan q.Event), waitFence: func(context.Context, string) (*q.Position, error) {
+		close(ack)
+		return &q.Position{SourceID: "test", Value: 20}, nil
+	}}
+	f := WrapFeed(ctx, base, q.FeedOptions{BufferLimit: 16})
+	defer f.Close(context.Background())
+	done := make(chan error, 1)
+	go func() { _, err := f.WaitForFence(ctx, "opaque"); done <- err }()
+	select {
+	case <-ack:
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	base.events <- q.Event{Delivery: &q.DeliveryEnvelope{Delivery: q.DeliveryMetadata{Kind: q.DeliveryHydration, Checkpoint: &q.Position{SourceID: "test", Value: 30}, Revision: 1}}}
+	if _, err := f.Next(ctx); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case err := <-done:
+		t.Fatalf("read checkpoint bypassed source proof: %v", err)
+	default:
+	}
+	base.events <- q.Event{Progress: &q.Progress{Position: &q.Position{SourceID: "test", Value: 20}, Revision: 2, PreviousRevision: 1}}
+	if err := <-done; err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestReturnedEventCannotRewriteFenceProgress(t *testing.T) {
+	for _, kind := range []string{"progress", "commit"} {
+		t.Run(kind, func(t *testing.T) {
+			ctx, cancel := context.WithTimeout(t.Context(), time.Second)
+			defer cancel()
+			base := &testFeed{events: make(chan q.Event), waitFence: func(context.Context, string) (*q.Position, error) {
+				return &q.Position{SourceID: "test", Value: 20}, nil
+			}}
+			f := WrapFeed(ctx, base, q.FeedOptions{BufferLimit: 16})
+			defer f.Close(context.Background())
+			position := &q.Position{SourceID: "test", Value: 10}
+			event := q.Event{Progress: &q.Progress{Position: position, Revision: 1}}
+			if kind == "commit" {
+				event = q.Event{Delivery: &q.DeliveryEnvelope{Delivery: q.DeliveryMetadata{Kind: q.DeliveryCommit, Checkpoint: position, Revision: 1}}}
+			}
+			base.events <- event
+			received, err := f.Next(ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if received.Progress != nil {
+				received.Progress.Position.Value = 20
+			} else {
+				received.Delivery.Delivery.Checkpoint.Value = 20
+			}
+			probe, stop := context.WithTimeout(ctx, 30*time.Millisecond)
+			defer stop()
+			if proof, err := f.WaitForFence(probe, "opaque"); !errors.Is(err, context.DeadlineExceeded) {
+				t.Fatalf("consumer metadata advanced private proof: %+v, %v", proof, err)
+			}
+			base.events <- q.Event{Progress: &q.Progress{Position: &q.Position{SourceID: "test", Value: 20}, Revision: 2, PreviousRevision: 1}}
+			if _, err := f.WaitForFence(ctx, "opaque"); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
 }
 
 func (s *testFeed) SubscribeQuery(_ context.Context, r q.QuerySubscribeRequest, install q.QuerySnapshotInstaller) error {

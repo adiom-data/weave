@@ -16,9 +16,10 @@ import (
 // conversions to library configuration keep every scalar field accounted for
 // without exposing providers, callbacks, or other implementation choices.
 type QueryConfig struct {
-	Limits     QueryLimits          `yaml:"limits"`
-	References ReferenceConfig      `yaml:"references"`
-	Messages   MessageServiceConfig `yaml:"messages"`
+	FenceWaitTimeout time.Duration        `yaml:"fence_wait_timeout"`
+	Limits           QueryLimits          `yaml:"limits"`
+	References       ReferenceConfig      `yaml:"references"`
+	Messages         MessageServiceConfig `yaml:"messages"`
 }
 
 type QueryLimits struct {
@@ -127,6 +128,7 @@ func (c *Config) setTuningDefaults() {
 	c.Storage.Postgres.CaptureBufferLimit = pg.CaptureBufferLimit
 	c.Storage.Postgres.MessageLogInterval = pg.MessageLogInterval
 	q := queryserver.DefaultOptions()
+	c.Query.FenceWaitTimeout = q.FenceWaitTimeout
 	c.Query.Limits = QueryLimits(q.Limits)
 	c.Query.References = ReferenceConfig(q.References)
 	c.Query.Messages = MessageServiceConfig{

@@ -198,7 +198,7 @@ func (r *Replicator) consume(ctx context.Context) error {
 	if err := pglogrepl.StartReplication(ctx, conn, r.slot, startLSN, pglogrepl.StartReplicationOptions{PluginArgs: args}); err != nil {
 		return classifyStartupError("start replication", err)
 	}
-	r.broker.MarkReady()
+	r.broker.MarkReady(startLSN)
 	r.logger.Info("logical replication started", "publication", r.publication, "slot", r.slot)
 
 	relations := r.relations

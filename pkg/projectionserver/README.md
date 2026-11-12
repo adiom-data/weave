@@ -21,6 +21,19 @@ See [query backend composition](../queryserver/README.md).
 
 ## One-shot snapshots
 
+Both snapshot and live projection requests optionally accept one opaque
+`at_least_fence` token captured after a database mutation commits. Initial
+loading waits for the query backend and shared materialization to apply that
+position. This requirement is independent of `wait_for_sync`: the fence gives
+read-after-write freshness, while `wait_for_sync` reconciles snapshots discovered
+during expansion into a consistent initial cut. Later writes may also be included.
+Malformed or ahead-of-WAL fences fail the request, including with partial errors
+enabled. The application must route the token to its issuing database.
+The query backend's configurable fence timeout, cancellation, or an earlier
+request deadline ends its wait without stopping CDC. A timeout fails only the
+requesting projection, not its connection or other projections.
+See [capturing PostgreSQL fences](../storage/README.md#read-after-write-fences).
+
 `GetProjectionSnapshot` accepts the same projection tree and parameters as a
 live projection, but closes all temporary subscriptions before returning. Its
 response is nested data rather than a stream's normalized model:

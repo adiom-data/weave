@@ -20,6 +20,13 @@ type testClient struct {
 	block <-chan struct{}
 }
 
+func (f *testFeed) WaitForFence(ctx context.Context, token string) (*q.Position, error) {
+	if f.waitFence != nil {
+		return f.waitFence(ctx, token)
+	}
+	return nil, errors.New("unexpected fence wait")
+}
+
 func (c *testClient) OpenFeed(ctx context.Context, _ q.FeedOptions) (q.Feed, error) {
 	f := &testFeed{ctx: ctx, events: streamqueue.New[q.Event](1024, q.ErrBackpressure, q.ErrClosed), subscriptions: make(map[string]*testSubscription), block: c.block, closedSubscriptions: make(chan string, 1024)}
 	c.mu.Lock()
@@ -43,6 +50,7 @@ type testFeed struct {
 	closedSubscriptions chan string
 	loads               atomic.Int32
 	previous            uint64
+	waitFence           func(context.Context, string) (*q.Position, error)
 }
 type testSubscription struct {
 	id      string

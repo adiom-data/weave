@@ -33,6 +33,10 @@ type policyBackendFeed struct {
 	through  uint64
 }
 
+func (*policyBackendFeed) WaitForFence(context.Context, string) (*q.Position, error) {
+	return nil, errors.New("unexpected fence wait")
+}
+
 func newPolicyBackend(snapshot func(context.Context, q.QuerySubscribeRequest) q.QuerySnapshot) *policyBackend {
 	return &policyBackend{opened: make(chan q.QuerySubscribeRequest, 100), snapshot: snapshot}
 }

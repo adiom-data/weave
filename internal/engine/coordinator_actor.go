@@ -22,6 +22,7 @@ func (c *Coordinator) run(ctx context.Context, cancel context.CancelFunc) {
 			cause = context.Canceled
 		}
 		c.cancelPendingActivations(cause)
+		c.completeReadFences(cause)
 		c.cancelReferenceReads(cause)
 		clear(c.windowReads)
 	}()
@@ -87,6 +88,7 @@ func (c *Coordinator) run(ctx context.Context, cancel context.CancelFunc) {
 	}
 	defer stopProgressTimer()
 	for {
+		c.completeReadFences(nil)
 		c.tryCompleteReferenceReads()
 		c.tryCompleteActivations(ctx)
 		c.recordMetrics()

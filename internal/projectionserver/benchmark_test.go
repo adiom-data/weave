@@ -17,6 +17,10 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+func (*projectionBenchmarkFeed) WaitForFence(context.Context, string) (*q.Position, error) {
+	return nil, fmt.Errorf("unexpected fence wait")
+}
+
 func benchmarkPath(name string) *reactivev1.FieldPath {
 	return &reactivev1.FieldPath{Segments: []string{name}}
 }

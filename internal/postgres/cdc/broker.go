@@ -47,8 +47,9 @@ type Message struct {
 }
 
 // StreamEvent is one ordered replication-feed unit. Transaction is nil for an
-// authoritative progress-only watermark, such as an in-band logical barrier
-// or an empty decoded transaction. Physical-WAL keepalives are never published.
+// authoritative progress-only watermark, such as the initial slot position,
+// an in-band logical barrier, or an empty decoded transaction. Physical-WAL
+// keepalives are never published.
 type StreamEvent struct {
 	Transaction *Transaction
 	Position    pglogrepl.LSN
@@ -100,9 +101,14 @@ func newBroker(options BrokerOptions) *Broker {
 	return &Broker{options: options, ready: make(chan struct{}), failed: make(chan struct{}), consumers: make(map[uint64]*consumer)}
 }
 
-// MarkReady records that the durable capture point exists. It remains ready
-// across replication-connection retries because the PostgreSQL slot persists.
-func (b *Broker) MarkReady() { b.readyOnce.Do(func() { close(b.ready) }) }
+// MarkReady seeds the initial slot position before exposing readiness. Later
+// replication-connection retries must not replace live progress or queued events.
+func (b *Broker) MarkReady(start pglogrepl.LSN) {
+	b.readyOnce.Do(func() {
+		b.Advance(start)
+		close(b.ready)
+	})
+}
 
 func (b *Broker) WaitReady(ctx context.Context) error {
 	select {

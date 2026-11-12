@@ -53,7 +53,7 @@ export interface ProjectionShape {
   readonly children: Readonly<Record<string, ProjectionShape>>
 }
 export interface ParameterShape { readonly name: string; readonly type: ValueShape }
-export interface ProjectionOptions { readonly waitForSync?: boolean; readonly allowPartialErrors?: boolean }
+export interface ProjectionOptions { readonly waitForSync?: boolean; readonly allowPartialErrors?: boolean; readonly atLeastFence?: string }
 export interface TypedProjectionSnapshot<T> {
   readonly errors?: readonly BranchFailure[]
   readonly status: ProjectionSnapshot['status']
@@ -281,7 +281,7 @@ export function defineProjection<P, T>(root: ProjectionRequest['root'], shape: P
     for (const parameter of parameters) values[parameter.name] = encodeValue((input as Record<string, unknown>)[parameter.name], parameter.type, `Parameter ${parameter.name}`)
     return immutable(structuredClone(values))
   }
-  const request = (input: P, options?: ProjectionOptions): ProjectionRequest => Object.freeze({ root, parameters: encodeParameters(input), waitForSync: options?.waitForSync ?? false, allowPartialErrors: options?.allowPartialErrors ?? false })
+  const request = (input: P, options?: ProjectionOptions): ProjectionRequest => Object.freeze({ root, parameters: encodeParameters(input), waitForSync: options?.waitForSync ?? false, allowPartialErrors: options?.allowPartialErrors ?? false, ...(options?.atLeastFence === undefined ? {} : { atLeastFence: options.atLeastFence }) })
   const attach = (client: ReactiveClient, request: ProjectionRequest): TypedProjectionHandle<T> => {
     const raw: ProjectionHandle = client.subscribeProjection(request)
     const materializer = new Materializer(

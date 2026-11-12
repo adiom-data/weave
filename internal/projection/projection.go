@@ -320,6 +320,9 @@ type StartOptions struct {
 	// every snapshot discovered during expansion. Pre-cut changes are folded
 	// into that image; only later changes are released as live output.
 	WaitForSync bool
+	// AtLeastFence is an optional opaque post-commit requirement. Catch up the
+	// query materialization before taking any snapshots or discovering facts.
+	AtLeastFence string
 	// CurrentImageAdmission gives TryAdmitInitial ownership of the first public
 	// image. Until acceptance, consume feed events into current state without
 	// retaining superseded catch-up batches. WaitReady signals load completion,
@@ -378,14 +381,21 @@ func BeginProjection(ctx context.Context, queries querysubscription.Feed, root *
 		options.Limits.MaxPendingExpansions,
 		p.expandChildren,
 	)
-	go p.initialize(root, options.WaitForSync)
+	go p.initialize(root, options.WaitForSync, options.AtLeastFence)
 	if options.AllowPartialErrors {
 		go p.recoverBranches()
 	}
 	return p, nil
 }
 
-func (p *Projection) initialize(root *ProjectionNode, synchronize bool) {
+func (p *Projection) initialize(root *ProjectionNode, synchronize bool, fence string) {
+	if fence != "" {
+		if _, err := p.queries.WaitForFence(p.ctx, fence); err != nil {
+			p.finishReady(nil, nil, err)
+			p.shutdown(err)
+			return
+		}
+	}
 	spec, matchable, err := root.BuildQuery(nil)
 	var opened *projectionInstance
 	if err == nil {

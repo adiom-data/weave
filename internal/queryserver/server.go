@@ -39,10 +39,13 @@ type Limits struct {
 }
 
 type Options struct {
-	Limits     Limits
-	Messages   transactionmessage.Options
-	Transport  querygrpc.TransportOptions
-	References ReferenceOptions
+	// FenceWaitTimeout bounds a fence-wait operation, including validation and
+	// query-side materialization. Zero selects the default; negative is invalid.
+	FenceWaitTimeout time.Duration
+	Limits           Limits
+	Messages         transactionmessage.Options
+	Transport        querygrpc.TransportOptions
+	References       ReferenceOptions
 	// Metrics optionally exports runtime counts. Nil disables them.
 	Metrics metrics.Provider
 }
@@ -51,16 +54,17 @@ type ReferenceOptions = querylocal.ReferenceOptions
 
 // DefaultOptions returns independently customizable query and message defaults.
 func DefaultOptions() Options {
-	return Options{Limits: Limits(engine.DefaultCoordinatorLimits()), Messages: transactionmessage.DefaultOptions(), Transport: querygrpc.DefaultTransportOptions(), References: querylocal.DefaultReferenceOptions()}
+	return Options{FenceWaitTimeout: 30 * time.Second, Limits: Limits(engine.DefaultCoordinatorLimits()), Messages: transactionmessage.DefaultOptions(), Transport: querygrpc.DefaultTransportOptions(), References: querylocal.DefaultReferenceOptions()}
 }
 
 type backend struct {
-	queries   querysubscription.Client
-	messages  transactionmessage.Service
-	cancel    context.CancelFunc
-	done      chan struct{}
-	err       error
-	transport querygrpc.TransportOptions
+	queries          querysubscription.Client
+	messages         transactionmessage.Service
+	cancel           context.CancelFunc
+	done             chan struct{}
+	err              error
+	transport        querygrpc.TransportOptions
+	fenceWaitTimeout time.Duration
 }
 
 // New borrows storage. Closing this server never closes or takes ownership of
@@ -71,6 +75,12 @@ func New(ctx context.Context, source datastore.Storage, options Options) (Backen
 	}
 	if source == nil {
 		return nil, errors.New("storage is required")
+	}
+	if options.FenceWaitTimeout < 0 {
+		return nil, errors.New("fence wait timeout must be positive")
+	}
+	if options.FenceWaitTimeout == 0 {
+		options.FenceWaitTimeout = DefaultOptions().FenceWaitTimeout
 	}
 	runCtx, cancel := context.WithCancel(ctx)
 	coordinator, err := engine.StartCoordinatorWithOptions(runCtx, source, engine.CoordinatorOptions{Limits: engine.CoordinatorLimits(options.Limits), Metrics: options.Metrics})
@@ -84,7 +94,7 @@ func New(ctx context.Context, source datastore.Storage, options Options) (Backen
 		_ = coordinator.Wait(context.Background())
 		return nil, err
 	}
-	b := &backend{queries: querylocal.NewWithOptions(coordinator, options.References), messages: messages, cancel: cancel, done: make(chan struct{}), transport: options.Transport}
+	b := &backend{queries: querylocal.NewWithOptions(coordinator, options.References), messages: messages, cancel: cancel, done: make(chan struct{}), transport: options.Transport, fenceWaitTimeout: options.FenceWaitTimeout}
 	go func() {
 		defer close(b.done)
 		// Source failure stops its consumers, but canceling this server only ends
@@ -126,7 +136,11 @@ func (b *backend) OpenFeed(ctx context.Context, options querysubscription.FeedOp
 		return nil, querysubscription.ErrClosed
 	default:
 	}
-	return b.queries.OpenFeed(ctx, options)
+	feed, err := b.queries.OpenFeed(ctx, options)
+	if err != nil {
+		return nil, err
+	}
+	return &boundedFeed{Feed: feed, fenceWaitTimeout: b.fenceWaitTimeout}, nil
 }
 func (b *backend) Messages() transactionmessage.Client {
 	return transactionmessage.NewLocalClient(b.messages)

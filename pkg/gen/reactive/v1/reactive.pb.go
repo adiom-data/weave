@@ -398,8 +398,10 @@ type ProjectionSnapshotRequest struct {
 	Parameters         map[string]*Value      `protobuf:"bytes,2,rep,name=parameters,proto3" json:"parameters,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	WaitForSync        bool                   `protobuf:"varint,3,opt,name=wait_for_sync,json=waitForSync,proto3" json:"wait_for_sync,omitempty"`
 	AllowPartialErrors bool                   `protobuf:"varint,4,opt,name=allow_partial_errors,json=allowPartialErrors,proto3" json:"allow_partial_errors,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// Opaque post-commit read fence. Wait before loading, even for cached reads.
+	AtLeastFence  string `protobuf:"bytes,5,opt,name=at_least_fence,json=atLeastFence,proto3" json:"at_least_fence,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ProjectionSnapshotRequest) Reset() {
@@ -458,6 +460,13 @@ func (x *ProjectionSnapshotRequest) GetAllowPartialErrors() bool {
 		return x.AllowPartialErrors
 	}
 	return false
+}
+
+func (x *ProjectionSnapshotRequest) GetAtLeastFence() string {
+	if x != nil {
+		return x.AtLeastFence
+	}
+	return ""
 }
 
 type ProjectionSnapshotResponse struct {
@@ -935,8 +944,10 @@ type SubscribeProjection struct {
 	WaitForSync bool `protobuf:"varint,3,opt,name=wait_for_sync,json=waitForSync,proto3" json:"wait_for_sync,omitempty"`
 	// Keep failed branches tracked for recovery instead of failing the projection.
 	AllowPartialErrors bool `protobuf:"varint,4,opt,name=allow_partial_errors,json=allowPartialErrors,proto3" json:"allow_partial_errors,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// Optional read-after-write requirement for initial publication.
+	AtLeastFence  string `protobuf:"bytes,5,opt,name=at_least_fence,json=atLeastFence,proto3" json:"at_least_fence,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *SubscribeProjection) Reset() {
@@ -995,6 +1006,13 @@ func (x *SubscribeProjection) GetAllowPartialErrors() bool {
 		return x.AllowPartialErrors
 	}
 	return false
+}
+
+func (x *SubscribeProjection) GetAtLeastFence() string {
+	if x != nil {
+		return x.AtLeastFence
+	}
+	return ""
 }
 
 type ProjectionNode struct {
@@ -4462,14 +4480,15 @@ var File_reactive_v1_reactive_proto protoreflect.FileDescriptor
 
 const file_reactive_v1_reactive_proto_rawDesc = "" +
 	"\n" +
-	"\x1areactive/v1/reactive.proto\x12\vreactive.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xcd\x02\n" +
+	"\x1areactive/v1/reactive.proto\x12\vreactive.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a\x1cgoogle/protobuf/struct.proto\"\xf3\x02\n" +
 	"\x19ProjectionSnapshotRequest\x12/\n" +
 	"\x04root\x18\x01 \x01(\v2\x1b.reactive.v1.ProjectionNodeR\x04root\x12V\n" +
 	"\n" +
 	"parameters\x18\x02 \x03(\v26.reactive.v1.ProjectionSnapshotRequest.ParametersEntryR\n" +
 	"parameters\x12\"\n" +
 	"\rwait_for_sync\x18\x03 \x01(\bR\vwaitForSync\x120\n" +
-	"\x14allow_partial_errors\x18\x04 \x01(\bR\x12allowPartialErrors\x1aQ\n" +
+	"\x14allow_partial_errors\x18\x04 \x01(\bR\x12allowPartialErrors\x12$\n" +
+	"\x0eat_least_fence\x18\x05 \x01(\tR\fatLeastFence\x1aQ\n" +
 	"\x0fParametersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12(\n" +
 	"\x05value\x18\x02 \x01(\v2\x12.reactive.v1.ValueR\x05value:\x028\x01\"\xd2\x01\n" +
@@ -4504,14 +4523,15 @@ const file_reactive_v1_reactive_proto_rawDesc = "" +
 	"\toperation\"i\n" +
 	"\tSubscribe\x12(\n" +
 	"\x05query\x18\x01 \x01(\v2\x12.reactive.v1.QueryR\x05query\x122\n" +
-	"\x06window\x18\x02 \x01(\v2\x1a.reactive.v1.InitialWindowR\x06window\"\xc1\x02\n" +
+	"\x06window\x18\x02 \x01(\v2\x1a.reactive.v1.InitialWindowR\x06window\"\xe7\x02\n" +
 	"\x13SubscribeProjection\x12/\n" +
 	"\x04root\x18\x01 \x01(\v2\x1b.reactive.v1.ProjectionNodeR\x04root\x12P\n" +
 	"\n" +
 	"parameters\x18\x02 \x03(\v20.reactive.v1.SubscribeProjection.ParametersEntryR\n" +
 	"parameters\x12\"\n" +
 	"\rwait_for_sync\x18\x03 \x01(\bR\vwaitForSync\x120\n" +
-	"\x14allow_partial_errors\x18\x04 \x01(\bR\x12allowPartialErrors\x1aQ\n" +
+	"\x14allow_partial_errors\x18\x04 \x01(\bR\x12allowPartialErrors\x12$\n" +
+	"\x0eat_least_fence\x18\x05 \x01(\tR\fatLeastFence\x1aQ\n" +
 	"\x0fParametersEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12(\n" +
 	"\x05value\x18\x02 \x01(\v2\x12.reactive.v1.ValueR\x05value:\x028\x01\"\xcc\x02\n" +

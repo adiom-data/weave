@@ -154,7 +154,7 @@ func (s *server) handleSharedMessage(ctx context.Context, stream Stream, prefix 
 		}
 		externalID, requestID := message.SubscriptionId, message.RequestId
 		if s.relationAccess != nil {
-			return admissions.projection(externalID, requestID, prefix, root, selected, operation.SubscribeProjection.WaitForSync, operation.SubscribeProjection.AllowPartialErrors)
+			return admissions.projection(externalID, requestID, prefix, root, selected, operation.SubscribeProjection.WaitForSync, operation.SubscribeProjection.AllowPartialErrors, operation.SubscribeProjection.AtLeastFence)
 		}
 		generation := prefix + "projection:" + strconv.FormatUint(streamSequence.Add(1), 10)
 		loadCtx, loadCancel := context.WithCancel(ctx)
@@ -164,6 +164,7 @@ func (s *server) handleSharedMessage(ctx context.Context, stream Stream, prefix 
 			Prefix: generation, QueueLimit: s.options.SubscriptionQueueLimit, Limits: proj.Limits(s.options.ProjectionLimits),
 			ExpansionLimiter:   s.expansionLimiter,
 			WaitForSync:        operation.SubscribeProjection.WaitForSync,
+			AtLeastFence:       operation.SubscribeProjection.AtLeastFence,
 			AllowPartialErrors: operation.SubscribeProjection.AllowPartialErrors,
 		})
 		if beginErr != nil {

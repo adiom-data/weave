@@ -122,6 +122,9 @@ type ChangeFeed = impl.ChangeFeed
 // cannot make progress.
 type ProgressRequester = impl.ProgressRequester
 
+// ReadFenceDecoder optionally validates opaque post-commit tokens for a source.
+type ReadFenceDecoder = impl.ReadFenceDecoder
+
 type DataSource = impl.DataSource
 
 // Storage is the constructed source boundary consumed by a query server.

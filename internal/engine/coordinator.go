@@ -188,6 +188,7 @@ type Coordinator struct {
 	hydrationResults chan hydrationReadResult
 	options          CoordinatorLimits
 	progressFence    storage.Fence
+	readFences       map[*readFenceWait]struct{}
 	progressStarting bool
 	progressResults  chan progressResult
 	pendingInitial   map[string]*pendingInitialActivation

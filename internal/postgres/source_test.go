@@ -119,7 +119,7 @@ func TestPostgresCoordinatorSnapshot(t *testing.T) {
 	defer pool.Close()
 	prepareAdapterFixture(t, ctx, pool)
 	broker := cdc.NewBroker()
-	broker.MarkReady()
+	broker.MarkReady(0)
 	// Start beyond any realistic snapshot fence while leaving one strictly
 	// later position for the synthetic CDC transaction below.
 	broker.Advance(pglogrepl.LSN(^uint64(0) - 1))
