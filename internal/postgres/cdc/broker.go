@@ -48,8 +48,8 @@ type Message struct {
 
 // StreamEvent is one ordered replication-feed unit. Transaction is nil for an
 // authoritative progress-only watermark, such as the initial slot position,
-// an in-band logical barrier, or an empty decoded transaction. Physical-WAL
-// keepalives are never published.
+// an ordered logical keepalive, an in-band logical barrier, or an empty decoded
+// transaction. Progress is acknowledged only after downstream application.
 type StreamEvent struct {
 	Transaction *Transaction
 	Position    pglogrepl.LSN

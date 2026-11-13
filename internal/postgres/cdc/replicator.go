@@ -79,6 +79,7 @@ type pendingTransaction struct {
 	changes       []Change
 	messages      []Message
 	messageBudget messagebudget.Budget
+	progress      pglogrepl.LSN
 }
 
 func (t *pendingTransaction) begin(id uint32) {
@@ -103,16 +104,36 @@ func (t *pendingTransaction) message(m *pglogrepl.LogicalDecodingMessage) {
 	}
 }
 
+// advance forwards ordered decoder progress, never acknowledgment. While a
+// logical BEGIN/COMMIT is being assembled, retain the marker until publication
+// succeeds. Connection-local state (including deferred progress) is discarded
+// on reconnect, so an unfinished transaction is reconstructed by PostgreSQL.
+func (t *pendingTransaction) advance(broker *Broker, position pglogrepl.LSN) {
+	if t.id != 0 {
+		if position > t.progress {
+			t.progress = position
+		}
+		return
+	}
+	broker.Advance(position)
+}
+
 func (t *pendingTransaction) commit(ctx context.Context, broker *Broker, m *pglogrepl.CommitMessage) error {
 	defer t.begin(0)
 	if len(t.changes) > 0 || len(t.messages) > 0 {
-		return broker.Publish(ctx, Transaction{ID: t.id, CommitLSN: m.CommitLSN, EndLSN: m.TransactionEndLSN, Changes: t.changes, Messages: t.messages})
+		if err := broker.Publish(ctx, Transaction{ID: t.id, CommitLSN: m.CommitLSN, EndLSN: m.TransactionEndLSN, Changes: t.changes, Messages: t.messages}); err != nil {
+			return err
+		}
+	} else {
+		position := m.TransactionEndLSN
+		if position == 0 {
+			position = m.CommitLSN
+		}
+		broker.Advance(position)
 	}
-	position := m.TransactionEndLSN
-	if position == 0 {
-		position = m.CommitLSN
+	if t.progress != 0 {
+		broker.Advance(t.progress)
 	}
-	broker.Advance(position)
 	return nil
 }
 
@@ -240,10 +261,10 @@ func (r *Replicator) consume(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-			// ServerWALEnd is the end of physical WAL on the server, not proof
-			// that pgoutput has delivered every logical message through that
-			// position. Keepalives drive protocol replies only; ordered logical
-			// barriers below are the source of progress-only checkpoints.
+			// Logical walsender reports its processed/sent position here, not
+			// an independently sampled physical WAL tip. Publish it in stream
+			// order; the normal apply/Ack path decides when feedback can advance.
+			transaction.advance(r.broker, keepalive.ServerWALEnd)
 			if keepalive.ReplyRequested {
 				deadline = time.Time{}
 			}
@@ -291,7 +312,7 @@ func (r *Replicator) consume(ctx context.Context) error {
 				transaction.changes = append(transaction.changes, decoded...)
 			case *pglogrepl.LogicalDecodingMessage:
 				if !m.Transactional && m.Prefix == BarrierPrefix {
-					r.broker.Advance(m.LSN)
+					transaction.advance(r.broker, m.LSN)
 				} else {
 					transaction.message(m)
 				}

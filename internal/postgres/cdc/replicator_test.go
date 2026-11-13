@@ -13,6 +13,70 @@ import (
 	"github.com/adiom-data/weave/internal/messagebudget"
 )
 
+func TestNativeProgressIsOrderedAndDoesNotAcknowledgeReceive(t *testing.T) {
+	broker := NewBroker()
+	feed, err := broker.Subscribe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer feed.Close()
+	var pending pendingTransaction
+	pending.advance(broker, 10)
+	if event := <-feed.Events; event.Position != 10 || event.Transaction != nil {
+		t.Fatalf("idle progress = %+v", event)
+	}
+	pending.begin(1)
+	pending.changes = []Change{{Operation: "insert"}}
+	pending.advance(broker, 20)
+	select {
+	case event := <-feed.Events:
+		t.Fatalf("partial transaction exposed progress: %+v", event)
+	default:
+	}
+	if err := pending.commit(t.Context(), broker, &pglogrepl.CommitMessage{CommitLSN: 30, TransactionEndLSN: 31}); err != nil {
+		t.Fatal(err)
+	}
+	if event := <-feed.Events; event.Position != 31 || event.Transaction == nil || len(event.Transaction.Changes) != 1 {
+		t.Fatalf("complete transaction = %+v", event)
+	}
+	pending.advance(broker, 40)
+	if event := <-feed.Events; event.Position != 40 || event.Transaction != nil {
+		t.Fatalf("post-commit progress = %+v", event)
+	}
+	if broker.Acknowledged() != 0 {
+		t.Fatal("receiving progress acknowledged unapplied work")
+	}
+	broker.Acknowledge(40)
+	if broker.Acknowledged() != 40 {
+		t.Fatal("downstream acknowledgment did not advance feedback")
+	}
+}
+
+func TestFailedTransactionPublicationDoesNotReleaseDeferredProgress(t *testing.T) {
+	broker, err := NewBrokerWithOptions(BrokerOptions{ConsumerBufferLimit: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	feed, err := broker.Subscribe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer feed.Close()
+	broker.Advance(10) // Fill the consumer queue so publication cannot succeed.
+	var pending pendingTransaction
+	pending.begin(1)
+	pending.changes = []Change{{Operation: "insert"}}
+	pending.advance(broker, 40)
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	if err := pending.commit(ctx, broker, &pglogrepl.CommitMessage{CommitLSN: 30}); !errors.Is(err, context.Canceled) {
+		t.Fatalf("publication error = %v", err)
+	}
+	if broker.Progress() != 10 || pending.progress != 0 || pending.id != 0 {
+		t.Fatal("failed publication released progress or retained partial state")
+	}
+}
+
 func TestCaptureReplacesOversizedMessageBeforeRetainingBytes(t *testing.T) {
 	pending := pendingTransaction{messageBudget: messagebudget.Budget{Limits: messagebudget.Limits{MaxMessageBytes: 16, MaxTransactionBytes: 256, MaxMessages: 10}}}
 	pending.begin(1)
