@@ -66,7 +66,7 @@ func (s *blockedWindowSubscription) Close(context.Context) error {
 func TestWindowUpdateAndBranchFailureShareHandleLifecycle(t *testing.T) {
 	newProjection := func(ctx context.Context, handle q.QuerySubscription) (*Projection, *projectionInstance) {
 		instance := &projectionInstance{id: "root", node: recoveryNode("root"), members: map[storage.EntityKey]*projectionMember{}, subscription: handle, query: handle}
-		p := &Projection{ctx: ctx, instances: map[string]*projectionInstance{"root": instance}, failed: map[string]*projectionInstance{}, limits: Limits{}.WithDefaults()}
+		p := &Projection{ctx: ctx, limits: Limits{}.WithDefaults(), graph: projectionGraph{instances: map[string]*projectionInstance{"root": instance}, failed: map[string]*projectionInstance{}}}
 		return p, instance
 	}
 	t.Run("in-flight update does not block failure", func(t *testing.T) {
@@ -151,7 +151,7 @@ func TestInstanceRetirementOwnsHandleAndCannotBeReversedByFailure(t *testing.T) 
 		t.Run(name, func(t *testing.T) {
 			handle := &retirementSubscription{boundarySubscription: boundarySubscription{id: "root"}}
 			instance := &projectionInstance{id: "root", node: recoveryNode("root"), subscription: handle, query: handle}
-			p := &Projection{ctx: t.Context(), limits: Limits{}.WithDefaults(), instances: map[string]*projectionInstance{}, failed: map[string]*projectionInstance{}}
+			p := &Projection{ctx: t.Context(), limits: Limits{}.WithDefaults(), graph: projectionGraph{instances: map[string]*projectionInstance{}, failed: map[string]*projectionInstance{}}}
 			if err := p.installInstanceLocked(instance); err != nil {
 				t.Fatal(err)
 			}
@@ -159,7 +159,7 @@ func TestInstanceRetirementOwnsHandleAndCannotBeReversedByFailure(t *testing.T) 
 				p.processMu.Lock()
 				_, applied := p.failInstance(instance, errors.New("query failed"))
 				p.processMu.Unlock()
-				if !applied || len(p.failed) != 1 {
+				if !applied || len(p.graph.failed) != 1 {
 					t.Fatal("current instance did not enter branch failure")
 				}
 			}
@@ -174,7 +174,7 @@ func TestInstanceRetirementOwnsHandleAndCannotBeReversedByFailure(t *testing.T) 
 			if handle.closes.Load() != 1 || instance.subscription != nil || instance.query != nil {
 				t.Fatal("handle was retained or closed more than once")
 			}
-			if len(p.instances) != 0 || len(p.failed) != 0 || p.activeSlots != 0 {
+			if len(p.graph.instances) != 0 || len(p.graph.failed) != 0 || p.graph.activeSlots != 0 {
 				t.Fatal("late failure restored retired state or leaked capacity")
 			}
 		})
@@ -199,8 +199,8 @@ func TestProjectionShutdownAndBranchFailureRetireConcurrently(t *testing.T) {
 			t.Fatal(err)
 		}
 		p.mu.Lock()
-		id := p.rootID
-		instance := p.instances[id]
+		id := p.graph.rootID
+		instance := p.graph.instances[id]
 		p.mu.Unlock()
 		start := make(chan struct{})
 		var workers sync.WaitGroup
@@ -215,7 +215,7 @@ func TestProjectionShutdownAndBranchFailureRetireConcurrently(t *testing.T) {
 		close(start)
 		workers.Wait()
 		p.mu.Lock()
-		retired := len(p.instances) == 0 && len(p.failed) == 0 && p.activeSlots == 0 && instance.subscription == nil && instance.query == nil
+		retired := len(p.graph.instances) == 0 && len(p.graph.failed) == 0 && p.graph.activeSlots == 0 && instance.subscription == nil && instance.query == nil
 		p.mu.Unlock()
 		if !retired {
 			t.Fatal("concurrent failure restored retired state or retained handles")
@@ -288,7 +288,7 @@ func TestBranchRecoveryBudgetSurvivesReplacementAndExhausts(t *testing.T) {
 				t.Fatalf("attempts=%d err=%v", attempts, p.Err())
 			}
 			p.mu.Lock()
-			for _, failed := range p.failed {
+			for _, failed := range p.graph.failed {
 				if !failed.recovery.Next().IsZero() {
 					t.Error("exhausted branch retained a timer")
 				}
@@ -314,8 +314,8 @@ func TestFailedBranchCannotAcceptLateWindowResultOrData(t *testing.T) {
 		t.Fatal(err)
 	}
 	p.mu.Lock()
-	id := p.rootID
-	bounds := p.instances[id].initial.Bounds
+	id := p.graph.rootID
+	bounds := p.graph.instances[id].initial.Bounds
 	p.mu.Unlock()
 	if _, _, err := p.ApplyEvent(q.Event{Failure: &q.SubscriptionFailure{SubscriptionID: id, Cause: errors.New("failed")}}); err != nil {
 		t.Fatal(err)
@@ -326,7 +326,7 @@ func TestFailedBranchCannotAcceptLateWindowResultOrData(t *testing.T) {
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if !reflect.DeepEqual(p.instances[id].initial.Bounds, bounds) {
+	if !reflect.DeepEqual(p.graph.instances[id].initial.Bounds, bounds) {
 		t.Fatal("late window changed recovery bounds")
 	}
 }
@@ -364,7 +364,7 @@ func TestRebindingFailedBranchStartsNewRecoveryBudget(t *testing.T) {
 		<-feed.requests
 	} // Root, initial child, single exhausted retry.
 	p.mu.Lock()
-	root := p.instances[p.rootID]
+	root := p.graph.instances[p.graph.rootID]
 	key := root.order[0]
 	record := storage.CloneRecord(root.members[key].record)
 	record["group"] = storage.Value{Type: storage.TypeText, State: storage.ValuePresent, Data: []byte("new")}
@@ -439,7 +439,7 @@ func TestPartialChildLoadFailureKeepsSiblingsAndRecoversAsACompleteSubtree(t *te
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if len(p.instances) != 3 || p.activeSlots != 3 || p.instances[goodID] == nil || p.instances[failedID] != nil {
+	if len(p.graph.instances) != 3 || p.graph.activeSlots != 3 || p.graph.instances[goodID] == nil || p.graph.instances[failedID] != nil {
 		t.Fatal("recovery leaked or retired unrelated instances")
 	}
 }
@@ -460,7 +460,7 @@ func TestPartialRootFailureRetriesAtTheExactSavedWindow(t *testing.T) {
 		t.Fatal(err)
 	}
 	<-feed.requests
-	old := p.rootID
+	old := p.graph.rootID
 	saved := q.Bounds{Left: q.Boundary{Kind: q.BoundaryCursor, Cursor: []byte("m")}, Right: q.Boundary{Kind: q.BoundaryCursor, Cursor: []byte("t")}}
 	_, _, err = p.ApplyDelivery(q.DeliveryEnvelope{Delivery: q.DeliveryMetadata{Kind: q.DeliveryWindow, Revision: 1, Checkpoint: &q.Position{SourceID: "test", Value: 10}}, Effects: []q.SubscriptionEffect{{SubscriptionID: old, Batch: q.Batch{Window: &q.WindowTransition{Token: "resize", Bounds: saved}}}}})
 	if err != nil {
@@ -485,7 +485,7 @@ func TestPartialRootFailureRetriesAtTheExactSavedWindow(t *testing.T) {
 		t.Fatal(err)
 	}
 	batch = completeTestPublication(t, p, batch)
-	if p.rootID == old || len(batch.Events) < 3 {
+	if p.graph.rootID == old || len(batch.Events) < 3 {
 		t.Fatal("root did not recover with a complete replacement")
 	}
 	for _, event := range batch.Events {
@@ -556,7 +556,7 @@ func TestPartialLiveChildFailureRecoversAtInstanceLimit(t *testing.T) {
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if !closed || !loaded || p.activeSlots != 3 || len(p.instances) != 3 || p.instances[healthyID] == nil {
+	if !closed || !loaded || p.graph.activeSlots != 3 || len(p.graph.instances) != 3 || p.graph.instances[healthyID] == nil {
 		t.Fatal("recovery did not preserve healthy instances and the capacity limit")
 	}
 }
@@ -632,7 +632,7 @@ func TestSiblingRecoveryDuringLoadPreservesCoverageAndDoesNotDuplicateQueries(t 
 				}
 				if parentUpdate {
 					p.mu.Lock()
-					root := p.instances[p.rootID]
+					root := p.graph.instances[p.graph.rootID]
 					key := root.order[0]
 					record := storage.CloneRecord(root.members[key].record)
 					p.mu.Unlock()
@@ -648,7 +648,7 @@ func TestSiblingRecoveryDuringLoadPreservesCoverageAndDoesNotDuplicateQueries(t 
 				defer tick.Stop()
 				for {
 					p.mu.Lock()
-					_, pending := p.failed[ids["second"]]
+					_, pending := p.graph.failed[ids["second"]]
 					p.mu.Unlock()
 					if !pending {
 						break
@@ -669,10 +669,10 @@ func TestSiblingRecoveryDuringLoadPreservesCoverageAndDoesNotDuplicateQueries(t 
 					t.Fatal(err)
 				}
 				p.mu.Lock()
-				root := p.instances[p.rootID]
+				root := p.graph.instances[p.graph.rootID]
 				member := root.members[root.order[0]]
-				covered := p.coveredChildrenLocked(member, nil)
-				valid := p.rootID == ids["root"] && member.expanded && len(member.children) == 2 && len(covered) == 2 && p.instances[firstReplacement] != nil && p.instances[ids["first"]] == nil && p.instances[ids["second"]] == nil && len(p.instances) == 3 && p.activeSlots == 3 && len(p.failed) == 0
+				covered := p.graph.coveredChildrenLocked(member, nil)
+				valid := p.graph.rootID == ids["root"] && member.expanded && len(member.children) == 2 && len(covered) == 2 && p.graph.instances[firstReplacement] != nil && p.graph.instances[ids["first"]] == nil && p.graph.instances[ids["second"]] == nil && len(p.graph.instances) == 3 && p.graph.activeSlots == 3 && len(p.graph.failed) == 0
 				p.mu.Unlock()
 				if !valid || p.Err() != nil {
 					t.Fatal("recovery lost a sibling, retained a predecessor, or leaked capacity:", p.Err())

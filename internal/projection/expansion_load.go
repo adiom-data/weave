@@ -14,7 +14,7 @@ func (p *Projection) loadChildren(expansion projectionExpansion) ([]string, erro
 	for done == nil {
 		p.processMu.Lock()
 		p.mu.Lock()
-		if !p.expansionCurrentLocked(expansion) {
+		if !p.graph.expansionCurrentLocked(expansion) {
 			p.mu.Unlock()
 			p.processMu.Unlock()
 			return nil, nil
@@ -47,9 +47,9 @@ func (p *Projection) loadChildren(expansion projectionExpansion) ([]string, erro
 		opened = append(opened, ids...)
 		p.processMu.Lock()
 		p.mu.Lock()
-		current := p.expansionCurrentLocked(expansion)
+		current := p.graph.expansionCurrentLocked(expansion)
 		canceled := p.ctx.Err()
-		complete := current && err == nil && canceled == nil && p.attachExpansionLocked(expansion, opened)
+		complete := current && err == nil && canceled == nil && p.graph.attachExpansionLocked(expansion, opened)
 		p.mu.Unlock()
 		p.processMu.Unlock()
 		if !current || err != nil || canceled != nil {

@@ -45,7 +45,7 @@ func TestProjectionBoundsOutputBeforeRelease(t *testing.T) {
 	// Subtree publications share the same capacity as transaction batches.
 	childID := "unpublished-child"
 	p.mu.Lock()
-	p.instances[childID] = &projectionInstance{id: childID, node: &ProjectionNode{Name: "child"}}
+	p.graph.instances[childID] = &projectionInstance{id: childID, node: &ProjectionNode{Name: "child"}}
 	p.mu.Unlock()
 	if err := p.publishSubtrees([]string{childID}, 1); !errors.Is(err, querysubscription.ErrBackpressure) {
 		t.Fatalf("publication overflow = %v", err)

@@ -73,7 +73,7 @@ func TestInstallingChildSeesCompleteParentReconciliation(t *testing.T) {
 	p.mu.Lock()
 	var id string
 	var key storage.EntityKey
-	for _, instance := range p.instances {
+	for _, instance := range p.graph.instances {
 		if instance.node == root {
 			id, key = instance.id, instance.order[0]
 		}
@@ -157,7 +157,7 @@ func TestInstalledInterestFailureFollowsOpeningAncestors(t *testing.T) {
 					t.Fatal(err)
 				}
 				defer p.Close()
-				key := p.instances[p.rootID].order[0]
+				key := p.graph.instances[p.graph.rootID].order[0]
 				updateBoundParent(t, p, key, "new", 11, false)
 				select {
 				case <-feed.blocked:
@@ -188,8 +188,8 @@ func TestInstalledInterestFailureFollowsOpeningAncestors(t *testing.T) {
 						t.Fatal(err)
 					}
 					p.mu.Lock()
-					for _, instance := range p.instances {
-						if instance.opening != nil && !p.instanceCurrentLocked(instance) {
+					for _, instance := range p.graph.instances {
+						if instance.opening != nil && !p.graph.instanceCurrentLocked(instance) {
 							t.Errorf("obsolete interest remained after load completion: %s", instance.id)
 						}
 					}

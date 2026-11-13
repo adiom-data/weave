@@ -131,16 +131,16 @@ func TestNullableBindingsPublishEmptyBranchesAndReactToParentChanges(t *testing.
 					t.Fatalf("null binding produced a branch error: %+v", event)
 				}
 			}
-			key := p.instances[p.rootID].order[0]
+			key := p.graph.instances[p.graph.rootID].order[0]
 			check := func(wantRows, wantLoads int) {
 				t.Helper()
 				p.mu.Lock()
-				children := p.instances[p.rootID].members[key].children
+				children := p.graph.instances[p.graph.rootID].members[key].children
 				if len(children) != 1 {
 					p.mu.Unlock()
 					t.Fatalf("expected one complete child slot, got %v", children)
 				}
-				child := p.instances[children[0]]
+				child := p.graph.instances[children[0]]
 				rows, failed, subscribed := len(child.order), child.failure, child.subscription != nil
 				p.mu.Unlock()
 				feed.mu.Lock()
@@ -156,7 +156,7 @@ func TestNullableBindingsPublishEmptyBranchesAndReactToParentChanges(t *testing.
 				if target == "" {
 					record["target"] = storage.Value{Type: storage.TypeText, State: storage.ValueNull}
 				}
-				_, _, err := p.ApplyDelivery(q.DeliveryEnvelope{Delivery: q.DeliveryMetadata{Kind: q.DeliveryCommit, Revision: uint64(11 + i), Checkpoint: &q.Position{SourceID: "test", Value: uint64(11 + i)}, Atomic: true}, Effects: []q.SubscriptionEffect{{SubscriptionID: p.rootID, Batch: q.Batch{Changes: []q.Change{{Kind: q.Updated, Row: q.Row{Key: key, Record: record}}}}}}})
+				_, _, err := p.ApplyDelivery(q.DeliveryEnvelope{Delivery: q.DeliveryMetadata{Kind: q.DeliveryCommit, Revision: uint64(11 + i), Checkpoint: &q.Position{SourceID: "test", Value: uint64(11 + i)}, Atomic: true}, Effects: []q.SubscriptionEffect{{SubscriptionID: p.graph.rootID, Batch: q.Batch{Changes: []q.Change{{Kind: q.Updated, Row: q.Row{Key: key, Record: record}}}}}}})
 				if err != nil {
 					t.Fatal(err)
 				}

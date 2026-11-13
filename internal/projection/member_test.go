@@ -14,15 +14,15 @@ func TestMemberExpansionStateFollowsRowLifetime(t *testing.T) {
 	first := newProjectionMember(nil, q.RecordVersion{}, []byte("old"), false)
 	child := &projectionInstance{id: "empty-child", node: &ProjectionNode{Name: "child"}}
 	parent := &projectionInstance{id: "parent", node: &ProjectionNode{Entity: true, Children: []*ProjectionNode{child.node}}, members: map[storage.EntityKey]*projectionMember{key: first}, published: true}
-	p := &Projection{ctx: context.Background(), instances: map[string]*projectionInstance{parent.id: parent, child.id: child}}
+	p := &Projection{ctx: context.Background(), graph: projectionGraph{instances: map[string]*projectionInstance{parent.id: parent, child.id: child}}}
 	oldWork := projectionExpansion{parent: parent, key: key, member: first}
-	if !p.expansionCurrentLocked(oldWork) {
+	if !p.graph.expansionCurrentLocked(oldWork) {
 		t.Fatal("new member was not expandable")
 	}
-	if !p.attachExpansionLocked(oldWork, []string{child.id}) {
+	if !p.graph.attachExpansionLocked(oldWork, []string{child.id}) {
 		t.Fatal("empty child query did not complete its parent expansion")
 	}
-	if !first.expanded || p.expansionCurrentLocked(oldWork) {
+	if !first.expanded || p.graph.expansionCurrentLocked(oldWork) {
 		t.Fatal("empty completed expansion was treated as missing")
 	}
 	_, missing := p.publicationState([]string{parent.id})
@@ -39,20 +39,20 @@ func TestMemberExpansionStateFollowsRowLifetime(t *testing.T) {
 	}
 	apply(q.Updated, true)
 	unresolved := parent.members[key]
-	if unresolved == first || !unresolved.pending || unresolved.expanded || string(unresolved.cursor) != "new" || p.expansionCurrentLocked(oldWork) {
+	if unresolved == first || !unresolved.pending || unresolved.expanded || string(unresolved.cursor) != "new" || p.graph.expansionCurrentLocked(oldWork) {
 		t.Fatal("update did not replace the member's complete state")
 	}
-	if work := apply(q.Updated, false); len(work) != 1 || work[0].member != parent.members[key] || !p.expansionCurrentLocked(work[0]) {
+	if work := apply(q.Updated, false); len(work) != 1 || work[0].member != parent.members[key] || !p.graph.expansionCurrentLocked(work[0]) {
 		t.Fatal("resolved row did not get fresh expansion ownership")
 	}
 	previous := parent.members[key]
 	stale := projectionExpansion{parent: parent, key: key, member: previous}
 	apply(q.Removed, false)
-	if len(parent.members) != 0 || p.expansionCurrentLocked(stale) {
+	if len(parent.members) != 0 || p.graph.expansionCurrentLocked(stale) {
 		t.Fatal("removal retained member state or expansion ownership")
 	}
 	work := apply(q.Added, false)
-	if len(work) != 1 || work[0].member == previous || p.expansionCurrentLocked(stale) {
+	if len(work) != 1 || work[0].member == previous || p.graph.expansionCurrentLocked(stale) {
 		t.Fatal("readding the same key revived stale expansion ownership")
 	}
 }
@@ -117,7 +117,7 @@ func TestInFlightExpansionCannotAttachToReaddedMember(t *testing.T) {
 	oldID := receive(feed.old)
 	p.mu.Lock()
 	var parent *projectionInstance
-	for _, instance := range p.instances {
+	for _, instance := range p.graph.instances {
 		if instance.node == root {
 			parent = instance
 		}
@@ -144,10 +144,10 @@ func TestInFlightExpansionCannotAttachToReaddedMember(t *testing.T) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	member := parent.members[key]
-	if member == nil || !member.expanded || len(member.children) != 1 || member.children[0] != newID || p.instances[oldID] != nil || p.instances[newID] == nil || len(p.instances) != 2 {
+	if member == nil || !member.expanded || len(member.children) != 1 || member.children[0] != newID || p.graph.instances[oldID] != nil || p.graph.instances[newID] == nil || len(p.graph.instances) != 2 {
 		t.Fatal("stale child attached or survived remove/readd")
 	}
-	if !p.instances[newID].published {
+	if !p.graph.instances[newID].published {
 		t.Fatal("replacement expansion was not part of the initial image")
 	}
 }

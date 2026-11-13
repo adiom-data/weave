@@ -14,12 +14,12 @@ func TestRecoveryCapacityIsReleasedOnlyAfterBothInstancesClose(t *testing.T) {
 		}
 		t.Run(name, func(t *testing.T) {
 			node := recoveryNode("root")
-			p := &Projection{ctx: context.Background(), limits: Limits{MaxActiveInstances: 1}, instances: map[string]*projectionInstance{}}
+			p := &Projection{ctx: context.Background(), limits: Limits{MaxActiveInstances: 1}, graph: projectionGraph{instances: map[string]*projectionInstance{}}}
 			old := &projectionInstance{id: "old", node: node, failure: errors.New("failed")}
 			if err := p.installInstanceLocked(old); err != nil {
 				t.Fatal(err)
 			}
-			p.rootID = old.id
+			p.graph.rootID = old.id
 			if err := p.installInstanceLocked(&projectionInstance{id: old.id, node: node}); err == nil {
 				t.Fatal("duplicate installation reused an existing ID")
 			}
@@ -27,7 +27,7 @@ func TestRecoveryCapacityIsReleasedOnlyAfterBothInstancesClose(t *testing.T) {
 			if err := p.installInstanceLocked(next); err != nil {
 				t.Fatal("replacement did not reuse failed slot:", err)
 			}
-			if p.activeSlots != 1 || old.slot != next.slot || old.slot.references != 2 {
+			if p.graph.activeSlots != 1 || old.slot != next.slot || old.slot.references != 2 {
 				t.Fatal("replacement capacity was not shared")
 			}
 			// The credit is for one replacement, not unlimited concurrent loads.
@@ -39,7 +39,7 @@ func TestRecoveryCapacityIsReleasedOnlyAfterBothInstancesClose(t *testing.T) {
 				first, last = next, old
 			}
 			p.closeInstance(first.id)
-			if p.activeSlots != 1 || last.slot.references != 1 {
+			if p.graph.activeSlots != 1 || last.slot.references != 1 {
 				t.Fatal("closing one instance released its survivor's capacity")
 			}
 			if err := p.installInstanceLocked(&projectionInstance{id: "unrelated", node: recoveryNode("other")}); err == nil {
@@ -47,14 +47,14 @@ func TestRecoveryCapacityIsReleasedOnlyAfterBothInstancesClose(t *testing.T) {
 			}
 			p.closeInstance(last.id)
 			p.closeInstance(first.id) // Idempotent closure must not double release.
-			if p.activeSlots != 0 || len(p.instances) != 0 {
+			if p.graph.activeSlots != 0 || len(p.graph.instances) != 0 {
 				t.Fatal("replacement retirement leaked capacity")
 			}
 			if err := p.installInstanceLocked(&projectionInstance{id: "fresh", node: recoveryNode("other")}); err != nil {
 				t.Fatal("released capacity was not reusable:", err)
 			}
-			p.rootID = "fresh"
-			if err := p.installInstanceLocked(&projectionInstance{id: "healthy-replacement", node: p.instances["fresh"].node}); err == nil {
+			p.graph.rootID = "fresh"
+			if err := p.installInstanceLocked(&projectionInstance{id: "healthy-replacement", node: p.graph.instances["fresh"].node}); err == nil {
 				t.Fatal("a healthy instance received failed-placeholder capacity credit")
 			}
 			p.closeInstance("fresh")

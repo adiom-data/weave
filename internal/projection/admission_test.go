@@ -68,14 +68,14 @@ func TestCurrentImageAdmissionCompactsBeforeCutAndPreservesAfterCut(t *testing.T
 	if err := p.releaseOutput(func(ProjectionBatch) error { return nil }); err == nil {
 		t.Fatal("released output before admission")
 	}
-	if err := p.QueueWindowUpdate(ctx, p.rootID, nil, "early"); err == nil {
+	if err := p.QueueWindowUpdate(ctx, p.graph.rootID, nil, "early"); err == nil {
 		t.Fatal("accepted window request before admission")
 	}
 	key := storage.EntityKey{Relation: storage.RelationKey{Source: "test", Name: "items"}, Value: "one"}
 	apply := func(point uint64, related bool) (ProjectionBatch, bool, error) {
 		envelope := q.DeliveryEnvelope{Delivery: q.DeliveryMetadata{Kind: q.DeliveryCommit, Checkpoint: &q.Position{SourceID: "test", Value: point}, Revision: point}}
 		if related {
-			envelope.Effects = []q.SubscriptionEffect{{SubscriptionID: p.rootID, Batch: q.Batch{Changes: []q.Change{{Kind: q.Updated, Row: q.Row{Key: key, Record: storage.Record{"title": {Type: storage.TypeText, State: storage.ValuePresent, Data: []byte(strconv.FormatUint(point, 10))}}}}}}}}
+			envelope.Effects = []q.SubscriptionEffect{{SubscriptionID: p.graph.rootID, Batch: q.Batch{Changes: []q.Change{{Kind: q.Updated, Row: q.Row{Key: key, Record: storage.Record{"title": {Type: storage.TypeText, State: storage.ValuePresent, Data: []byte(strconv.FormatUint(point, 10))}}}}}}}}
 		}
 		return p.ApplyDelivery(envelope)
 	}
@@ -84,7 +84,7 @@ func TestCurrentImageAdmissionCompactsBeforeCutAndPreservesAfterCut(t *testing.T
 			t.Fatalf("pre-cut output: %v %v", out, err)
 		}
 		// Dynamic publications are also superseded by the eventual full image.
-		if err := p.publishSubtrees([]string{p.rootID}, point); err != nil {
+		if err := p.publishSubtrees([]string{p.graph.rootID}, point); err != nil {
 			t.Fatal(err)
 		}
 		if len(p.pendingOutput) != 0 {
@@ -164,7 +164,7 @@ func TestCurrentImageAdmissionKeepsUnpublishedDescendantsCurrent(t *testing.T) {
 	update := func(id string, point uint64) {
 		t.Helper()
 		p.mu.Lock()
-		key := p.instances[id].order[0]
+		key := p.graph.instances[id].order[0]
 		p.mu.Unlock()
 		_, out, err := p.ApplyDelivery(q.DeliveryEnvelope{Delivery: q.DeliveryMetadata{Kind: q.DeliveryCommit, Checkpoint: &q.Position{SourceID: "test", Value: point}, Revision: point}, Effects: []q.SubscriptionEffect{{SubscriptionID: id, Batch: q.Batch{Changes: []q.Change{{Kind: q.Updated, Row: q.Row{Key: key, Record: storage.Record{"id": {Type: storage.TypeText, State: storage.ValuePresent, Data: []byte("one")}, "binding": {Type: storage.TypeText, State: storage.ValuePresent, Data: []byte(strconv.FormatUint(point, 10))}}}}}}}}})
 		if err != nil || out {
@@ -176,11 +176,11 @@ func TestCurrentImageAdmissionKeepsUnpublishedDescendantsCurrent(t *testing.T) {
 	}
 	// Replacing the root creates a complete but unpublished subtree. Updating
 	// its child must expand its replacement leaf even without a queued token.
-	update(p.rootID, 21)
+	update(p.graph.rootID, 21)
 	p.mu.Lock()
-	root := p.instances[p.rootID]
+	root := p.graph.instances[p.graph.rootID]
 	childID := root.members[root.order[0]].children[0]
-	childPublished := p.instances[childID].published
+	childPublished := p.graph.instances[childID].published
 	p.mu.Unlock()
 	if childPublished {
 		t.Fatal("test child was already published")
@@ -188,7 +188,7 @@ func TestCurrentImageAdmissionKeepsUnpublishedDescendantsCurrent(t *testing.T) {
 	update(childID, 22)
 	wait, err := p.TryAdmitInitial(func(batch ProjectionBatch) (bool, error) {
 		image.apply(t, batch)
-		events, err := p.currentEvents(p.rootID)
+		events, err := p.currentEvents(p.graph.rootID)
 		if err != nil {
 			return false, err
 		}

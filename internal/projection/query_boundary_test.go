@@ -84,9 +84,7 @@ func TestEntityResetKeepsReplacementRowAndDoesNotExposeQueryMembership(t *testin
 		members: map[storage.EntityKey]*projectionMember{oldKey: {record: storage.Record{"id": {Type: storage.TypeText, State: storage.ValuePresent, Data: []byte("old")}}}},
 		order:   []storage.EntityKey{oldKey},
 	}
-	projection := &Projection{
-		instances: map[string]*projectionInstance{instance.id: instance},
-	}
+	projection := &Projection{graph: projectionGraph{instances: map[string]*projectionInstance{instance.id: instance}}}
 	record := storage.Record{"id": {Type: storage.TypeText, State: storage.ValuePresent, Data: []byte("new")}}
 	result, _, err := projection.processBatch(instance, querysubscription.DeliveryMetadata{}, querysubscription.Batch{
 		Clear: true,

@@ -49,7 +49,7 @@ func TestChildLoadFailureFollowsExpansionGeneration(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer p.Close()
-			key := p.instances[p.rootID].order[0]
+			key := p.graph.instances[p.graph.rootID].order[0]
 			updateBoundParent(t, p, key, "new", 11, false)
 			select {
 			case <-feed.started:
@@ -101,7 +101,7 @@ func TestChildBindingsAreSharedBetweenExpansionAndParentUpdates(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer p.Close()
-	key := p.instances[p.rootID].order[0]
+	key := p.graph.instances[p.graph.rootID].order[0]
 	if got := calls.Load(); got != 1 {
 		t.Fatalf("initial binding calls = %d, want 1", got)
 	}
@@ -168,7 +168,7 @@ func TestInlineExpansionIgnoresRetiredLoadFailure(t *testing.T) {
 	key := storage.EntityKey{Value: "parent"}
 	member := newProjectionMember(nil, q.RecordVersion{}, nil, false)
 	parent := &projectionInstance{id: "parent", node: &ProjectionNode{Children: []*ProjectionNode{child}}, members: map[storage.EntityKey]*projectionMember{key: member}}
-	p := &Projection{ctx: ctx, queries: feed, limits: DefaultLimits(), instances: map[string]*projectionInstance{parent.id: parent}}
+	p := &Projection{ctx: ctx, queries: feed, limits: DefaultLimits(), graph: projectionGraph{instances: map[string]*projectionInstance{parent.id: parent}}}
 	done := make(chan error, 1)
 	go func() {
 		_, err := p.loadChildren(projectionExpansion{parent: parent, key: key, member: member})
@@ -198,7 +198,7 @@ func TestInlineExpansionIgnoresRetiredLoadFailure(t *testing.T) {
 func TestQueuedFailureForRetiredChildDoesNotCloseReplacement(t *testing.T) {
 	p, feed, key := bindingProjection(t)
 	p.mu.Lock()
-	old := p.instances[p.rootID].members[key].children[1]
+	old := p.graph.instances[p.graph.rootID].members[key].children[1]
 	p.mu.Unlock()
 	updateBoundParent(t, p, key, "new", 11, false)
 	select {
@@ -216,7 +216,7 @@ func TestQueuedFailureForRetiredChildDoesNotCloseReplacement(t *testing.T) {
 	}
 	completeTestPublication(t, p, publication)
 	p.mu.Lock()
-	retired := p.instances[old] == nil
+	retired := p.graph.instances[old] == nil
 	p.mu.Unlock()
 	if !retired {
 		t.Fatal("replacement did not retire its predecessor")
@@ -225,7 +225,7 @@ func TestQueuedFailureForRetiredChildDoesNotCloseReplacement(t *testing.T) {
 		t.Fatalf("retired failure closed replacement: %v %v", err, p.Err())
 	}
 	currentFailure := errors.New("active root failed")
-	if _, _, err := p.ApplyEvent(q.Event{Failure: &q.SubscriptionFailure{SubscriptionID: p.rootID, Cause: currentFailure}}); !errors.Is(err, currentFailure) || !errors.Is(p.Err(), currentFailure) {
+	if _, _, err := p.ApplyEvent(q.Event{Failure: &q.SubscriptionFailure{SubscriptionID: p.graph.rootID, Cause: currentFailure}}); !errors.Is(err, currentFailure) || !errors.Is(p.Err(), currentFailure) {
 		t.Fatalf("current failure was ignored: %v %v", err, p.Err())
 	}
 }
@@ -310,7 +310,7 @@ func bindingProjection(t *testing.T) (*Projection, *childBindingFeed, storage.En
 		t.Fatal(err)
 	}
 	t.Cleanup(p.Close)
-	return p, f, p.instances[p.rootID].order[0]
+	return p, f, p.graph.instances[p.graph.rootID].order[0]
 }
 
 func updateBoundParent(t *testing.T, p *Projection, key storage.EntityKey, target string, revision uint64, remove bool) ProjectionBatch {
@@ -322,7 +322,7 @@ func updateBoundParent(t *testing.T, p *Projection, key storage.EntityKey, targe
 	if remove {
 		kind = q.Removed
 	}
-	batch, out, err := p.ApplyDelivery(q.DeliveryEnvelope{Delivery: q.DeliveryMetadata{Kind: q.DeliveryCommit, Revision: revision, Checkpoint: &q.Position{SourceID: "test", Value: revision}, Atomic: true}, Effects: []q.SubscriptionEffect{{SubscriptionID: p.rootID, Batch: q.Batch{Changes: []q.Change{{Kind: kind, Row: q.Row{Key: key, Record: record}}}}}}})
+	batch, out, err := p.ApplyDelivery(q.DeliveryEnvelope{Delivery: q.DeliveryMetadata{Kind: q.DeliveryCommit, Revision: revision, Checkpoint: &q.Position{SourceID: "test", Value: revision}, Atomic: true}, Effects: []q.SubscriptionEffect{{SubscriptionID: p.graph.rootID, Batch: q.Batch{Changes: []q.Change{{Kind: kind, Row: q.Row{Key: key, Record: record}}}}}}})
 	if err != nil || !out {
 		t.Fatalf("apply parent: %v %v", out, err)
 	}
@@ -332,7 +332,7 @@ func updateBoundParent(t *testing.T, p *Projection, key storage.EntityKey, targe
 func TestChildRebindingPublishesDetachAndReplacementTogether(t *testing.T) {
 	p, f, key := bindingProjection(t)
 	p.mu.Lock()
-	old := append([]string(nil), p.instances[p.rootID].members[key].children...)
+	old := append([]string(nil), p.graph.instances[p.graph.rootID].members[key].children...)
 	p.mu.Unlock()
 	batch := updateBoundParent(t, p, key, "new", 11, false)
 	if len(batch.Events) != 1 || batch.Events[0].Type != ProjectionRowChanged {
@@ -382,7 +382,7 @@ func TestChildRebindingPublishesDetachAndReplacementTogether(t *testing.T) {
 func TestUnchangedChildBindingsPreserveWindowAndInstance(t *testing.T) {
 	p, f, key := bindingProjection(t)
 	p.mu.Lock()
-	ids := append([]string(nil), p.instances[p.rootID].members[key].children...)
+	ids := append([]string(nil), p.graph.instances[p.graph.rootID].members[key].children...)
 	p.mu.Unlock()
 	bounds := q.Bounds{Left: q.Boundary{Kind: q.BoundaryCursor, Cursor: []byte("left")}, Right: q.Boundary{Kind: q.BoundaryEnd}}
 	if _, _, err := p.ApplyDelivery(q.DeliveryEnvelope{Delivery: q.DeliveryMetadata{Kind: q.DeliveryWindow, Revision: 11}, Effects: []q.SubscriptionEffect{{SubscriptionID: ids[0], Batch: q.Batch{Window: &q.WindowTransition{Token: "resize", Bounds: bounds}}}}}); err != nil {
@@ -393,8 +393,8 @@ func TestUnchangedChildBindingsPreserveWindowAndInstance(t *testing.T) {
 		t.Fatalf("unrelated parent update modified its children: %+v", batch)
 	}
 	p.mu.Lock()
-	member := p.instances[p.rootID].members[key]
-	window := p.instances[ids[0]].initial.Bounds
+	member := p.graph.instances[p.graph.rootID].members[key]
+	window := p.graph.instances[ids[0]].initial.Bounds
 	retained := len(member.children) == 2 && member.children[0] == ids[0] && member.children[1] == ids[1]
 	p.mu.Unlock()
 	if !retained || string(window.Left.Cursor) != "left" || window.Right.Kind != q.BoundaryEnd {
@@ -431,7 +431,7 @@ func TestParentDeletionFlushesDeferredChildDetachImmediately(t *testing.T) {
 	}
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if len(p.instances) != 1 {
+	if len(p.graph.instances) != 1 {
 		t.Fatal("obsolete load attached after parent deletion")
 	}
 }
@@ -439,8 +439,8 @@ func TestParentDeletionFlushesDeferredChildDetachImmediately(t *testing.T) {
 func TestDisplayedPredecessorReceivesDeletionWhileReplacementLoads(t *testing.T) {
 	p, f, key := bindingProjection(t)
 	p.mu.Lock()
-	oldID := p.instances[p.rootID].members[key].children[1]
-	oldKey := p.instances[oldID].order[0]
+	oldID := p.graph.instances[p.graph.rootID].members[key].children[1]
+	oldKey := p.graph.instances[oldID].order[0]
 	p.mu.Unlock()
 	updateBoundParent(t, p, key, "new", 11, false)
 	select {
@@ -472,9 +472,9 @@ func TestSiblingPublicationDoesNotDetachAnotherPendingReplacement(t *testing.T) 
 	}
 	parent := &projectionInstance{id: "parent", node: &ProjectionNode{Name: "parent"}, members: map[storage.EntityKey]*projectionMember{key: member}}
 	child := &projectionInstance{id: "new-a", node: a, parentID: parent.id, parentKey: key}
-	p := &Projection{ctx: context.Background(), instances: map[string]*projectionInstance{parent.id: parent, child.id: child}}
-	p.instances["old-a"] = &projectionInstance{id: "old-a", node: a, published: true}
-	p.instances["old-b"] = &projectionInstance{id: "old-b", node: b, published: true}
+	p := &Projection{ctx: context.Background(), graph: projectionGraph{instances: map[string]*projectionInstance{parent.id: parent, child.id: child}}}
+	p.graph.instances["old-a"] = &projectionInstance{id: "old-a", node: a, published: true}
+	p.graph.instances["old-b"] = &projectionInstance{id: "old-b", node: b, published: true}
 	batch, err := p.completePublication(projectionPublication{InstanceIDs: []string{child.id}})
 	if err != nil {
 		t.Fatal(err)
@@ -492,12 +492,12 @@ func TestRetiringUnpublishedLoadsDoesNotAccumulateReplacements(t *testing.T) {
 		return storage.QuerySpec{Relation: storage.RelationName{Name: string(parent["target"].Data)}}, true, nil
 	}}
 	parent := &projectionInstance{id: "parent", node: &ProjectionNode{Name: "parent", Children: []*ProjectionNode{child}}}
-	p := &Projection{ctx: context.Background(), instances: make(map[string]*projectionInstance), outputReleased: true}
+	p := &Projection{ctx: context.Background(), outputReleased: true, graph: projectionGraph{instances: make(map[string]*projectionInstance)}}
 	for range 1000 {
 		previous := newProjectionMember(memberTarget("old"), q.RecordVersion{}, nil, false)
 		previous.children = []string{"private"}
 		next := newProjectionMember(memberTarget("new"), q.RecordVersion{}, nil, false)
-		p.instances["private"] = &projectionInstance{id: "private", node: child}
+		p.graph.instances["private"] = &projectionInstance{id: "private", node: child}
 		if events, _, err := p.reconcileChildren(parent, previous, next); err != nil || len(events) != 0 || len(next.replacementRoots) != 0 {
 			t.Fatal("retained an unpublished predecessor", err)
 		}

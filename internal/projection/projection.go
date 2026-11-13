@@ -178,11 +178,10 @@ type Projection struct {
 	prefix  string
 	limits  Limits
 
-	mu          sync.Mutex
-	processMu   sync.Mutex
-	receiveMu   sync.Mutex
-	instances   map[string]*projectionInstance
-	activeSlots int // Failed placeholder/replacement pairs share one logical slot.
+	mu        sync.Mutex
+	processMu sync.Mutex
+	receiveMu sync.Mutex
+	graph     projectionGraph
 	// latestCheckpoints follows feed observation order per source. It advances
 	// authorization views for dynamic publications without falsifying row
 	// revisions or replacing row data.
@@ -190,7 +189,6 @@ type Projection struct {
 	latestRevision    uint64
 	initialChanges    *initialChanges
 	progressChanged   chan struct{}
-	rootID            string
 	ready             chan struct{}
 	readyOnce         sync.Once
 	readyEvents       []ProjectionEvent
@@ -206,105 +204,8 @@ type Projection struct {
 	expansions        *expansionScheduler
 	expansionLimiter  *ExpansionLimiter
 	partialErrors     bool
-	failed            map[string]*projectionInstance
 	recoveryWake      chan struct{}
 	closeOnce         sync.Once
-}
-
-type projectionInstance struct {
-	id        string
-	slot      *instanceSlot
-	node      *ProjectionNode
-	spec      storage.QuerySpec
-	depth     int
-	path      []string
-	lineage   []PathStep
-	parentID  string
-	parentKey storage.EntityKey
-	// opening owns this interest until the entire sibling expansion attaches.
-	// Presence in instances alone does not make an obsolete load current.
-	opening      *projectionExpansion
-	subscription querysubscription.Subscription
-	query        querysubscription.QuerySubscription
-	initial      projectionInitialState
-	order        []storage.EntityKey
-	members      map[storage.EntityKey]*projectionMember
-	// localEmpty is proved by an unmatched binding, without a source read.
-	// Its parent remains part of the projection's snapshot/fencing checks.
-	localEmpty bool
-	// published is the structural publication boundary. Feed delivery may
-	// advance an instance while its snapshot is loading, but no row from that
-	// instance is exposed until a current image has introduced the instance.
-	published  bool
-	revision   uint64
-	checkpoint *querysubscription.Position
-	fence      *querysubscription.Position
-	failure    error
-	recovery   retry.State
-	replaces   string // root predecessor, retired at the replacement publication
-}
-
-// snapshotPosition distinguishes source snapshots from locally derived empty
-// topology and failed placeholders. Source-backed instances still require a
-// real checkpoint or fence, even when their result contains no rows.
-// The caller holds Projection.mu.
-func (instance *projectionInstance) snapshotPosition() (*querysubscription.Position, error) {
-	if instance.localEmpty || instance.failure != nil {
-		return nil, nil
-	}
-	return querysubscription.SnapshotPosition(instance.checkpoint, instance.fence)
-}
-
-// A member owns one immutable row image and its expansion state, all guarded
-// by Projection.mu. Row images are replaced on upsert; expansion tokens change
-// only when selectors change or the row is removed/readded.
-type projectionMember struct {
-	record         storage.Record
-	version        querysubscription.RecordVersion
-	cursor         []byte
-	pending        bool
-	children       []string
-	expanded       bool // An empty completed expansion differs from one not yet opened.
-	expansionToken *expansionGeneration
-	// Bindings are computed once from this immutable image. Expansion workers
-	// and the feed consumer may request them concurrently.
-	bindings *memberBindings
-	// Published predecessors remain resident and count toward instance limits
-	// until the replacement for their particular child slot is published.
-	replacementRoots map[*ProjectionNode][]string
-}
-
-// Equivalent immutable row images share this selector generation. The loading
-// signal serializes inline and queued passes without holding actor locks on IO.
-// All access is guarded by Projection.mu.
-type expansionGeneration struct{ loading chan struct{} }
-
-func newProjectionMember(record storage.Record, version querysubscription.RecordVersion, cursor []byte, pending bool) *projectionMember {
-	return &projectionMember{record: storage.CloneRecord(record), version: version, cursor: append([]byte(nil), cursor...), pending: pending, expansionToken: &expansionGeneration{}}
-}
-
-// capture requires Projection.mu and owns its payloads independently of future
-// updates or expansion.
-func (m *projectionMember) capture() projectionMember {
-	return projectionMember{record: storage.CloneRecord(m.record), version: m.version, cursor: append([]byte(nil), m.cursor...), pending: m.pending, children: append([]string(nil), m.children...), expanded: m.expanded}
-}
-
-// projectionInitialState is the common snapshot information needed while a
-// projection instance is opening. Bounds are meaningful only for query nodes;
-// entity nodes do not manufacture a query snapshot merely to share this path.
-type projectionInitialState struct {
-	Bounds     querysubscription.Bounds
-	Rows       []querysubscription.QueryRow
-	Checkpoint *querysubscription.Position
-	Fence      *querysubscription.Position
-	Revision   uint64
-}
-
-type projectionExpansion struct {
-	parent   *projectionInstance
-	key      storage.EntityKey
-	member   *projectionMember
-	revision uint64
 }
 
 type StartOptions struct {
@@ -361,14 +262,15 @@ func BeginProjection(ctx context.Context, queries querysubscription.Feed, root *
 		queue: streamqueue.New[ProjectionBatch](options.QueueLimit, querysubscription.ErrBackpressure, querysubscription.ErrClosed), ctx: projectionCtx, cancel: cancel,
 		outputLimit: options.QueueLimit,
 		queries:     queries, prefix: options.Prefix,
-		limits: options.Limits, instances: make(map[string]*projectionInstance),
+		limits:            options.Limits,
 		latestCheckpoints: make(map[storage.SourceID]*querysubscription.Position),
 		progressChanged:   make(chan struct{}),
 		ready:             make(chan struct{}), initializing: true,
 		awaitingAdmission: options.CurrentImageAdmission,
 		initialTaken:      options.CurrentImageAdmission,
 		expansionLimiter:  options.ExpansionLimiter,
-		partialErrors:     options.AllowPartialErrors, failed: make(map[string]*projectionInstance), recoveryWake: make(chan struct{}, 1),
+		partialErrors:     options.AllowPartialErrors, recoveryWake: make(chan struct{}, 1),
+		graph: newProjectionGraph(),
 	}
 	if options.CurrentImageAdmission {
 		p.initialChanges = newInitialChanges()
@@ -413,7 +315,7 @@ func (p *Projection) initialize(root *ProjectionNode, synchronize bool, fence st
 	}
 	rootID := opened.id
 	p.mu.Lock()
-	p.rootID = rootID
+	p.graph.rootID = rootID
 	p.mu.Unlock()
 	if synchronize {
 		initial, positions, initialErr := p.synchronizedInitialImage(p.ctx)
@@ -446,7 +348,7 @@ func (p *Projection) initialize(root *ProjectionNode, synchronize bool, fence st
 		}
 		if initialErr == nil {
 			p.mu.Lock()
-			for _, instance := range p.instances {
+			for _, instance := range p.graph.instances {
 				instance.published = true
 			}
 			p.initializing = false
@@ -544,7 +446,7 @@ func (p *Projection) synchronizedInitialImage(ctx context.Context) ([]Projection
 		targets := make(map[storage.SourceID]*querysubscription.Position)
 		checkpoints := make(map[storage.SourceID]*querysubscription.Position)
 		snapshotCount := 0
-		for _, instance := range p.instances {
+		for _, instance := range p.graph.instances {
 			position, err := instance.snapshotPosition()
 			if err != nil {
 				p.mu.Unlock()
@@ -574,7 +476,7 @@ func (p *Projection) synchronizedInitialImage(ctx context.Context) ([]Projection
 			}
 		}
 		changed := p.progressChanged
-		rootID := p.rootID
+		rootID := p.graph.rootID
 		cut := make(map[storage.SourceID]*querysubscription.Position, len(targets))
 		for source, target := range targets {
 			position := checkpoints[source]
@@ -626,7 +528,7 @@ func (p *Projection) synchronizedInitialImage(ctx context.Context) ([]Projection
 		}
 		if err == nil {
 			p.mu.Lock()
-			for _, instance := range p.instances {
+			for _, instance := range p.graph.instances {
 				instance.published = true
 			}
 			p.initializing = false
@@ -783,8 +685,8 @@ func (p *Projection) shutdown(reason error) {
 		p.cancel()
 		p.expansions.stop()
 		p.mu.Lock()
-		ids := make([]string, 0, len(p.instances))
-		for id := range p.instances {
+		ids := make([]string, 0, len(p.graph.instances))
+		for id := range p.graph.instances {
 			ids = append(ids, id)
 		}
 		p.mu.Unlock()
@@ -814,12 +716,12 @@ func (p *Projection) loadNode(node *ProjectionNode, binding boundQuery, path []s
 	}
 	p.processMu.Lock()
 	p.mu.Lock()
-	tooMany := !p.canInstallInstanceLocked(node, owner)
-	current := owner == nil || p.expansionCurrentLocked(*owner)
+	tooMany := !p.graph.canInstallInstanceLocked(node, owner, p.limits.MaxActiveInstances)
+	current := owner == nil || p.graph.expansionCurrentLocked(*owner)
 	// Resolve the window from the same reconciled ownership image as admission.
 	// A parent row replacement may temporarily carry a new selector generation
 	// until reconcileChildren restores an unchanged binding under processMu.
-	bounds := p.replacementBoundsLocked(node, spec, owner)
+	bounds := p.graph.replacementBoundsLocked(node, spec, owner)
 	p.mu.Unlock()
 	p.processMu.Unlock()
 	if !current {
@@ -845,7 +747,7 @@ func (p *Projection) loadNode(node *ProjectionNode, binding boundQuery, path []s
 	var fetchFrom *querysubscription.ReferenceSource
 	if parentID != "" {
 		p.mu.Lock()
-		parentInstance := p.instances[parentID]
+		parentInstance := p.graph.instances[parentID]
 		if parentInstance != nil {
 			if parentInstance.node.ReferenceChild == node.Name {
 				fetchFrom = &querysubscription.ReferenceSource{SubscriptionID: parentID, ParentKey: parentKey}
@@ -865,7 +767,7 @@ func (p *Projection) loadNode(node *ProjectionNode, binding boundQuery, path []s
 		defer p.processMu.Unlock()
 		p.mu.Lock()
 		defer p.mu.Unlock()
-		if owner != nil && !p.expansionCurrentLocked(*owner) {
+		if owner != nil && !p.graph.expansionCurrentLocked(*owner) {
 			return querysubscription.ErrClosed
 		}
 		if err := p.ctx.Err(); err != nil {
@@ -874,15 +776,7 @@ func (p *Projection) loadNode(node *ProjectionNode, binding boundQuery, path []s
 		if err := p.installInstanceLocked(installed); err != nil {
 			return err
 		}
-		for _, entity := range initial.Rows {
-			member := newProjectionMember(entity.Record, querysubscription.RecordVersion{Revision: initial.Revision, ChangeIndex: entity.ChangeIndex}, entity.Cursor, entity.Pending)
-			installed.members[entity.Key] = member
-			installed.order = append(installed.order, entity.Key)
-			if !member.pending && len(node.Children) > 0 {
-				opening = append(opening, projectionExpansion{parent: installed, key: entity.Key, member: member})
-			}
-		}
-		installed.initial.Rows = nil
+		opening = p.graph.initializeRowsLocked(installed)
 		instance = installed
 		return nil
 	}
@@ -937,12 +831,12 @@ func (p *Projection) openChildren(expansion projectionExpansion, opened []string
 	}
 	p.processMu.Lock()
 	p.mu.Lock()
-	if !p.expansionCurrentLocked(expansion) {
+	if !p.graph.expansionCurrentLocked(expansion) {
 		p.mu.Unlock()
 		p.processMu.Unlock()
 		return nil, querysubscription.ErrClosed
 	}
-	retained := p.coveredChildrenLocked(parent.members[parentKey], opened)
+	retained := p.graph.coveredChildrenLocked(parent.members[parentKey], opened)
 	p.mu.Unlock()
 	p.processMu.Unlock()
 	var ids []string
@@ -1050,7 +944,7 @@ func (p *Projection) ApplyDelivery(envelope querysubscription.DeliveryEnvelope) 
 			continue
 		}
 		depth := 0
-		if instance := p.instances[effect.SubscriptionID]; instance != nil {
+		if instance := p.graph.instances[effect.SubscriptionID]; instance != nil {
 			depth = instance.depth
 		}
 		owned = append(owned, ownedEffect{SubscriptionEffect: effect, depth: depth})
@@ -1130,7 +1024,7 @@ func (p *Projection) currentEvents(rootID string) ([]ProjectionEvent, error) {
 	var visit func(string) error
 	visit = func(id string) error {
 		p.mu.Lock()
-		instance := p.instances[id]
+		instance := p.graph.instances[id]
 		if instance == nil {
 			p.mu.Unlock()
 			return nil
@@ -1197,7 +1091,7 @@ func (p *Projection) completePublication(publication projectionPublication) (Pro
 	result := ProjectionBatch{}
 	for _, id := range publication.InstanceIDs {
 		p.mu.Lock()
-		instance := p.instances[id]
+		instance := p.graph.instances[id]
 		eligible := instance != nil && !instance.published
 		p.mu.Unlock()
 		if !eligible {
@@ -1218,12 +1112,12 @@ func (p *Projection) completePublication(publication projectionPublication) (Pro
 	p.mu.Lock()
 	for _, event := range result.Events {
 		if event.Type == ProjectionInstanceOpened {
-			if instance := p.instances[event.InstanceID]; instance != nil {
+			if instance := p.graph.instances[event.InstanceID]; instance != nil {
 				instance.published = true
 			}
 		}
 	}
-	expansions := p.missingPublishedExpansionsLocked(publication.InstanceIDs)
+	expansions := p.graph.missingPublishedExpansionsLocked(publication.InstanceIDs)
 	p.mu.Unlock()
 	if err := p.startExpansions(expansions); err != nil {
 		p.processMu.Unlock()
@@ -1387,7 +1281,7 @@ func (p *Projection) expandChildren(expansion projectionExpansion) {
 	if err != nil {
 		p.processMu.Lock()
 		p.mu.Lock()
-		current := p.expansionCurrentLocked(expansion)
+		current := p.graph.expansionCurrentLocked(expansion)
 		p.mu.Unlock()
 		if current && p.ctx.Err() == nil {
 			p.shutdown(err)
@@ -1396,7 +1290,7 @@ func (p *Projection) expandChildren(expansion projectionExpansion) {
 		return
 	}
 	p.mu.Lock()
-	parentPublished := p.instances[expansion.parent.id] == expansion.parent && expansion.parent.published
+	parentPublished := p.graph.instances[expansion.parent.id] == expansion.parent && expansion.parent.published
 	p.mu.Unlock()
 	if parentPublished && !materializing {
 		if err := p.publishSubtrees(ids, expansion.revision); err != nil && p.ctx.Err() == nil {
@@ -1448,89 +1342,19 @@ func (p *Projection) publishSubtrees(rootIDs []string, causalRevision uint64) er
 	}
 }
 
-// publicationState returns the current reachable unpublished subtree and rows
-// whose descendants were invalidated while that subtree was catching up.
+// publicationState borrows graph state under the runtime's existing locks.
 // processMu must be held by the caller.
 func (p *Projection) publicationState(rootIDs []string) ([]*projectionInstance, []projectionExpansion) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	var reachable []*projectionInstance
-	var missing []projectionExpansion
-	seen := make(map[string]struct{})
-	var visit func(string)
-	visit = func(id string) {
-		if _, ok := seen[id]; ok {
-			return
-		}
-		seen[id] = struct{}{}
-		instance := p.instances[id]
-		if instance == nil || instance.published {
-			return
-		}
-		reachable = append(reachable, instance)
-		for key, member := range instance.members {
-			if len(instance.node.Children) > 0 && !member.pending && !member.expanded {
-				missing = append(missing, projectionExpansion{parent: instance, key: key, member: member})
-			}
-			for _, childID := range member.children {
-				visit(childID)
-			}
-		}
-	}
-	for _, id := range rootIDs {
-		visit(id)
-	}
-	sort.Slice(reachable, func(i, j int) bool { return reachable[i].id < reachable[j].id })
-	return reachable, missing
-}
-
-// missingPublishedExpansionsLocked finds descendants invalidated after the
-// current-image cut but before the serialized consumer installed the publication.
-// Publishing the current parent row first is safe: projection references may be
-// temporarily unresolved, and the follow-up expansion publishes its own current
-// image. p.mu and processMu must be held by the caller.
-func (p *Projection) missingPublishedExpansionsLocked(rootIDs []string) []projectionExpansion {
-	var missing []projectionExpansion
-	seen := make(map[string]struct{})
-	var visit func(string)
-	visit = func(id string) {
-		if _, ok := seen[id]; ok {
-			return
-		}
-		seen[id] = struct{}{}
-		instance := p.instances[id]
-		if instance == nil || !instance.published {
-			return
-		}
-		for key, member := range instance.members {
-			if len(instance.node.Children) > 0 && !member.pending && !member.expanded {
-				missing = append(missing, projectionExpansion{parent: instance, key: key, member: member, revision: instance.revision})
-			}
-			for _, childID := range member.children {
-				visit(childID)
-			}
-		}
-	}
-	for _, id := range rootIDs {
-		visit(id)
-	}
-	return missing
-}
-
-// expansionCurrentLocked fences both replacement rows and completed loads.
-// Member identities cannot be reused while an older worker still holds one.
-func (p *Projection) expansionCurrentLocked(expansion projectionExpansion) bool {
-	return expansion.member != nil && p.instanceCurrentLocked(expansion.parent) &&
-		expansion.parent.members[expansion.key] != nil &&
-		expansion.parent.members[expansion.key].expansionToken == expansion.member.expansionToken &&
-		!expansion.parent.members[expansion.key].pending && !expansion.parent.members[expansion.key].expanded
+	return p.graph.publicationStateLocked(rootIDs)
 }
 
 func (p *Projection) anyInstance(ids []string) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	for _, id := range ids {
-		if p.instances[id] != nil {
+		if p.graph.instances[id] != nil {
 			return true
 		}
 	}
@@ -1591,7 +1415,7 @@ func (p *Projection) QueueWindowUpdate(ctx context.Context, instanceID string, c
 		p.mu.Unlock()
 		return errors.New("projection initial image has not been admitted")
 	}
-	instance := p.instances[instanceID]
+	instance := p.graph.instances[instanceID]
 	if instance == nil {
 		p.mu.Unlock()
 		return errors.New("projection instance not found")
@@ -1622,7 +1446,7 @@ func (p *Projection) closeInstance(id string) {
 
 func (p *Projection) closeInstanceEvents(id string) []ProjectionEvent {
 	p.mu.Lock()
-	instance := p.instances[id]
+	instance := p.graph.instances[id]
 	if instance == nil {
 		p.mu.Unlock()
 		return nil
@@ -1630,17 +1454,8 @@ func (p *Projection) closeInstanceEvents(id string) []ProjectionEvent {
 	if p.initialChanges != nil {
 		p.initialChanges.close(ProjectionEvent{Type: ProjectionInstanceClosed, InstanceID: id, Path: append([]string(nil), instance.path...), Node: instance.node.Name, EntityNode: instance.node.Entity, ParentInstanceID: instance.parentID, ParentEntityKey: instance.parentKey})
 	}
-	delete(p.instances, id)
-	p.releaseInstanceSlotLocked(instance)
-	delete(p.failed, id)
-	handle := instance.takeSubscriptionLocked()
-	var children []string
-	for _, member := range instance.members {
-		children = append(children, member.children...)
-		for _, roots := range member.replacementRoots {
-			children = append(children, roots...)
-		}
-	}
+	retirement := p.graph.retireLocked(id)
+	handle, children := retirement.subscription, retirement.children
 	p.mu.Unlock()
 	if p.expansions != nil {
 		p.expansions.discardParent(id)

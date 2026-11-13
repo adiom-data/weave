@@ -109,7 +109,7 @@ func (p *Projection) initialDelta(root string) (ProjectionBatch, error) {
 		}
 		sort.Slice(batch.Events, func(i, j int) bool { return len(batch.Events[i].Path) > len(batch.Events[j].Path) })
 		for id, dirty := range c.rows {
-			instance := p.instances[id]
+			instance := p.graph.instances[id]
 			if instance == nil {
 				continue
 			}
@@ -131,7 +131,7 @@ func (p *Projection) initialDelta(root string) (ProjectionBatch, error) {
 			}
 		}
 		for id, dirty := range c.membership {
-			instance := p.instances[id]
+			instance := p.graph.instances[id]
 			if instance == nil || instance.node.Entity {
 				continue
 			}
@@ -153,7 +153,7 @@ func (p *Projection) initialDelta(root string) (ProjectionBatch, error) {
 		}
 		var roots []string
 		for id := range c.opened {
-			instance := p.instances[id]
+			instance := p.graph.instances[id]
 			if instance == nil {
 				continue
 			}

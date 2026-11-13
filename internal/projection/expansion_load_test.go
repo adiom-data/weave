@@ -33,7 +33,7 @@ func TestChildRecoveryWindowFollowsReconciledOwnership(t *testing.T) {
 			old := &projectionInstance{id: "old-child", node: child, spec: spec, failure: errors.New("failed"), initial: projectionInitialState{Bounds: saved}}
 			before.replacementRoots = map[*ProjectionNode][]string{child: {old.id}}
 			feed := &recoveryFeed{requests: make(chan q.QuerySubscribeRequest, 1)}
-			p := &Projection{ctx: t.Context(), queries: feed, limits: DefaultLimits(), instances: map[string]*projectionInstance{parent.id: parent, old.id: old}}
+			p := &Projection{ctx: t.Context(), queries: feed, limits: DefaultLimits(), graph: projectionGraph{instances: map[string]*projectionInstance{parent.id: parent, old.id: old}}}
 			expansion := projectionExpansion{parent: parent, key: key, member: before}
 			// The new immutable row image is not itself the selector lifetime.
 			// Admission must use the ownership restored by reconciliation, not
@@ -93,24 +93,24 @@ func TestExpansionCompletionUsesCurrentCoverageBeforeTransferringOwnership(t *te
 	parent := &projectionInstance{id: "parent", node: &ProjectionNode{Children: []*ProjectionNode{first, second}}, members: map[storage.EntityKey]*projectionMember{key: current}}
 	expansion := projectionExpansion{parent: parent, key: key, member: before}
 	opened := &projectionInstance{id: "new-first", node: first, opening: &expansion}
-	p := &Projection{ctx: context.Background(), instances: map[string]*projectionInstance{parent.id: parent, "old-second": {id: "old-second", node: second}, opened.id: opened}}
-	if p.attachExpansionLocked(expansion, []string{opened.id}) {
+	p := &Projection{ctx: context.Background(), graph: projectionGraph{instances: map[string]*projectionInstance{parent.id: parent, "old-second": {id: "old-second", node: second}, opened.id: opened}}}
+	if p.graph.attachExpansionLocked(expansion, []string{opened.id}) {
 		t.Fatal("an obsolete row image hid the current sibling coverage gap")
 	}
 	if current.expanded || len(current.children) != 0 || opened.opening == nil {
 		t.Fatal("an incomplete pass transferred private interests")
 	}
 	replacement := &projectionInstance{id: "new-second", node: second, opening: &expansion, failure: errors.New("replacement remains errored")}
-	p.instances[replacement.id] = replacement
+	p.graph.instances[replacement.id] = replacement
 	current.replacementRoots = map[*ProjectionNode][]string{second: {"old-second"}}
-	if p.failedReplacementLocked(second, &expansion) != nil {
+	if p.graph.failedReplacementLocked(second, &expansion) != nil {
 		t.Fatal("healthy predecessor unexpectedly counted as a failed replacement")
 	}
-	p.instances["old-second"].failure = errors.New("old source failed")
-	if p.failedReplacementLocked(second, &expansion) != p.instances["old-second"] {
+	p.graph.instances["old-second"].failure = errors.New("old source failed")
+	if p.graph.failedReplacementLocked(second, &expansion) != p.graph.instances["old-second"] {
 		t.Fatal("replacement lookup used the old row image instead of current ownership")
 	}
-	if !p.attachExpansionLocked(expansion, []string{opened.id, replacement.id}) {
+	if !p.graph.attachExpansionLocked(expansion, []string{opened.id, replacement.id}) {
 		t.Fatal("complete child slots, including explicit failure placeholders, were not accepted")
 	}
 	if !current.expanded || len(current.children) != 2 || opened.opening != nil || replacement.opening != nil || len(before.children) != 1 {

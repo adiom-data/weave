@@ -14,10 +14,10 @@ import (
 func TestInitialImageTransfersOwnershipOnce(t *testing.T) {
 	key := storage.EntityKey{Value: "one"}
 	record := storage.Record{"object": {Type: storage.TypeObject, State: storage.ValuePresent, Object: storage.Record{"name": {Type: storage.TypeText, State: storage.ValuePresent, Data: []byte("original")}}}}
-	p := &Projection{ready: make(chan struct{}), instances: map[string]*projectionInstance{"items": {
+	p := &Projection{ready: make(chan struct{}), graph: projectionGraph{instances: map[string]*projectionInstance{"items": {
 		id: "items", node: &ProjectionNode{Name: "items"}, order: []storage.EntityKey{key},
 		members: map[storage.EntityKey]*projectionMember{key: {record: record, cursor: []byte("cursor")}},
-	}}}
+	}}}}
 	image, err := p.currentEvents("items")
 	if err != nil {
 		t.Fatal(err)
@@ -36,7 +36,7 @@ func TestInitialImageTransfersOwnershipOnce(t *testing.T) {
 	}
 	taken[1].Record["object"].Object["name"].Data[0] = 'X'
 	taken[1].Cursor[0] = 'X'
-	if string(record["object"].Object["name"].Data) != "original" || string(p.instances["items"].members[key].cursor) != "cursor" {
+	if string(record["object"].Object["name"].Data) != "original" || string(p.graph.instances["items"].members[key].cursor) != "cursor" {
 		t.Fatal("consumer mutation escaped into live projection state")
 	}
 	if _, _, err := p.TakeInitial(context.Background()); err == nil {

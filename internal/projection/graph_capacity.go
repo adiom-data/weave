@@ -9,10 +9,10 @@ type instanceSlot struct{ references int }
 
 // failedReplacementLocked identifies only this node's failed predecessor, never
 // an unrelated failure whose capacity another expansion could borrow.
-// Requires p.mu (and processMu when used during installation).
-func (p *Projection) failedReplacementLocked(node *ProjectionNode, owner *projectionExpansion) *projectionInstance {
+// Requires Projection.mu (and processMu when used during installation).
+func (g *projectionGraph) failedReplacementLocked(node *ProjectionNode, owner *projectionExpansion) *projectionInstance {
 	if owner == nil {
-		previous := p.instances[p.rootID]
+		previous := g.instances[g.rootID]
 		if previous != nil && previous.node == node && previous.failure != nil {
 			return previous
 		}
@@ -26,54 +26,51 @@ func (p *Projection) failedReplacementLocked(node *ProjectionNode, owner *projec
 		return nil
 	}
 	for _, id := range member.replacementRoots[node] {
-		if previous := p.instances[id]; previous != nil && previous.failure != nil {
+		if previous := g.instances[id]; previous != nil && previous.failure != nil {
 			return previous
 		}
 	}
 	return nil
 }
 
-func (p *Projection) replacementSlotLocked(node *ProjectionNode, owner *projectionExpansion) *instanceSlot {
-	if previous := p.failedReplacementLocked(node, owner); previous != nil && previous.slot != nil && previous.slot.references == 1 {
+func (g *projectionGraph) replacementSlotLocked(node *ProjectionNode, owner *projectionExpansion) *instanceSlot {
+	if previous := g.failedReplacementLocked(node, owner); previous != nil && previous.slot != nil && previous.slot.references == 1 {
 		return previous.slot
 	}
 	return nil
 }
 
-func (p *Projection) canInstallInstanceLocked(node *ProjectionNode, owner *projectionExpansion) bool {
-	return p.activeSlots < p.limits.MaxActiveInstances || p.replacementSlotLocked(node, owner) != nil
+func (g *projectionGraph) canInstallInstanceLocked(node *ProjectionNode, owner *projectionExpansion, maxInstances int) bool {
+	return g.activeSlots < maxInstances || g.replacementSlotLocked(node, owner) != nil
 }
 
 // installInstanceLocked is the sole registration/capacity boundary. The early
 // preflight before IO is advisory; this check decides concurrent admissions.
-// Requires p.mu and processMu.
-func (p *Projection) installInstanceLocked(instance *projectionInstance) error {
-	if p.instances[instance.id] != nil {
+// Requires Projection.mu and processMu.
+func (g *projectionGraph) installInstanceLocked(instance *projectionInstance, maxInstances int) error {
+	if g.instances[instance.id] != nil {
 		return fmt.Errorf("projection instance %q is already installed", instance.id)
 	}
-	slot := p.replacementSlotLocked(instance.node, instance.opening)
+	slot := g.replacementSlotLocked(instance.node, instance.opening)
 	if slot == nil {
-		if p.activeSlots >= p.limits.MaxActiveInstances {
-			return fmt.Errorf("projection exceeds maximum of %d active instances", p.limits.MaxActiveInstances)
+		if g.activeSlots >= maxInstances {
+			return fmt.Errorf("projection exceeds maximum of %d active instances", maxInstances)
 		}
 		slot = &instanceSlot{}
-		p.activeSlots++
+		g.activeSlots++
 	}
 	slot.references++
 	instance.slot = slot
-	p.instances[instance.id] = instance
-	if p.initialChanges != nil {
-		p.initialChanges.open(instance.id)
-	}
+	g.instances[instance.id] = instance
 	return nil
 }
 
-func (p *Projection) releaseInstanceSlotLocked(instance *projectionInstance) {
+func (g *projectionGraph) releaseInstanceSlotLocked(instance *projectionInstance) {
 	if slot := instance.slot; slot != nil {
 		instance.slot = nil
 		slot.references--
 		if slot.references == 0 {
-			p.activeSlots--
+			g.activeSlots--
 		}
 	}
 }

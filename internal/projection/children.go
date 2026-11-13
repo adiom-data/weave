@@ -90,38 +90,14 @@ func (p *Projection) reconcileChildren(parent *projectionInstance, previous, nex
 		}
 	}
 	p.mu.Lock()
-	next.replacementRoots = previous.replacementRoots
 	public := p.outputReleased && !p.awaitingAdmission
-	var obsolete []*projectionInstance
-	for _, id := range previous.children {
-		if instance := p.instances[id]; instance != nil && unchanged[instance.node] {
-			next.children = append(next.children, id)
-		} else {
-			if instance != nil {
-				obsolete = append(obsolete, instance)
-			}
-		}
-	}
-	if all {
-		// A row update is not a new expansion generation when its selectors
-		// are identical. In-flight loads can safely attach to the new image.
-		next.expansionToken, next.expanded = previous.expansionToken, previous.expanded
-	}
+	obsolete := p.graph.reconcileChildrenLocked(previous, next, unchanged, all, public)
 	p.mu.Unlock()
 	var closed []ProjectionEvent
-	for _, instance := range obsolete {
-		if public && instance.published {
-			p.mu.Lock()
-			if next.replacementRoots == nil {
-				next.replacementRoots = make(map[*ProjectionNode][]string)
-			}
-			next.replacementRoots[instance.node] = append(next.replacementRoots[instance.node], instance.id)
-			p.mu.Unlock()
-		} else {
-			events := p.closeInstanceEvents(instance.id)
-			if !public {
-				closed = append(closed, events...)
-			}
+	for _, id := range obsolete {
+		events := p.closeInstanceEvents(id)
+		if !public {
+			closed = append(closed, events...)
 		}
 	}
 	return closed, all, nil
@@ -139,28 +115,11 @@ func sameBindingError(a, b error) bool {
 // sibling publication cannot clear another slot whose replacement is loading.
 func (p *Projection) retireReplacedChildren(instance *projectionInstance) []ProjectionEvent {
 	p.mu.Lock()
-	parent := p.instances[instance.parentID]
-	if parent == nil {
-		p.mu.Unlock()
-		return nil
-	}
-	member := parent.members[instance.parentKey]
-	if member == nil {
-		p.mu.Unlock()
-		return nil
-	}
-	for _, id := range member.children {
-		if id == instance.id {
-			roots := member.replacementRoots[instance.node]
-			delete(member.replacementRoots, instance.node)
-			p.mu.Unlock()
-			var closed []ProjectionEvent
-			for _, id := range roots {
-				closed = append(closed, p.closeInstanceEvents(id)...)
-			}
-			return closed
-		}
-	}
+	roots := p.graph.takeReplacedChildrenLocked(instance)
 	p.mu.Unlock()
-	return nil
+	var closed []ProjectionEvent
+	for _, id := range roots {
+		closed = append(closed, p.closeInstanceEvents(id)...)
+	}
+	return closed
 }

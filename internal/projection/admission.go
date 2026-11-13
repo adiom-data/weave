@@ -77,9 +77,9 @@ func (p *Projection) tryCurrentImage(initial bool, accept func(string) (bool, er
 		p.mu.Unlock()
 		return AdmissionWait{}, errors.New("projection requires current-image admission")
 	}
-	root := p.rootID
+	root := p.graph.rootID
 	var progress []*q.Position
-	for _, instance := range p.instances {
+	for _, instance := range p.graph.instances {
 		target, err := instance.snapshotPosition()
 		if err != nil {
 			p.mu.Unlock()
@@ -118,7 +118,7 @@ func (p *Projection) tryCurrentImage(initial bool, accept func(string) (bool, er
 	}
 	p.mu.Lock()
 	var retired []string
-	for _, instance := range p.instances {
+	for _, instance := range p.graph.instances {
 		instance.published = true
 		if instance.replaces != "" {
 			retired = append(retired, instance.replaces)

@@ -48,7 +48,7 @@ func openingBoundInterest(t *testing.T, nested bool) openingInterestFixture {
 		t.Fatal(err)
 	}
 	t.Cleanup(p.Close)
-	parentKey := p.instances[p.rootID].order[0]
+	parentKey := p.graph.instances[p.graph.rootID].order[0]
 	updateBoundParent(t, p, parentKey, "new", 11, false)
 	select {
 	case <-feed.blocked:
@@ -62,10 +62,10 @@ func openingBoundInterest(t *testing.T, nested bool) openingInterestFixture {
 		t.Fatal(ctx.Err())
 	}
 	p.mu.Lock()
-	instance := p.instances[id]
+	instance := p.graph.instances[id]
 	if nested {
 		id = instance.members[instance.order[0]].children[0]
-		instance = p.instances[id]
+		instance = p.graph.instances[id]
 	}
 	key := instance.order[0]
 	record := storage.CloneRecord(instance.members[key].record)
@@ -83,7 +83,7 @@ func interestCommit(revision uint64) q.DeliveryMetadata {
 func (f openingInterestFixture) parentChange(action string) q.SubscriptionEffect {
 	p := f.projection
 	p.mu.Lock()
-	record := storage.CloneRecord(p.instances[p.rootID].members[f.parentKey].record)
+	record := storage.CloneRecord(p.graph.instances[p.graph.rootID].members[f.parentKey].record)
 	p.mu.Unlock()
 	batch := q.Batch{}
 	kind := q.Updated
@@ -94,7 +94,7 @@ func (f openingInterestFixture) parentChange(action string) q.SubscriptionEffect
 		record["target"] = memberTarget("old")["target"]
 	}
 	batch.Changes = []q.Change{{Kind: kind, Row: q.Row{Key: f.parentKey, Record: record}}}
-	return q.SubscriptionEffect{SubscriptionID: p.rootID, Batch: batch}
+	return q.SubscriptionEffect{SubscriptionID: p.graph.rootID, Batch: batch}
 }
 
 func TestInterestDataAndFailuresUseTheSameOwnership(t *testing.T) {
@@ -122,7 +122,7 @@ func TestInterestDataAndFailuresUseTheSameOwnership(t *testing.T) {
 					t.Fatalf("obsolete payload was evaluated or published: %+v out=%v err=%v terminal=%v", batch, out, err, p.Err())
 				}
 				p.mu.Lock()
-				position, revision, retired := p.latestCheckpoints["test"], p.latestRevision, p.instances[f.interestID] == nil
+				position, revision, retired := p.latestCheckpoints["test"], p.latestRevision, p.graph.instances[f.interestID] == nil
 				p.mu.Unlock()
 				if !retired || revision != metadata.Revision || batch.Delivery.Revision != metadata.Revision || batch.Delivery.Kind != metadata.Kind || !q.SamePosition(position, metadata.Checkpoint) || !q.SamePosition(batch.Delivery.Checkpoint, metadata.Checkpoint) || !batch.Delivery.Atomic {
 					t.Fatalf("obsolete-interest cleanup lost transaction progress: retired=%v revision=%d position=%v delivery=%+v", retired, revision, position, batch.Delivery)
@@ -153,7 +153,7 @@ func TestParentTopologySettlesBeforeChildEffectsInSameTransaction(t *testing.T) 
 					}
 					parentChanged := false
 					for _, event := range batch.Events {
-						if event.Type == ProjectionRowChanged && event.InstanceID == f.projection.rootID {
+						if event.Type == ProjectionRowChanged && event.InstanceID == f.projection.graph.rootID {
 							parentChanged = true
 						}
 						if event.InstanceID == f.interestID {

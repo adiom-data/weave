@@ -15,7 +15,7 @@ func TestCurrentEventsCaptureOwnsRecordsAndCursors(t *testing.T) {
 	record := storage.Record{"properties": {Type: storage.TypeObject, State: storage.ValuePresent, Object: map[string]storage.Value{"labels": {Type: storage.TypeList, State: storage.ValuePresent, List: []storage.Value{{Type: storage.TypeText, State: storage.ValuePresent, Data: []byte("label")}}}}}}
 	before := storage.CloneRecord(record)
 	instance := &projectionInstance{id: "items", node: &ProjectionNode{Name: "items"}, members: map[storage.EntityKey]*projectionMember{key: {record: record, version: querysubscription.RecordVersion{Revision: 1}, cursor: []byte("cursor")}}, order: []storage.EntityKey{key}}
-	p := &Projection{instances: map[string]*projectionInstance{"items": instance}}
+	p := &Projection{graph: projectionGraph{instances: map[string]*projectionInstance{"items": instance}}}
 	first, err := p.currentEvents("items")
 	if err != nil {
 		t.Fatal(err)
@@ -120,7 +120,7 @@ func TestFenceOnlyPublicationPreservesSnapshotAuthorizationUntilCovered(t *testi
 			p.latestCheckpoints["test"] = &querysubscription.Position{SourceID: "test", Value: progress}
 		}
 		instance := &projectionInstance{id: "entity", node: &ProjectionNode{Name: "entity", Entity: true}, fence: &querysubscription.Position{SourceID: "test", Value: 10}}
-		p.instances = map[string]*projectionInstance{"entity": instance}
+		p.graph.instances = map[string]*projectionInstance{"entity": instance}
 		image, err := p.currentEvents("entity")
 		if err != nil {
 			t.Fatal(err)

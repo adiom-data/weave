@@ -324,8 +324,8 @@ func TestUnpublishedProjectionInstancePublishesCurrentState(t *testing.T) {
 		revision: 1, checkpoint: snapshotCheckpoint,
 	}
 	p := &Projection{
-		ctx: context.Background(), prefix: "projection", instances: map[string]*projectionInstance{instance.id: instance},
-		outputReleased: true,
+		ctx: context.Background(), prefix: "projection",
+		outputReleased: true, graph: projectionGraph{instances: map[string]*projectionInstance{instance.id: instance}},
 	}
 
 	batch, outgoing, err := p.ApplyDelivery(querysubscription.DeliveryEnvelope{
@@ -386,8 +386,8 @@ func TestProjectionWindowTransitionIsPreserved(t *testing.T) {
 		members: make(map[storage.EntityKey]*projectionMember),
 	}
 	p := &Projection{
-		ctx: context.Background(), prefix: "projection", instances: map[string]*projectionInstance{instance.id: instance},
-		outputReleased: true,
+		ctx: context.Background(), prefix: "projection",
+		outputReleased: true, graph: projectionGraph{instances: map[string]*projectionInstance{instance.id: instance}},
 	}
 	batch, outgoing, err := p.ApplyDelivery(querysubscription.DeliveryEnvelope{
 		Delivery: querysubscription.DeliveryMetadata{Kind: querysubscription.DeliveryWindow, Revision: 1},
@@ -541,7 +541,7 @@ func TestProjectionExpandsParameterizedChildrenAndTracksNewParents(t *testing.T)
 		t.Fatalf("unchanged child selector caused structural changes: %+v, err=%v", rebuilt, err)
 	}
 	projection.mu.Lock()
-	childID := projection.instances[initial[0].InstanceID].members[p1].children[0]
+	childID := projection.graph.instances[initial[0].InstanceID].members[p1].children[0]
 	projection.mu.Unlock()
 	if childID != initial[2].InstanceID {
 		t.Fatal("unchanged child selector replaced its subscription")

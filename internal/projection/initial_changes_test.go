@@ -117,7 +117,7 @@ func TestInitialDeltasCoalesceMembershipAndKeepRecordVersions(t *testing.T) {
 	rng := rand.New(rand.NewSource(71))
 	for step := 2; step < 400; step++ {
 		p.mu.Lock()
-		order := append([]storage.EntityKey(nil), p.instances[p.rootID].order...)
+		order := append([]storage.EntityKey(nil), p.graph.instances[p.graph.rootID].order...)
 		p.mu.Unlock()
 		batch := q.Batch{}
 		switch operation := rng.Intn(5); {
@@ -145,7 +145,7 @@ func TestInitialDeltasCoalesceMembershipAndKeepRecordVersions(t *testing.T) {
 			batch.Changes = []q.Change{{Kind: q.Added, Row: row}}
 			batch.Membership.Insertions = []q.Insertion{{Key: row.Key, FinalIndex: 0}}
 		}
-		if _, _, err := p.ApplyDelivery(q.DeliveryEnvelope{Delivery: q.DeliveryMetadata{Kind: q.DeliveryCommit, Checkpoint: &q.Position{SourceID: "test", Value: uint64(step)}, Revision: uint64(step)}, Effects: []q.SubscriptionEffect{{SubscriptionID: p.rootID, Batch: batch}}}); err != nil {
+		if _, _, err := p.ApplyDelivery(q.DeliveryEnvelope{Delivery: q.DeliveryMetadata{Kind: q.DeliveryCommit, Checkpoint: &q.Position{SourceID: "test", Value: uint64(step)}, Revision: uint64(step)}, Effects: []q.SubscriptionEffect{{SubscriptionID: p.graph.rootID, Batch: batch}}}); err != nil {
 			t.Fatal(err)
 		}
 		if step%7 != 0 {
@@ -153,21 +153,21 @@ func TestInitialDeltasCoalesceMembershipAndKeepRecordVersions(t *testing.T) {
 		}
 		drain()
 		p.mu.Lock()
-		instance := p.instances[p.rootID]
+		instance := p.graph.instances[p.graph.rootID]
 		order = append([]storage.EntityKey(nil), instance.order...)
 		members := make(map[storage.EntityKey]projectionMember, len(instance.members))
 		for key, record := range instance.members {
 			members[key] = *record
 		}
 		p.mu.Unlock()
-		if !slices.Equal(image.order[p.rootID], order) {
-			t.Fatalf("step %d membership differs: %v != %v", step, image.order[p.rootID], order)
+		if !slices.Equal(image.order[p.graph.rootID], order) {
+			t.Fatalf("step %d membership differs: %v != %v", step, image.order[p.graph.rootID], order)
 		}
-		if len(image.rows[p.rootID]) != len(members) {
+		if len(image.rows[p.graph.rootID]) != len(members) {
 			t.Fatalf("step %d row count differs", step)
 		}
 		for key, record := range members {
-			event := image.rows[p.rootID][key]
+			event := image.rows[p.graph.rootID][key]
 			if !reflect.DeepEqual(event.Record, record.record) || event.Version != record.version {
 				t.Fatalf("step %d row/version differs for %v", step, key)
 			}
@@ -201,7 +201,7 @@ func BenchmarkInitialAdmissionHotRow(b *testing.B) {
 	b.ResetTimer()
 	for n := 0; n < b.N; n++ {
 		point := uint64(n + 2)
-		if _, _, err := p.ApplyDelivery(q.DeliveryEnvelope{Delivery: q.DeliveryMetadata{Kind: q.DeliveryCommit, Checkpoint: &q.Position{SourceID: "test", Value: point}, Revision: point}, Effects: []q.SubscriptionEffect{{SubscriptionID: p.rootID, Batch: q.Batch{Changes: []q.Change{{Kind: q.Updated, Row: row}}}}}}); err != nil {
+		if _, _, err := p.ApplyDelivery(q.DeliveryEnvelope{Delivery: q.DeliveryMetadata{Kind: q.DeliveryCommit, Checkpoint: &q.Position{SourceID: "test", Value: point}, Revision: point}, Effects: []q.SubscriptionEffect{{SubscriptionID: p.graph.rootID, Batch: q.Batch{Changes: []q.Change{{Kind: q.Updated, Row: row}}}}}}); err != nil {
 			b.Fatal(err)
 		}
 		if _, err := p.TryAdmitInitial(func(batch ProjectionBatch) (bool, error) {

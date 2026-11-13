@@ -16,7 +16,7 @@ func outputTestProjection() (*Projection, storage.EntityKey) {
 		members: map[storage.EntityKey]*projectionMember{key: {record: outputTestRecord("snapshot")}},
 		order:   []storage.EntityKey{key}, revision: 1,
 	}
-	return &Projection{ctx: context.Background(), prefix: "projection", instances: map[string]*projectionInstance{instance.id: instance}, outputReleased: true}, key
+	return &Projection{ctx: context.Background(), prefix: "projection", outputReleased: true, graph: projectionGraph{instances: map[string]*projectionInstance{instance.id: instance}}}, key
 }
 
 func outputTestRecord(title string) storage.Record {
@@ -88,7 +88,7 @@ func TestOutputSchedulerPreservesArrivalOrderAndDropsExactLifetime(t *testing.T)
 	scheduler.Submit(other, "other", outputTestPublication(2))
 	scheduler.Drop(old)
 	ready := collectTestOutput(t, &scheduler, 2)
-	if len(ready) != 2 || ready[0].Owner != "same-id" || ready[1].Owner != "other" || old.instances["projection:child"].published {
+	if len(ready) != 2 || ready[0].Owner != "same-id" || ready[1].Owner != "other" || old.graph.instances["projection:child"].published {
 		t.Fatalf("closed lifetime affected output: %+v", ready)
 	}
 	if len(scheduler.pending) != 0 {
@@ -139,7 +139,7 @@ func TestOutputSchedulerImmediateAndStagedOutputUseSamePath(t *testing.T) {
 
 func TestOutputSchedulerCompletionFailureDoesNotDiscardOtherOwners(t *testing.T) {
 	failed, _ := outputTestProjection()
-	failed.instances["projection:child"].node.Children = []*ProjectionNode{{Name: "grandchild"}}
+	failed.graph.instances["projection:child"].node.Children = []*ProjectionNode{{Name: "grandchild"}}
 	// A zero-capacity expansion backlog makes completion fail without I/O.
 	failed.expansions = &expansionScheduler{queued: make(map[expansionKey]projectionExpansion)}
 	healthy, _ := outputTestProjection()
@@ -170,7 +170,7 @@ func TestOutputSchedulerConsumesEachImageBeforeCompletingTheNext(t *testing.T) {
 		// Completing an image marks its instances published. No subsequent
 		// image may have been captured while this one is being consumed.
 		for _, p := range projections[consumed+1:] {
-			if p.instances["projection:child"].published {
+			if p.graph.instances["projection:child"].published {
 				t.Fatal("later image was completed before current output was consumed")
 			}
 		}
@@ -199,7 +199,7 @@ func TestOutputSchedulerConsumerErrorLeavesUnvisitedImagesUnmaterialized(t *test
 	}); !errors.Is(err, failure) {
 		t.Fatalf("consumer error = %v", err)
 	}
-	if next.instances["projection:child"].published || len(scheduler.pending) != 1 || scheduler.pending[0].projection != next {
+	if next.graph.instances["projection:child"].published || len(scheduler.pending) != 1 || scheduler.pending[0].projection != next {
 		t.Fatal("consumer error completed or discarded unvisited work")
 	}
 	ready := collectTestOutput(t, &scheduler, 2)
@@ -211,9 +211,9 @@ func TestOutputSchedulerConsumerErrorLeavesUnvisitedImagesUnmaterialized(t *test
 func TestOutputSchedulerDropDuringConsumptionDoesNotCompleteRetiredImages(t *testing.T) {
 	retired, _ := outputTestProjection()
 	later, _ := outputTestProjection()
-	laterInstance := later.instances["projection:child"]
+	laterInstance := later.graph.instances["projection:child"]
 	laterInstance.id = "projection:later"
-	retired.instances[laterInstance.id] = laterInstance
+	retired.graph.instances[laterInstance.id] = laterInstance
 	healthy, _ := outputTestProjection()
 	future, _ := outputTestProjection()
 	var scheduler OutputScheduler[string]
