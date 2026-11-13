@@ -24,8 +24,8 @@ func (p *Projection) installInstanceLocked(instance *projectionInstance) error {
 	if err := p.graph.installInstanceLocked(instance, p.limits.MaxActiveInstances); err != nil {
 		return err
 	}
-	if p.initialChanges != nil {
-		p.initialChanges.open(instance.id)
+	if p.publication.initialChanges != nil {
+		p.publication.initialChanges.open(instance.id)
 	}
 	return nil
 }

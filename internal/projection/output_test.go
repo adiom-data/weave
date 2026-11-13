@@ -16,7 +16,7 @@ func outputTestProjection() (*Projection, storage.EntityKey) {
 		members: map[storage.EntityKey]*projectionMember{key: {record: outputTestRecord("snapshot")}},
 		order:   []storage.EntityKey{key}, revision: 1,
 	}
-	return &Projection{ctx: context.Background(), prefix: "projection", outputReleased: true, graph: projectionGraph{instances: map[string]*projectionInstance{instance.id: instance}}}, key
+	return &Projection{ctx: context.Background(), prefix: "projection", graph: projectionGraph{instances: map[string]*projectionInstance{instance.id: instance}}, publication: publicationLifecycle{outputReleased: true}}, key
 }
 
 func outputTestRecord(title string) storage.Record {
@@ -104,11 +104,11 @@ func TestOutputSchedulerPreservesArrivalOrderAndDropsExactLifetime(t *testing.T)
 
 func TestOutputSchedulerImmediateAndStagedOutputUseSamePath(t *testing.T) {
 	p, _ := outputTestProjection()
-	p.outputReleased = false
+	p.publication.outputReleased = false
 	p.ready = make(chan struct{})
 	close(p.ready)
 	metadata := querysubscription.DeliveryMetadata{Kind: querysubscription.DeliveryCommit, Revision: 7, Atomic: true}
-	p.pendingOutput = []ProjectionBatch{outputTestPublication(7), {Delivery: metadata}}
+	p.publication.pendingOutput = []ProjectionBatch{outputTestPublication(7), {Delivery: metadata}}
 	var scheduler OutputScheduler[string]
 	var consumed []ProjectionBatch
 	if err := scheduler.Release(p, "projection", func(output Output[string]) error {
@@ -126,7 +126,7 @@ func TestOutputSchedulerImmediateAndStagedOutputUseSamePath(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	if !p.outputReleased || len(consumed) != 2 || consumed[0].Delivery != metadata || len(consumed[1].Events) != 2 {
+	if !p.publication.outputReleased || len(consumed) != 2 || consumed[0].Delivery != metadata || len(consumed[1].Events) != 2 {
 		t.Fatalf("initial handoff lost order or transaction metadata: %+v", consumed)
 	}
 	// Once progress is sufficient, submission resolves immediately. A repeated

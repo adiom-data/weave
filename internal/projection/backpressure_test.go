@@ -39,7 +39,7 @@ func TestProjectionBoundsOutputBeforeRelease(t *testing.T) {
 	if err := apply(1); err != nil {
 		t.Fatal(err)
 	}
-	if len(p.pendingOutput) != 1 {
+	if len(p.publication.pendingOutput) != 1 {
 		t.Fatal("first output was not staged")
 	}
 	// Subtree publications share the same capacity as transaction batches.
@@ -50,7 +50,7 @@ func TestProjectionBoundsOutputBeforeRelease(t *testing.T) {
 	if err := p.publishSubtrees([]string{childID}, 1); !errors.Is(err, querysubscription.ErrBackpressure) {
 		t.Fatalf("publication overflow = %v", err)
 	}
-	if len(p.pendingOutput) != 1 {
+	if len(p.publication.pendingOutput) != 1 {
 		t.Fatal("publication exceeded the shared staging bound")
 	}
 	if err := apply(2); !errors.Is(err, querysubscription.ErrBackpressure) {
@@ -68,7 +68,7 @@ func TestProjectionBoundsOutputBeforeRelease(t *testing.T) {
 	if err := p.WaitReady(ctx); !errors.Is(err, querysubscription.ErrBackpressure) {
 		t.Fatalf("ready image hid the terminal failure: %v", err)
 	}
-	if len(p.pendingOutput) != 0 {
+	if len(p.publication.pendingOutput) != 0 {
 		t.Fatal("terminal projection retained staged output")
 	}
 }

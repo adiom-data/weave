@@ -492,7 +492,7 @@ func TestRetiringUnpublishedLoadsDoesNotAccumulateReplacements(t *testing.T) {
 		return storage.QuerySpec{Relation: storage.RelationName{Name: string(parent["target"].Data)}}, true, nil
 	}}
 	parent := &projectionInstance{id: "parent", node: &ProjectionNode{Name: "parent", Children: []*ProjectionNode{child}}}
-	p := &Projection{ctx: context.Background(), outputReleased: true, graph: projectionGraph{instances: make(map[string]*projectionInstance)}}
+	p := &Projection{ctx: context.Background(), graph: projectionGraph{instances: make(map[string]*projectionInstance)}, publication: publicationLifecycle{outputReleased: true}}
 	for range 1000 {
 		previous := newProjectionMember(memberTarget("old"), q.RecordVersion{}, nil, false)
 		previous.children = []string{"private"}

@@ -54,9 +54,9 @@ func (p *Projection) failInstance(instance *projectionInstance, cause error) (Pr
 	var children []string
 	removed := append([]storage.EntityKey(nil), instance.order...)
 	for key, member := range instance.members {
-		if p.initialChanges != nil {
-			p.initialChanges.row(instance, key)
-			p.initialChanges.move(instance, key)
+		if p.publication.initialChanges != nil {
+			p.publication.initialChanges.row(instance, key)
+			p.publication.initialChanges.move(instance, key)
 		}
 		children = append(children, member.children...)
 		for _, roots := range member.replacementRoots {
@@ -67,8 +67,8 @@ func (p *Projection) failInstance(instance *projectionInstance, cause error) (Pr
 	handle := p.graph.failInstanceLocked(instance, cause, time.Now(), p.limits.recoveryPolicy())
 	p.signalRecovery()
 	status := branchEvent(instance, cause)
-	if p.initialChanges != nil {
-		p.initialChanges.branches[instance.id] = status
+	if p.publication.initialChanges != nil {
+		p.publication.initialChanges.branches[instance.id] = status
 	}
 	p.mu.Unlock()
 	for _, id := range children {

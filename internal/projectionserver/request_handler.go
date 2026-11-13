@@ -216,12 +216,15 @@ func (session *connectionSession) handleRequest(message *reactivev1.ClientMessag
 		loadCtx, loadCancel := context.WithCancel(session.ctx)
 		pendingState := &pendingSharedSubscription{cancel: loadCancel, generation: generation, owns: func(id string) bool { return strings.HasPrefix(id, generation+":") }}
 		session.pending[externalID] = pendingState
+		position, revision := session.sourceProgress.current()
 		projection, beginErr := proj.BeginProjection(loadCtx, session.queries, root, proj.StartOptions{
 			Prefix: generation, QueueLimit: session.service.options.SubscriptionQueueLimit, Limits: proj.Limits(session.service.options.ProjectionLimits),
 			ExpansionLimiter:   session.service.expansionLimiter,
 			WaitForSync:        operation.SubscribeProjection.WaitForSync,
 			AtLeastFence:       operation.SubscribeProjection.AtLeastFence,
 			AllowPartialErrors: operation.SubscribeProjection.AllowPartialErrors,
+			ConsumedCheckpoint: position,
+			ConsumedRevision:   revision,
 		})
 		if beginErr != nil {
 			delete(session.pending, externalID)

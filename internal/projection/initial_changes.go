@@ -80,7 +80,7 @@ func (c *initialChanges) close(event ProjectionEvent) {
 // each returned delta even when authorization is not yet resolved.
 func (p *Projection) initialDelta(root string) (ProjectionBatch, error) {
 	p.mu.Lock()
-	c := p.initialChanges
+	c := p.publication.initialChanges
 	first := !c.started
 	if len(p.latestCheckpoints) > 1 {
 		p.mu.Unlock()
@@ -172,8 +172,7 @@ func (p *Projection) initialDelta(root string) (ProjectionBatch, error) {
 		}
 	}
 	p.mu.Lock()
-	p.initialChanges = newInitialChanges()
-	p.initialChanges.started = true
+	p.publication.advanceJournalLocked()
 	p.mu.Unlock()
 	return batch, nil
 }

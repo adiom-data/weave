@@ -178,29 +178,21 @@ type Projection struct {
 	prefix  string
 	limits  Limits
 
-	mu        sync.Mutex
-	processMu sync.Mutex
-	receiveMu sync.Mutex
-	graph     projectionGraph
+	mu          sync.Mutex
+	processMu   sync.Mutex
+	receiveMu   sync.Mutex
+	graph       projectionGraph
+	publication publicationLifecycle
 	// latestCheckpoints follows feed observation order per source. It advances
 	// authorization views for dynamic publications without falsifying row
 	// revisions or replacing row data.
 	latestCheckpoints map[storage.SourceID]*querysubscription.Position
 	latestRevision    uint64
-	initialChanges    *initialChanges
 	progressChanged   chan struct{}
 	ready             chan struct{}
 	readyOnce         sync.Once
-	readyEvents       []ProjectionEvent
-	readyPositions    map[storage.SourceID]*querysubscription.Position
-	initialTaken      bool
-	readyErr          error
 	terminalErr       error
 	releaseMu         sync.Mutex
-	outputReleased    bool
-	awaitingAdmission bool
-	pendingOutput     []ProjectionBatch
-	initializing      bool
 	expansions        *expansionScheduler
 	expansionLimiter  *ExpansionLimiter
 	partialErrors     bool
@@ -265,15 +257,12 @@ func BeginProjection(ctx context.Context, queries querysubscription.Feed, root *
 		limits:            options.Limits,
 		latestCheckpoints: make(map[storage.SourceID]*querysubscription.Position),
 		progressChanged:   make(chan struct{}),
-		ready:             make(chan struct{}), initializing: true,
-		awaitingAdmission: options.CurrentImageAdmission,
-		initialTaken:      options.CurrentImageAdmission,
+		ready:             make(chan struct{}),
 		expansionLimiter:  options.ExpansionLimiter,
-		partialErrors:     options.AllowPartialErrors, recoveryWake: make(chan struct{}, 1),
-		graph: newProjectionGraph(),
-	}
-	if options.CurrentImageAdmission {
-		p.initialChanges = newInitialChanges()
+		partialErrors:     options.AllowPartialErrors,
+		recoveryWake:      make(chan struct{}, 1),
+		graph:             newProjectionGraph(),
+		publication:       newPublicationLifecycle(options.CurrentImageAdmission),
 	}
 	p.rememberCheckpointLocked(options.ConsumedCheckpoint)
 	p.latestRevision = options.ConsumedRevision
@@ -288,328 +277,6 @@ func BeginProjection(ctx context.Context, queries querysubscription.Feed, root *
 		go p.recoverBranches()
 	}
 	return p, nil
-}
-
-func (p *Projection) initialize(root *ProjectionNode, synchronize bool, fence string) {
-	if fence != "" {
-		if _, err := p.queries.WaitForFence(p.ctx, fence); err != nil {
-			p.finishReady(nil, nil, err)
-			p.shutdown(err)
-			return
-		}
-	}
-	spec, matchable, err := root.BuildQuery(nil)
-	var opened *projectionInstance
-	if err == nil {
-		opened, err = p.openNode(root, boundQuery{spec: spec, matchable: matchable}, []string{root.Name}, nil)
-	}
-	if err != nil && p.partialErrors && p.ctx.Err() == nil && !errors.Is(err, querysubscription.ErrBackpressure) {
-		if failed := p.failedNode(root, spec, []string{root.Name}, nil, err); failed != nil {
-			opened, err = failed, nil
-		}
-	}
-	if err != nil {
-		p.finishReady(nil, nil, err)
-		p.shutdown(err)
-		return
-	}
-	rootID := opened.id
-	p.mu.Lock()
-	p.graph.rootID = rootID
-	p.mu.Unlock()
-	if synchronize {
-		initial, positions, initialErr := p.synchronizedInitialImage(p.ctx)
-		p.finishReady(initial, positions, initialErr)
-		if initialErr != nil {
-			p.shutdown(initialErr)
-		}
-		return
-	}
-	for {
-		if err := p.expansions.waitIdle(p.ctx); err != nil {
-			p.finishReady(nil, nil, err)
-			p.shutdown(err)
-			return
-		}
-		p.processMu.Lock()
-		// ApplyDelivery schedules expansion work before releasing processMu. If
-		// work appeared after waitIdle observed an empty scheduler, retry rather
-		// than declaring the projection initialized across that handoff.
-		if !p.expansions.isIdle() {
-			p.processMu.Unlock()
-			continue
-		}
-		var initial []ProjectionEvent
-		var initialErr error
-		// Admission owns the first capture. Readiness is only a completion
-		// signal in this mode, not an image to copy and immediately discard.
-		if p.initialChanges == nil {
-			initial, initialErr = p.currentEvents(rootID)
-		}
-		if initialErr == nil {
-			p.mu.Lock()
-			for _, instance := range p.graph.instances {
-				instance.published = true
-			}
-			p.initializing = false
-			p.mu.Unlock()
-		}
-		p.processMu.Unlock()
-		p.finishReady(initial, nil, initialErr)
-		if initialErr != nil {
-			p.shutdown(initialErr)
-		}
-		return
-	}
-}
-
-func (p *Projection) finishReady(events []ProjectionEvent, positions map[storage.SourceID]*querysubscription.Position, err error) {
-	p.readyOnce.Do(func() {
-		p.mu.Lock()
-		// Capture already owns its records and metadata. Retain that ownership
-		// only until TakeInitial transfers it to the initial-image consumer.
-		if p.terminalErr == nil && !p.initialTaken {
-			p.readyEvents = events
-			p.readyPositions = positions
-		}
-		p.readyErr = err
-		p.mu.Unlock()
-		close(p.ready)
-	})
-}
-
-// WaitReady waits for load completion without taking an image. Admission uses
-// this signal before TryAdmitInitial; ordinary consumers use TakeInitial.
-func (p *Projection) WaitReady(ctx context.Context) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	select {
-	case <-p.ready:
-		p.mu.Lock()
-		err := p.readyErr
-		if p.terminalErr != nil {
-			err = p.terminalErr
-		}
-		p.mu.Unlock()
-		return err
-	case <-ctx.Done():
-		return ctx.Err()
-	}
-}
-
-// TakeInitial transfers the reconciled initial image exactly once. The caller
-// owns its mutable payloads and must install it before OutputScheduler.Release.
-// Positions describe the same captured cut when WaitForSync was requested;
-// an unsynchronized image does not advertise a common cut.
-// CurrentImageAdmission consumers obtain their image through TryAdmitInitial.
-func (p *Projection) TakeInitial(ctx context.Context) ([]ProjectionEvent, map[storage.SourceID]*querysubscription.Position, error) {
-	if err := p.WaitReady(ctx); err != nil {
-		return nil, nil, err
-	}
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if p.terminalErr != nil {
-		return nil, nil, p.terminalErr
-	}
-	if p.awaitingAdmission || p.initialTaken {
-		return nil, nil, errors.New("projection initial image is unavailable or already taken")
-	}
-	p.initialTaken = true
-	events, positions := p.readyEvents, p.readyPositions
-	p.readyEvents = nil
-	p.readyPositions = nil
-	return events, positions, nil
-}
-
-// synchronizedInitialImage waits until expansion is idle and the ordered feed
-// covers every reachable snapshot. Both one-shot and reactive consumers take
-// this same initial image and its cut; there is no later recapture path.
-// Capturing the image and enabling live delivery share processMu.
-func (p *Projection) synchronizedInitialImage(ctx context.Context) ([]ProjectionEvent, map[storage.SourceID]*querysubscription.Position, error) {
-	requested := make(map[storage.SourceID]*querysubscription.Position)
-	for {
-		if err := p.expansions.waitIdle(ctx); err != nil {
-			return nil, nil, err
-		}
-		p.processMu.Lock()
-		if !p.expansions.isIdle() {
-			p.processMu.Unlock()
-			continue
-		}
-		p.mu.Lock()
-		if err := p.ctx.Err(); err != nil {
-			p.mu.Unlock()
-			p.processMu.Unlock()
-			return nil, nil, err
-		}
-		targets := make(map[storage.SourceID]*querysubscription.Position)
-		checkpoints := make(map[storage.SourceID]*querysubscription.Position)
-		snapshotCount := 0
-		for _, instance := range p.graph.instances {
-			position, err := instance.snapshotPosition()
-			if err != nil {
-				p.mu.Unlock()
-				p.processMu.Unlock()
-				return nil, nil, err
-			}
-			if position == nil {
-				continue
-			}
-			snapshotCount++
-			if checkpoint := instance.checkpoint; checkpoint != nil && (checkpoints[checkpoint.SourceID] == nil || checkpoints[checkpoint.SourceID].Value < checkpoint.Value) {
-				checkpoints[checkpoint.SourceID] = clonePosition(checkpoint)
-			}
-			if targets[position.SourceID] == nil || targets[position.SourceID].Value < position.Value {
-				targets[position.SourceID] = clonePosition(position)
-			}
-		}
-		// Local empty branches add no independent snapshot to synchronize.
-		covered := snapshotCount <= 1
-		if !covered {
-			covered = true
-			for source, target := range targets {
-				if current := p.latestCheckpoints[source]; current == nil || current.Value < target.Value {
-					covered = false
-					break
-				}
-			}
-		}
-		changed := p.progressChanged
-		rootID := p.graph.rootID
-		cut := make(map[storage.SourceID]*querysubscription.Position, len(targets))
-		for source, target := range targets {
-			position := checkpoints[source]
-			if current := p.latestCheckpoints[source]; current != nil && (position == nil || current.Value > position.Value) {
-				position = current
-			}
-			// A single table's fence can establish its own snapshot without
-			// naming a committed feed checkpoint. Keep that distinction for
-			// snapshot authorization rather than fabricating a checkpoint.
-			if position != nil && position.Value >= target.Value {
-				cut[source] = clonePosition(position)
-			}
-		}
-		progressTargets := make(map[storage.SourceID]*querysubscription.Position)
-		if !covered {
-			for source, target := range targets {
-				current := p.latestCheckpoints[source]
-				previous := requested[source]
-				if (current == nil || current.Value < target.Value) && (previous == nil || previous.Value < target.Value) {
-					progressTargets[source] = clonePosition(target)
-				}
-			}
-		}
-		p.mu.Unlock()
-		if !covered {
-			p.processMu.Unlock()
-			if len(progressTargets) > 0 {
-				if err := p.queries.RequestProgress(ctx); err != nil {
-					return nil, nil, fmt.Errorf("request projection progress: %w", err)
-				}
-				for source, target := range progressTargets {
-					requested[source] = target
-				}
-				continue
-			}
-			select {
-			case <-changed:
-				continue
-			case <-p.ctx.Done():
-				return nil, nil, p.ctx.Err()
-			case <-ctx.Done():
-				return nil, nil, ctx.Err()
-			}
-		}
-		var events []ProjectionEvent
-		var err error
-		if p.initialChanges == nil {
-			events, err = p.currentEvents(rootID)
-		}
-		if err == nil {
-			p.mu.Lock()
-			for _, instance := range p.graph.instances {
-				instance.published = true
-			}
-			p.initializing = false
-			p.mu.Unlock()
-		}
-		p.processMu.Unlock()
-		if err != nil {
-			return nil, nil, err
-		}
-		// A synchronized image incorporates every source through its observed
-		// cut. Stamp instance events with that common source position so visibility
-		// is evaluated against the same cut rather than an older local snapshot.
-		for index := range events {
-			source := storage.SourceID("")
-			if events[index].Checkpoint != nil {
-				source = events[index].Checkpoint.SourceID
-			} else if events[index].Fence != nil {
-				source = events[index].Fence.SourceID
-			}
-			if position := cut[source]; position != nil {
-				events[index].Checkpoint = clonePosition(position)
-			}
-		}
-		return events, cut, nil
-	}
-}
-
-// releaseOutput synchronously drains staged batches after the caller has
-// installed the initial image. The same serialized consumer that calls
-// ApplyEvent must process each batch in consume before processing another feed
-// event. New output stays staged until this drain is complete. consume runs
-// outside projection locks and may complete subtree publications.
-func (p *Projection) releaseOutput(consume func(ProjectionBatch) error) error {
-	defer p.signalRecovery()
-	if consume == nil {
-		return errors.New("projection output consumer is required")
-	}
-	select {
-	case <-p.ready:
-	default:
-		return errors.New("projection is not ready")
-	}
-	p.releaseMu.Lock()
-	defer p.releaseMu.Unlock()
-	for {
-		p.processMu.Lock()
-		p.mu.Lock()
-		err := p.readyErr
-		if p.terminalErr != nil {
-			err = p.terminalErr
-		}
-		if err != nil || p.outputReleased {
-			p.mu.Unlock()
-			p.processMu.Unlock()
-			return err
-		}
-		if p.awaitingAdmission {
-			p.mu.Unlock()
-			p.processMu.Unlock()
-			return errors.New("projection initial image has not been admitted")
-		}
-		pending := p.pendingOutput
-		p.pendingOutput = nil
-		if len(pending) == 0 {
-			p.outputReleased = true
-		}
-		p.mu.Unlock()
-		p.processMu.Unlock()
-		if len(pending) == 0 {
-			return nil
-		}
-		for _, batch := range pending {
-			if err := consume(batch); err != nil {
-				p.shutdown(err)
-				return err
-			}
-			if err := p.Err(); err != nil {
-				return err
-			}
-		}
-	}
 }
 
 func validateProjection(node *ProjectionNode, depth int, count *int, limits Limits) error {
@@ -649,17 +316,7 @@ func (p *Projection) stageOutput(batch ProjectionBatch) error {
 	if p.terminalErr != nil {
 		return p.terminalErr
 	}
-	if p.awaitingAdmission {
-		// The admission owner will capture current rows and topology under
-		// processMu. These batches are already incorporated there; source
-		// transaction messages are owned by the connection independently.
-		return nil
-	}
-	if len(p.pendingOutput) >= p.outputLimit {
-		return querysubscription.ErrBackpressure
-	}
-	p.pendingOutput = append(p.pendingOutput, batch)
-	return nil
+	return p.publication.stageLocked(batch, p.outputLimit)
 }
 
 // Next returns asynchronous subtree publications and terminal errors. Source
@@ -676,9 +333,7 @@ func (p *Projection) shutdown(reason error) {
 	p.closeOnce.Do(func() {
 		p.mu.Lock()
 		p.terminalErr = reason
-		p.readyEvents = nil
-		p.readyPositions = nil
-		p.pendingOutput = nil
+		p.publication.discardLocked()
 		p.mu.Unlock()
 		p.finishReady(nil, nil, reason)
 		p.queue.Close(reason)
@@ -882,8 +537,8 @@ func (p *Projection) ApplyEvent(event querysubscription.Event) (ProjectionBatch,
 				return ProjectionBatch{}, false, nil
 			}
 			p.mu.Lock()
-			publish := !p.initializing && !p.awaitingAdmission && instance.published
-			released := p.outputReleased
+			publish := !p.publication.initializing && !p.publication.awaitingAdmission && instance.published
+			released := p.publication.outputReleased
 			p.mu.Unlock()
 			if publish && !released {
 				if err := p.stageOutput(batch); err != nil {
@@ -949,8 +604,8 @@ func (p *Projection) ApplyDelivery(envelope querysubscription.DeliveryEnvelope) 
 		}
 		owned = append(owned, ownedEffect{SubscriptionEffect: effect, depth: depth})
 	}
-	initializing := p.initializing
-	outputReleased := p.outputReleased
+	initializing := p.publication.initializing
+	outputReleased := p.publication.outputReleased
 	p.mu.Unlock()
 	// After the initial cut, an otherwise empty commit can still revoke or
 	// grant visibility. Retain its clock until the consumer installs the image.
@@ -1143,7 +798,7 @@ func retiredProjectionBatch(instanceID string, metadata querysubscription.Delive
 func (p *Projection) processBatch(instance *projectionInstance, metadata querysubscription.DeliveryMetadata, batch querysubscription.Batch) (ProjectionBatch, []projectionExpansion, error) {
 	projectionBatch := ProjectionBatch{Delivery: cloneDeliveryMetadata(metadata)}
 	p.mu.Lock()
-	if c := p.initialChanges; c != nil {
+	if c := p.publication.initialChanges; c != nil {
 		for _, change := range batch.Changes {
 			c.row(instance, change.Key)
 		}
@@ -1210,7 +865,7 @@ func (p *Projection) processBatch(instance *projectionInstance, metadata querysu
 		}
 		projectionBatch.Events = append(projectionBatch.Events, projectionEvent)
 		p.mu.Lock()
-		mayExpand := p.initializing || p.awaitingAdmission || instance.published
+		mayExpand := p.publication.initializing || p.publication.awaitingAdmission || instance.published
 		p.mu.Unlock()
 		if event.Kind != querysubscription.Removed && !event.Pending && len(instance.node.Children) > 0 && mayExpand && !preserved {
 			revision := uint64(0)
@@ -1275,7 +930,7 @@ func (p *Projection) startExpansions(expansions []projectionExpansion) error {
 
 func (p *Projection) expandChildren(expansion projectionExpansion) {
 	p.mu.Lock()
-	materializing := p.initializing || p.awaitingAdmission
+	materializing := p.publication.initializing || p.publication.awaitingAdmission
 	p.mu.Unlock()
 	ids, err := p.loadChildren(expansion)
 	if err != nil {
@@ -1319,7 +974,7 @@ func (p *Projection) publishSubtrees(rootIDs []string, causalRevision uint64) er
 				InstanceIDs: append([]string(nil), rootIDs...), CausalRevision: causalRevision,
 			}}
 			p.mu.Lock()
-			outputReleased := p.outputReleased
+			outputReleased := p.publication.outputReleased
 			p.mu.Unlock()
 			var err error
 			if outputReleased {
@@ -1411,7 +1066,7 @@ func clonePosition(position *querysubscription.Position) *querysubscription.Posi
 // CDC queue. This preserves its order relative to changes already in flight.
 func (p *Projection) QueueWindowUpdate(ctx context.Context, instanceID string, changes []querysubscription.BoundaryChange, token string) error {
 	p.mu.Lock()
-	if p.awaitingAdmission {
+	if p.publication.awaitingAdmission {
 		p.mu.Unlock()
 		return errors.New("projection initial image has not been admitted")
 	}
@@ -1451,8 +1106,8 @@ func (p *Projection) closeInstanceEvents(id string) []ProjectionEvent {
 		p.mu.Unlock()
 		return nil
 	}
-	if p.initialChanges != nil {
-		p.initialChanges.close(ProjectionEvent{Type: ProjectionInstanceClosed, InstanceID: id, Path: append([]string(nil), instance.path...), Node: instance.node.Name, EntityNode: instance.node.Entity, ParentInstanceID: instance.parentID, ParentEntityKey: instance.parentKey})
+	if p.publication.initialChanges != nil {
+		p.publication.initialChanges.close(ProjectionEvent{Type: ProjectionInstanceClosed, InstanceID: id, Path: append([]string(nil), instance.path...), Node: instance.node.Name, EntityNode: instance.node.Entity, ParentInstanceID: instance.parentID, ParentEntityKey: instance.parentKey})
 	}
 	retirement := p.graph.retireLocked(id)
 	handle, children := retirement.subscription, retirement.children

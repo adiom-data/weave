@@ -21,6 +21,7 @@ type policyAdmissions struct {
 	service            *server
 	stream             Stream
 	queries            q.Feed
+	sourceProgress     *connectionProgress
 	prepared           accesscontrol.Prepared
 	subscriptions      map[string]*sharedSubscription
 	projections        map[string]*sharedProjection
@@ -195,7 +196,7 @@ func (a *policyAdmissions) projection(external, request, prefix string, root *pr
 	owns := func(id string) bool { return strings.HasPrefix(id, generation+":") }
 	loading := &pendingSharedSubscription{context: ctx, cancel: cancel, generation: generation, owns: owns, policyOwns: owns, requestID: request}
 	a.pending[external] = loading
-	position, revision := a.service.relationAccess.progress.current()
+	position, revision := a.sourceProgress.current()
 	p, err := proj.BeginProjection(ctx, a.queries, root, proj.StartOptions{Prefix: generation, QueueLimit: a.service.options.SubscriptionQueueLimit, Limits: proj.Limits(a.service.options.ProjectionLimits), ExpansionLimiter: a.service.expansionLimiter, WaitForSync: waitForSync, AtLeastFence: fence, AllowPartialErrors: partial, CurrentImageAdmission: true, ConsumedCheckpoint: position, ConsumedRevision: revision})
 	if err != nil {
 		delete(a.pending, external)

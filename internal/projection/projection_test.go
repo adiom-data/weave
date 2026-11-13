@@ -325,7 +325,7 @@ func TestUnpublishedProjectionInstancePublishesCurrentState(t *testing.T) {
 	}
 	p := &Projection{
 		ctx: context.Background(), prefix: "projection",
-		outputReleased: true, graph: projectionGraph{instances: map[string]*projectionInstance{instance.id: instance}},
+		graph: projectionGraph{instances: map[string]*projectionInstance{instance.id: instance}}, publication: publicationLifecycle{outputReleased: true},
 	}
 
 	batch, outgoing, err := p.ApplyDelivery(querysubscription.DeliveryEnvelope{
@@ -387,7 +387,7 @@ func TestProjectionWindowTransitionIsPreserved(t *testing.T) {
 	}
 	p := &Projection{
 		ctx: context.Background(), prefix: "projection",
-		outputReleased: true, graph: projectionGraph{instances: map[string]*projectionInstance{instance.id: instance}},
+		graph: projectionGraph{instances: map[string]*projectionInstance{instance.id: instance}}, publication: publicationLifecycle{outputReleased: true},
 	}
 	batch, outgoing, err := p.ApplyDelivery(querysubscription.DeliveryEnvelope{
 		Delivery: querysubscription.DeliveryMetadata{Kind: querysubscription.DeliveryWindow, Revision: 1},

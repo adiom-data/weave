@@ -34,6 +34,7 @@ type connectionSession struct {
 	projections                  map[string]*sharedProjection
 	pending                      map[string]*pendingSharedSubscription
 	requests                     *requestLedger
+	sourceProgress               connectionProgress
 	admissions                   *policyAdmissions
 	publisher                    *connectionPublisher
 	factActivity, policyActivity <-chan struct{}
@@ -100,7 +101,7 @@ func (session *connectionSession) initialize() error {
 	session.requests = newRequestLedger(s.options.MaxRequestsPerConnection)
 	session.outbound = make(chan outboundMessage, s.options.OutboundQueueLimit)
 	session.publisher = &connectionPublisher{connection: session, model: newConnectionModel(), outputs: &proj.OutputScheduler[*sharedProjection]{}}
-	session.admissions = &policyAdmissions{ctx: ctx, service: s, stream: stream, queries: queries, prepared: prepared, subscriptions: session.subscriptions, projections: session.projections, pending: session.pending, loaders: &session.loaders, model: session.publisher.model, outbound: session.outbound, releaseProjection: session.publisher.releaseProjection, cleanupFailedScope: session.publisher.cleanupFailedScope}
+	session.admissions = &policyAdmissions{ctx: ctx, service: s, stream: stream, queries: queries, prepared: prepared, subscriptions: session.subscriptions, projections: session.projections, pending: session.pending, loaders: &session.loaders, model: session.publisher.model, outbound: session.outbound, releaseProjection: session.publisher.releaseProjection, cleanupFailedScope: session.publisher.cleanupFailedScope, sourceProgress: &session.sourceProgress}
 	if s.relationAccess != nil {
 		session.publisher.policy = &policyPublications{ctx: ctx, service: s, prepared: prepared, model: session.publisher.model, subscriptions: session.subscriptions, projections: session.projections, stream: stream, outbound: session.outbound, loaders: &session.loaders, closeDirect: session.closeDirect, closeProjection: session.closeProjection}
 		session.factActivity = s.relationAccess.session.FactChanges()

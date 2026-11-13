@@ -15,6 +15,7 @@ func (session *connectionSession) handleOutbound(raw outboundMessage) error {
 		if item.err != nil {
 			return item.err
 		}
+		session.sourceProgress.observe(item.event)
 		if session.service.relationAccess != nil {
 			session.publisher.policy.observe(item.event)
 			affected, err := session.service.relationAccess.observe(item.event)

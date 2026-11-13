@@ -68,3 +68,33 @@ func (g *projectionGraph) missingPublishedExpansionsLocked(rootIDs []string) []p
 	}
 	return missing
 }
+
+// markAllPublishedLocked records the initial image's topology cut. Requires
+// Projection.mu and processMu; publication delivery remains runtime-owned.
+func (g *projectionGraph) markAllPublishedLocked() {
+	for _, instance := range g.instances {
+		instance.published = true
+	}
+}
+
+// acceptCurrentLocked consumes predecessor ownership after admission accepts
+// the complete current topology. The runtime retires returned IDs outside mu.
+func (g *projectionGraph) acceptCurrentLocked() []string {
+	var retired []string
+	for _, instance := range g.instances {
+		instance.published = true
+		if instance.replaces != "" {
+			retired = append(retired, instance.replaces)
+			instance.replaces = ""
+		}
+		// Admission/reconciliation consumes the complete current topology;
+		// queued replacement tokens must not detach its predecessors again.
+		for _, member := range instance.members {
+			for _, roots := range member.replacementRoots {
+				retired = append(retired, roots...)
+			}
+			member.replacementRoots = nil
+		}
+	}
+	return retired
+}

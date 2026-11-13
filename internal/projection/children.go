@@ -90,7 +90,7 @@ func (p *Projection) reconcileChildren(parent *projectionInstance, previous, nex
 		}
 	}
 	p.mu.Lock()
-	public := p.outputReleased && !p.awaitingAdmission
+	public := p.publication.outputReleased && !p.publication.awaitingAdmission
 	obsolete := p.graph.reconcileChildrenLocked(previous, next, unchanged, all, public)
 	p.mu.Unlock()
 	var closed []ProjectionEvent

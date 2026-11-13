@@ -25,7 +25,7 @@ func TestAdmissionReadinessDoesNotCaptureAnUnusedImage(t *testing.T) {
 			}
 			defer p.Close()
 			err = p.WaitReady(ctx)
-			if err != nil || len(p.readyEvents) != 0 {
+			if err != nil || len(p.publication.readyEvents) != 0 {
 				t.Fatalf("admission readiness retained a discarded image: err=%v", err)
 			}
 			if _, _, err := p.TakeInitial(ctx); err == nil {
@@ -87,7 +87,7 @@ func TestCurrentImageAdmissionCompactsBeforeCutAndPreservesAfterCut(t *testing.T
 		if err := p.publishSubtrees([]string{p.graph.rootID}, point); err != nil {
 			t.Fatal(err)
 		}
-		if len(p.pendingOutput) != 0 {
+		if len(p.publication.pendingOutput) != 0 {
 			t.Fatal("retained superseded pre-cut output")
 		}
 	}
@@ -97,7 +97,7 @@ func TestCurrentImageAdmissionCompactsBeforeCutAndPreservesAfterCut(t *testing.T
 		}
 		return false, nil
 	})
-	if err != nil || wait.Accepted || !p.awaitingAdmission {
+	if err != nil || wait.Accepted || !p.publication.awaitingAdmission {
 		t.Fatalf("rejected cut changed publication state: %+v %v", wait, err)
 	}
 	wait, err = p.TryAdmitInitial(func(batch ProjectionBatch) (bool, error) {
@@ -207,7 +207,7 @@ func TestCurrentImageAdmissionKeepsUnpublishedDescendantsCurrent(t *testing.T) {
 	if err != nil || !wait.Accepted {
 		t.Fatalf("admission failed: %+v %v", wait, err)
 	}
-	if len(p.pendingOutput) != 0 {
+	if len(p.publication.pendingOutput) != 0 {
 		t.Fatal("retained pre-admission publication tokens")
 	}
 }

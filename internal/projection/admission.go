@@ -69,35 +69,15 @@ func (p *Projection) tryCurrentImage(initial bool, accept func(string) (bool, er
 		p.mu.Unlock()
 		return AdmissionWait{}, err
 	}
-	if initial && p.outputReleased {
+	if err := p.publication.validateAdmissionLocked(initial); err != nil {
 		p.mu.Unlock()
-		return AdmissionWait{}, errors.New("projection initial image has already been released")
-	}
-	if initial && p.initialChanges == nil {
-		p.mu.Unlock()
-		return AdmissionWait{}, errors.New("projection requires current-image admission")
+		return AdmissionWait{}, err
 	}
 	root := p.graph.rootID
-	var progress []*q.Position
-	for _, instance := range p.graph.instances {
-		target, err := instance.snapshotPosition()
-		if err != nil {
-			p.mu.Unlock()
-			return AdmissionWait{}, err
-		}
-		if target == nil {
-			continue
-		}
-		current := p.latestCheckpoints[target.Source()]
-		if current == nil || current.Order() < target.Order() {
-			// The completed checkpoint bounds what a report can promise. A
-			// newer fence remains a readiness requirement, not invented progress.
-			report := instance.checkpoint
-			if report == nil {
-				report = target // Best effort for fence-only query clients.
-			}
-			progress = append(progress, clonePosition(report))
-		}
+	progress, err := pendingAdmissionProgressLocked(&p.graph, p.latestCheckpoints)
+	if err != nil {
+		p.mu.Unlock()
+		return AdmissionWait{}, err
 	}
 	changed := p.progressChanged
 	p.mu.Unlock()
@@ -117,28 +97,9 @@ func (p *Projection) tryCurrentImage(initial bool, accept func(string) (bool, er
 		return AdmissionWait{}, err
 	}
 	p.mu.Lock()
-	var retired []string
-	for _, instance := range p.graph.instances {
-		instance.published = true
-		if instance.replaces != "" {
-			retired = append(retired, instance.replaces)
-			instance.replaces = ""
-		}
-		// Admission/reconciliation consumes the complete current topology;
-		// queued replacement tokens must not detach its predecessors again.
-		for _, member := range instance.members {
-			for _, roots := range member.replacementRoots {
-				retired = append(retired, roots...)
-			}
-			member.replacementRoots = nil
-		}
-	}
+	retired := p.graph.acceptCurrentLocked()
 	if initial {
-		p.initialChanges = nil
-		p.awaitingAdmission = false
-		p.pendingOutput = nil
-		p.readyEvents = nil
-		p.readyPositions = nil
+		p.publication.acceptInitialLocked()
 	}
 	p.mu.Unlock()
 	for _, id := range retired {

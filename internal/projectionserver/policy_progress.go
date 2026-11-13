@@ -108,14 +108,3 @@ func (p *policyProgress) position(source storage.SourceID) (*q.Position, uint64)
 	}
 	return &q.Position{SourceID: source, Value: state.observed}, state.revision
 }
-
-func (p *policyProgress) current() (*q.Position, uint64) {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	for source, state := range p.sources { // Each feed has one source.
-		if state.hasObserved {
-			return &q.Position{SourceID: source, Value: state.observed}, state.revision
-		}
-	}
-	return nil, 0
-}

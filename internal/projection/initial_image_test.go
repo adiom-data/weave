@@ -27,11 +27,11 @@ func TestInitialImageTransfersOwnershipOnce(t *testing.T) {
 	if err := p.WaitReady(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	if len(p.readyEvents) != 2 || &p.readyEvents[0] != &image[0] {
+	if len(p.publication.readyEvents) != 2 || &p.publication.readyEvents[0] != &image[0] {
 		t.Fatal("readiness copied or consumed the owned capture")
 	}
 	taken, cut, err := p.TakeInitial(context.Background())
-	if err != nil || len(taken) != 2 || &taken[0] != &image[0] || p.readyEvents != nil || p.readyPositions != nil || cut["test"] != positions["test"] {
+	if err != nil || len(taken) != 2 || &taken[0] != &image[0] || p.publication.readyEvents != nil || p.publication.readyPositions != nil || cut["test"] != positions["test"] {
 		t.Fatalf("initial image was not transferred: %v", err)
 	}
 	taken[1].Record["object"].Object["name"].Data[0] = 'X'
@@ -80,8 +80,8 @@ func TestConcurrentInitialConsumersHaveOneOwner(t *testing.T) {
 			owners++
 		}
 	}
-	if owners != 1 || p.readyEvents != nil {
-		t.Fatalf("owners=%d, retained=%d", owners, len(p.readyEvents))
+	if owners != 1 || p.publication.readyEvents != nil {
+		t.Fatalf("owners=%d, retained=%d", owners, len(p.publication.readyEvents))
 	}
 }
 
@@ -96,11 +96,11 @@ func TestClosingProjectionReleasesUntakenImage(t *testing.T) {
 	if err := p.WaitReady(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if len(p.readyEvents) == 0 {
+	if len(p.publication.readyEvents) == 0 {
 		t.Fatal("missing initial image")
 	}
 	p.Close()
-	if p.readyEvents != nil || p.readyPositions != nil {
+	if p.publication.readyEvents != nil || p.publication.readyPositions != nil {
 		t.Fatal("closed projection retained its initial image")
 	}
 	if _, _, err := p.TakeInitial(ctx); !errors.Is(err, q.ErrClosed) {
